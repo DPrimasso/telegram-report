@@ -1,0 +1,46 @@
+import os
+from dataclasses import dataclass
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _require(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"Variabile d'ambiente mancante: {name}")
+    return value
+
+
+@dataclass(frozen=True)
+class Config:
+    api_id: int
+    api_hash: str
+    session: str
+    group_id: int
+    openai_api_key: str
+    openai_model: str
+    report_destination: str
+    report_topic_id: int | None
+    timezone: str
+
+
+def load_config() -> Config:
+    # os.environ.get(name, default) non basta: in GitHub Actions una env var
+    # referenziata da una "vars" non impostata arriva come stringa vuota
+    # (variabile presente ma vuota), non assente. Usiamo "or" per ricadere
+    # sul default anche in quel caso.
+    destination = os.environ.get("REPORT_DESTINATION") or "me"
+    topic_id = os.environ.get("REPORT_TOPIC_ID") or None
+    return Config(
+        api_id=int(_require("TELEGRAM_API_ID")),
+        api_hash=_require("TELEGRAM_API_HASH"),
+        session=_require("TELEGRAM_SESSION"),
+        group_id=int(_require("TELEGRAM_GROUP_ID")),
+        openai_api_key=_require("OPENAI_API_KEY"),
+        openai_model=os.environ.get("OPENAI_MODEL") or "gpt-4o-mini",
+        report_destination=destination,
+        report_topic_id=int(topic_id) if topic_id else None,
+        timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",
+    )
