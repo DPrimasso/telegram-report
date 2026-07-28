@@ -4,7 +4,7 @@ on:
   schedule:
     # 20:00 UTC = 21:00/22:00 ora italiana a seconda dell'ora legale.
     # Adatta l'orario alle tue esigenze.
-    - cron: "15 20 * * *"
+    - cron: "00 05 * * *"
   workflow_dispatch:
     inputs:
       date:
