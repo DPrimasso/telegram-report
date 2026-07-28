@@ -2,8 +2,12 @@
 
 Automazione che, giornalmente (o su richiesta manuale), legge tutti i
 messaggi scambiati in un gruppo Telegram organizzato a topic e genera un
-riepilogo ("gazzettino"): un riassunto per ciascun topic e un riassunto
-generale dei temi più discussi nella giornata, senza distinzione di topic.
+riepilogo. Due formati disponibili:
+- **`newspaper`** (default): una vera prima pagina di giornale, generata
+  come immagine — titolo di apertura, occhiello e articolo per il tema più
+  rilevante della giornata, più un articolo breve per ciascun topic attivo.
+- **`text`**: messaggio testuale con punti salienti trasversali + dettaglio
+  a elenco puntato per ciascun topic.
 
 ## Come funziona
 
@@ -12,10 +16,15 @@ generale dei temi più discussi nella giornata, senza distinzione di topic.
   perché la Bot API non permette di leggere la cronologia di una chat: serve
   un account utente per poter recuperare retroattivamente i messaggi di un
   giorno qualsiasi, sia in automatico che a comando.
-- **Riassunti**: OpenAI API (modello configurabile, default `gpt-4o-mini`).
+- **Testi**: OpenAI API (modello configurabile, default `gpt-4o-mini`).
+- **Prima pagina**: template HTML/CSS in stile giornale, trasformato in
+  immagine PNG con [Playwright](https://playwright.dev/python/) (Chromium
+  headless).
 - **Invio**: per ora il report arriva in DM privato (Saved Messages, cioè
   messaggio a "te stesso"). In futuro, quando validato, si può spostare in un
-  topic dedicato del gruppo cambiando solo configurazione (vedi sotto).
+  topic dedicato del gruppo cambiando solo configurazione (vedi sotto). La
+  prima pagina viene inviata come documento (non foto) per preservare la
+  piena risoluzione del testo, che altrimenti Telegram comprimerebbe.
 - **Scheduling**: GitHub Actions, con un cron giornaliero e un trigger
   manuale (`workflow_dispatch`) per i run on-demand — gira anche a PC spento.
 
@@ -30,6 +39,7 @@ Vai su https://my.telegram.org, fai login con il tuo numero, sezione
 
 ```bash
 pip install -r requirements.txt
+playwright install chromium
 cp .env.example .env
 # compila TELEGRAM_API_ID e TELEGRAM_API_HASH in .env
 python generate_session.py
@@ -64,18 +74,22 @@ personalizzare i default:
 - `REPORT_DESTINATION` (default `me`)
 - `REPORT_TOPIC_ID` (per la fase futura, invio in un topic del gruppo)
 - `REPORT_TIMEZONE` (default `Europe/Rome`)
+- `NEWSPAPER_NAME` (nome della testata in prima pagina; default: nome del
+  gruppo Telegram, recuperato automaticamente)
 
 ### 5. Primo test manuale
 
 Prima di affidarti allo schedule automatico, lancia il workflow a mano da
 GitHub: tab **Actions → Gazzettino giornaliero Telegram → Run workflow**
-(puoi opzionalmente indicare una data `YYYY-MM-DD` passata da riepilogare).
-Verifica che il DM con il gazzettino arrivi correttamente.
+(puoi scegliere il formato `newspaper`/`text` e opzionalmente indicare una
+data `YYYY-MM-DD` passata da riepilogare). Verifica che il DM con il
+gazzettino arrivi correttamente.
 
 Puoi anche testare in locale:
 
 ```bash
-python main.py --date 2026-07-27
+python main.py --date 2026-07-27                  # prima pagina (default)
+python main.py --date 2026-07-27 --format text     # formato testuale
 ```
 
 ## Passare all'invio nel topic del gruppo

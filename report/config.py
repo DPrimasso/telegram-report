@@ -24,6 +24,7 @@ class Config:
     report_destination: str
     report_topic_id: int | None
     timezone: str
+    newspaper_name: str | None
 
 
 def load_config() -> Config:
@@ -43,4 +44,5 @@ def load_config() -> Config:
         report_destination=destination,
         report_topic_id=int(topic_id) if topic_id else None,
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",
+        newspaper_name=os.environ.get("NEWSPAPER_NAME") or None,
     )

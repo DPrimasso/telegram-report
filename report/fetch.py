@@ -53,11 +53,39 @@ def _message_text(message) -> str | None:
     return "[media]"
 
 
-def _topic_id_for_message(message) -> int:
+def _topic_id_for_message(message, known_topic_ids: set[int]) -> int:
     reply = message.reply_to
     if reply is not None and getattr(reply, "forum_topic", False):
         return reply.reply_to_top_id or reply.reply_to_msg_id
+    # Il messaggio che apre un topic non "risponde" a nulla (è lui stesso la
+    # radice del thread): il suo message.id coincide con l'ID del topic.
+    # Senza questo controllo finirebbe erroneamente nel topic General.
+    if message.id in known_topic_ids:
+        return message.id
     return GENERAL_TOPIC_ID
+
+
+async def _resolve_group(client: TelegramClient, group_id: int):
+    # StringSession non persiste la cache delle entità: un client "fresco"
+    # potrebbe non riuscire a risolvere l'ID senza aver prima visto i
+    # dialoghi in questa sessione di connessione. Fallback: cerca tra i
+    # dialoghi correnti.
+    try:
+        return await client.get_entity(group_id)
+    except ValueError:
+        async for dialog in client.iter_dialogs():
+            if dialog.id == group_id:
+                return dialog.entity
+        raise ValueError(
+            f"Impossibile trovare il gruppo con ID {group_id}. Verifica che "
+            "TELEGRAM_GROUP_ID sia corretto: deve essere negativo (es. "
+            "-1001234567890), esattamente come stampato da generate_session.py."
+        )
+
+
+async def get_group_title(client: TelegramClient, group_id: int) -> str:
+    group = await _resolve_group(client, group_id)
+    return getattr(group, "title", None) or "Gazzettino"
 
 
 async def _fetch_topic_titles(client: TelegramClient, group) -> dict[int, str]:
@@ -72,19 +100,26 @@ async def _fetch_topic_titles(client: TelegramClient, group) -> dict[int, str]:
 
 
 async def fetch_day_messages(
-    client: TelegramClient, group_id: int, day: date, timezone: str
+    client: TelegramClient,
+    group_id: int,
+    day: date,
+    timezone: str,
+    debug: bool = False,
 ) -> list[TopicMessages]:
     tz = ZoneInfo(timezone)
     start = datetime.combine(day, time.min, tzinfo=tz)
     end = start + timedelta(days=1)
 
-    group = await client.get_entity(group_id)
+    group = await _resolve_group(client, group_id)
 
     try:
         titles = await _fetch_topic_titles(client, group)
     except Exception:
         titles = {GENERAL_TOPIC_ID: "General"}
 
+    known_topic_ids = set(titles.keys()) - {GENERAL_TOPIC_ID}
+    if debug:
+        print(f"[DEBUG] topic noti: {titles}")
     sender_cache: dict[int, str] = {}
     buckets: dict[int, list[SimpleMessage]] = {}
 
@@ -105,7 +140,17 @@ async def fetch_day_messages(
                 sender_cache[sender_id] = f"Utente {sender_id}"
         author = sender_cache.get(sender_id, "Sconosciuto")
 
-        topic_id = _topic_id_for_message(message)
+        topic_id = _topic_id_for_message(message, known_topic_ids)
+
+        if debug and topic_id == GENERAL_TOPIC_ID:
+            reply = message.reply_to
+            reply_info = reply.to_dict() if reply is not None else None
+            print(
+                f"[DEBUG] -> General | msg_id={message.id} data={message.date} "
+                f"autore={author!r} reply_to={reply_info} "
+                f"testo={text[:80]!r}"
+            )
+
         buckets.setdefault(topic_id, []).append(
             SimpleMessage(author=author, timestamp=message.date, text=text)
         )

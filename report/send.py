@@ -24,11 +24,14 @@ def _split_message(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
     return chunks
 
 
-async def send_report(client: TelegramClient, config: Config, text: str) -> None:
+def _resolve_target(config: Config):
     if config.report_destination == "me":
-        target = "me"
-    else:
-        target = int(config.report_destination)
+        return "me"
+    return int(config.report_destination)
+
+
+async def send_report(client: TelegramClient, config: Config, text: str) -> None:
+    target = _resolve_target(config)
 
     kwargs = {"parse_mode": "html"}
     if config.report_topic_id:
@@ -36,3 +39,23 @@ async def send_report(client: TelegramClient, config: Config, text: str) -> None
 
     for chunk in _split_message(text):
         await client.send_message(target, chunk, **kwargs)
+
+
+async def send_photo_report(
+    client: TelegramClient, config: Config, image_path: str, caption: str = ""
+) -> None:
+    target = _resolve_target(config)
+
+    kwargs = {
+        # Le foto vengono ricompresse/ridimensionate da Telegram: per una
+        # pagina di giornale densa di testo piccolo, inviarla come
+        # documento preserva la piena risoluzione e leggibilità.
+        "force_document": True,
+        "parse_mode": "html",
+    }
+    if caption:
+        kwargs["caption"] = caption
+    if config.report_topic_id:
+        kwargs["reply_to"] = config.report_topic_id
+
+    await client.send_file(target, image_path, **kwargs)

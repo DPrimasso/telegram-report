@@ -11,6 +11,14 @@ on:
         description: "Data da riepilogare (YYYY-MM-DD). Vuoto = oggi."
         required: false
         default: ""
+      format:
+        description: "Formato del report."
+        required: false
+        default: "newspaper"
+        type: choice
+        options:
+          - newspaper
+          - text
 
 jobs:
   report:
@@ -27,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install Playwright Chromium
+        run: playwright install --with-deps chromium
+
       - name: Genera e invia il gazzettino
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
@@ -37,9 +48,12 @@ jobs:
           REPORT_DESTINATION: ${{ vars.REPORT_DESTINATION }}
           REPORT_TOPIC_ID: ${{ vars.REPORT_TOPIC_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
+          NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
         run: |
+          FORMAT="${{ github.event.inputs.format }}"
+          FORMAT="${FORMAT:-newspaper}"
           if [ -n "${{ github.event.inputs.date }}" ]; then
-            python main.py --date "${{ github.event.inputs.date }}"
+            python main.py --date "${{ github.event.inputs.date }}" --format "$FORMAT"
           else
-            python main.py
+            python main.py --format "$FORMAT"
           fi
