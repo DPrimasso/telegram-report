@@ -139,14 +139,23 @@ async def _run_newspaper_report(
             f"({len(topic.messages)} messaggi)..."
         )
         headline, body = write_topic_article(
-            openai_client, config.openai_model, topic.title, topic.messages
+            openai_client,
+            config.openai_model,
+            topic.title,
+            topic.messages,
+            # Ogni pezzo vede quelli già scritti, così non ne ricalca
+            # titoli e attacchi: le chiamate sono altrimenti indipendenti.
+            written_so_far=[(h, b) for h, b, _ in articles],
         )
         articles.append((headline, body, len(topic.messages)))
     articles.sort(key=lambda item: item[2], reverse=True)
 
     print("Scrivo l'articolo di apertura...")
     lead_headline, lead_deck, lead_paragraphs = write_lead_story(
-        openai_client, config.openai_model, all_messages
+        openai_client,
+        config.openai_model,
+        all_messages,
+        page_headlines=[h for h, _, _ in articles],
     )
 
     print("Recupero il nome del gruppo per la testata...")
