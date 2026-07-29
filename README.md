@@ -106,6 +106,9 @@ Nessuna modifica al codice è necessaria.
 
 - L'orario del cron in `.github/workflows/daily-report.yml` è in UTC:
   adattalo alle tue esigenze.
+- Senza `--date`, il report riepiloga **il giorno precedente** (nel fuso
+  orario `REPORT_TIMEZONE`): è pensato per il lancio notturno, ad esempio
+  alle 3:00, così copre la giornata appena conclusa.
 - Il "giorno" da riepilogare è calcolato nel fuso orario `REPORT_TIMEZONE`
   (default Europe/Rome).
 - Per gruppi molto attivi, i riassunti passano automaticamente a una

@@ -2,13 +2,13 @@ name: Gazzettino giornaliero Telegram
 
 on:
   schedule:
-    # 20:00 UTC = 21:00/22:00 ora italiana a seconda dell'ora legale.
-    # Adatta l'orario alle tue esigenze.
-    - cron: "00 05 * * *"
+    # 01:00 UTC = 03:00 ora italiana con ora legale (02:00 con ora solare).
+    # Il report riepiloga sempre il giorno precedente.
+    - cron: "00 01 * * *"
   workflow_dispatch:
     inputs:
       date:
-        description: "Data da riepilogare (YYYY-MM-DD). Vuoto = oggi."
+        description: "Data da riepilogare (YYYY-MM-DD). Vuoto = ieri."
         required: false
         default: ""
       format:
