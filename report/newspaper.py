@@ -33,8 +33,11 @@ body {
 .lead .deck { font-style: italic; font-size: 17px; color: #333; margin: 0 0 16px 0; }
 .lead .body { columns: 2; column-gap: 32px; font-size: 14.5px; line-height: 1.5; text-align: justify; }
 .lead .body p { margin: 0 0 10px 0; }
+/* Niente float per il capolettera: dentro un contenitore multi-colonna la
+   lettera flottante si stacca dal proprio paragrafo e finisce in cima alla
+   colonna successiva, lasciando la prima parola mutilata. */
 .lead .body p:first-of-type::first-letter {
-  float: left; font-size: 56px; line-height: 0.78; padding: 4px 8px 0 0; font-weight: bold;
+  font-size: 30px; font-weight: bold; line-height: 1;
 }
 .articles { columns: 3; column-gap: 28px; }
 .article { break-inside: avoid; margin-bottom: 22px; padding-bottom: 16px; border-bottom: 1px solid #ccc4ac; }
@@ -105,14 +108,26 @@ def build_front_page_html(
 </html>"""
 
 
-async def render_html_to_png(html_content: str, output_path: str, width: int = 1150) -> None:
+async def render_html_to_png(
+    html_content: str, output_path: str, width: int = 1150, scale: int = 2
+) -> None:
+    """Renderizza la pagina a `scale` volte la risoluzione CSS. Il fattore 2
+    serve perché la prima pagina viene inviata come foto e Telegram
+    ricomprime le foto in JPEG: partendo dal doppio della risoluzione, il
+    testo dei corpi (12-14px) resta leggibile anche dopo la compressione."""
     from playwright.async_api import async_playwright
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         try:
-            page = await browser.new_page(viewport={"width": width, "height": 900})
+            page = await browser.new_page(
+                viewport={"width": width, "height": 900},
+                device_scale_factor=scale,
+            )
             await page.set_content(html_content, wait_until="load")
-            await page.screenshot(path=output_path, full_page=True)
+            # Ritaglia sull'altezza reale del contenuto: con full_page
+            # l'immagine eredita l'altezza del viewport quando la pagina è
+            # più corta, lasciando una banda vuota in fondo alla foto.
+            await page.locator("body").screenshot(path=output_path)
         finally:
             await browser.close()

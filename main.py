@@ -1,8 +1,9 @@
 import argparse
 import asyncio
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from openai import OpenAI
 
@@ -28,7 +29,7 @@ def parse_args() -> argparse.Namespace:
         "--date",
         type=str,
         default=None,
-        help="Data da riepilogare in formato YYYY-MM-DD (default: oggi).",
+        help="Data da riepilogare in formato YYYY-MM-DD (default: ieri).",
     )
     parser.add_argument(
         "--format",
@@ -138,14 +139,23 @@ async def _run_newspaper_report(
             f"({len(topic.messages)} messaggi)..."
         )
         headline, body = write_topic_article(
-            openai_client, config.openai_model, topic.title, topic.messages
+            openai_client,
+            config.openai_model,
+            topic.title,
+            topic.messages,
+            # Ogni pezzo vede quelli già scritti, così non ne ricalca
+            # titoli e attacchi: le chiamate sono altrimenti indipendenti.
+            written_so_far=[(h, b) for h, b, _ in articles],
         )
         articles.append((headline, body, len(topic.messages)))
     articles.sort(key=lambda item: item[2], reverse=True)
 
     print("Scrivo l'articolo di apertura...")
     lead_headline, lead_deck, lead_paragraphs = write_lead_story(
-        openai_client, config.openai_model, all_messages
+        openai_client,
+        config.openai_model,
+        all_messages,
+        page_headlines=[h for h, _, _ in articles],
     )
 
     print("Recupero il nome del gruppo per la testata...")
@@ -175,7 +185,7 @@ async def _run_newspaper_report(
 
 
 async def run(
-    target_date: date,
+    target_date: date | None,
     debug: bool = False,
     dump_topic: str | None = None,
     report_format: str = "newspaper",
@@ -183,6 +193,13 @@ async def run(
     config = load_config()
     client = build_client(config)
     openai_client = OpenAI(api_key=config.openai_api_key)
+
+    if target_date is None:
+        # Senza --date si riassume il giorno precedente nel fuso orario
+        # configurato, così il lancio notturno copre la giornata conclusa.
+        now = datetime.now(ZoneInfo(config.timezone))
+        target_date = (now - timedelta(days=1)).date()
+        print(f"Nessuna data indicata: riepilogo il {target_date.isoformat()}.")
 
     async with client:
         topics = await fetch_day_messages(
@@ -210,7 +227,7 @@ def main() -> None:
     if args.date:
         target_date = datetime.strptime(args.date, "%Y-%m-%d").date()
     else:
-        target_date = date.today()
+        target_date = None
     asyncio.run(
         run(
             target_date,
