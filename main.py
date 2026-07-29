@@ -8,7 +8,13 @@ from zoneinfo import ZoneInfo
 from openai import OpenAI
 
 from report.config import Config, load_config
-from report.fetch import SimpleMessage, TopicMessages, fetch_day_messages, get_group_title
+from report.fetch import (
+    SimpleMessage,
+    TopicMessages,
+    fetch_day_messages,
+    get_group_title,
+    list_topics,
+)
 from report.newspaper import build_pages_html, render_html_to_png
 from report.report_builder import build_report
 from report.send import send_photo_report, send_report
@@ -48,6 +54,15 @@ def parse_args() -> argparse.Namespace:
             "Stampa a schermo i dettagli (reply_to grezzo) di ogni messaggio "
             "finito nel topic General, per diagnosticare classificazioni "
             "errate."
+        ),
+    )
+    parser.add_argument(
+        "--list-topics",
+        action="store_true",
+        help=(
+            "Stampa l'elenco dei topic del gruppo con il relativo ID, poi "
+            "esce senza chiamare OpenAI né inviare nulla. Serve a ricavare "
+            "il valore da mettere in REPORT_TOPIC_ID."
         ),
     )
     parser.add_argument(
@@ -187,14 +202,32 @@ async def _run_newspaper_report(
     print("Fatto.")
 
 
+async def _run_list_topics(client, config: Config) -> None:
+    topics = await list_topics(client, config.group_id)
+    print("\nID\tTopic  (usa l'ID come REPORT_TOPIC_ID)\n")
+    for topic_id, title in topics:
+        print(f"{topic_id}\t{title}")
+    print(
+        "\nImposta REPORT_TOPIC_ID con l'ID scelto: la destinazione diventa "
+        "automaticamente il gruppo che contiene il topic."
+    )
+
+
 async def run(
     target_date: date | None,
     debug: bool = False,
     dump_topic: str | None = None,
     report_format: str = "newspaper",
+    list_topics_only: bool = False,
 ) -> None:
     config = load_config()
     client = build_client(config)
+
+    if list_topics_only:
+        async with client:
+            await _run_list_topics(client, config)
+        return
+
     openai_client = OpenAI(api_key=config.openai_api_key)
 
     if target_date is None:
@@ -237,6 +270,7 @@ def main() -> None:
             debug=args.debug,
             dump_topic=args.dump_topic,
             report_format=args.format,
+            list_topics_only=args.list_topics,
         )
     )
 

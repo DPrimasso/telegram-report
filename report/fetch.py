@@ -88,6 +88,15 @@ async def get_group_title(client: TelegramClient, group_id: int) -> str:
     return getattr(group, "title", None) or "Gazzettino"
 
 
+async def list_topics(client: TelegramClient, group_id: int) -> list[tuple[int, str]]:
+    """Elenca (id, titolo) dei topic del gruppo, ordinati per id. Serve a
+    ricavare il valore di REPORT_TOPIC_ID senza doverlo cercare a mano nei
+    link di Telegram."""
+    group = await _resolve_group(client, group_id)
+    titles = await _fetch_topic_titles(client, group)
+    return sorted(titles.items())
+
+
 async def _fetch_topic_titles(client: TelegramClient, group) -> dict[int, str]:
     result = await client(
         GetForumTopicsRequest(
