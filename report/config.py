@@ -32,13 +32,25 @@ def load_config() -> Config:
     # referenziata da una "vars" non impostata arriva come stringa vuota
     # (variabile presente ma vuota), non assente. Usiamo "or" per ricadere
     # sul default anche in quel caso.
-    destination = os.environ.get("REPORT_DESTINATION") or "me"
+    destination = os.environ.get("REPORT_DESTINATION") or ""
     topic_id = os.environ.get("REPORT_TOPIC_ID") or None
+    group_id = int(_require("TELEGRAM_GROUP_ID"))
+
+    # Un topic esiste solo dentro il suo gruppo: se REPORT_TOPIC_ID è
+    # impostato, la destinazione è per forza quel gruppo. Ricavarla da sola
+    # evita di far riscrivere l'ID del gruppo in una seconda variabile, dove
+    # per giunta va nella forma marcata (-100...) e non in quella grezza che
+    # compare nei link t.me. "group" resta accettato come alias esplicito.
+    if not destination:
+        destination = str(group_id) if topic_id else "me"
+    elif destination == "group":
+        destination = str(group_id)
+
     return Config(
         api_id=int(_require("TELEGRAM_API_ID")),
         api_hash=_require("TELEGRAM_API_HASH"),
         session=_require("TELEGRAM_SESSION"),
-        group_id=int(_require("TELEGRAM_GROUP_ID")),
+        group_id=group_id,
         openai_api_key=_require("OPENAI_API_KEY"),
         openai_model=os.environ.get("OPENAI_MODEL") or "gpt-4o-mini",
         report_destination=destination,

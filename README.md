@@ -100,12 +100,27 @@ python main.py --date 2026-07-27 --format text     # formato testuale
 ## Passare all'invio nel topic del gruppo
 
 Quando il formato ti convince e vuoi che il gazzettino sia visibile a tutto
-il gruppo:
-1. Crea (o individua) il topic dedicato nel gruppo e prendine l'ID.
-2. Imposta `REPORT_DESTINATION` = ID del gruppo (uguale a
-   `TELEGRAM_GROUP_ID`) e `REPORT_TOPIC_ID` = ID del topic.
+il gruppo, serve impostare **una sola variabile**:
+
+1. Crea (o individua) il topic dedicato nel gruppo.
+2. Ricavane l'ID: lancia il workflow da **Actions → Run workflow** con
+   l'opzione **list_topics** attiva. Il job stampa nei log l'elenco dei
+   topic con il rispettivo ID e non invia nulla. In locale è l'equivalente
+   di `python main.py --list-topics`.
+3. Imposta la variabile `REPORT_TOPIC_ID` con l'ID scelto.
+
+La destinazione viene ricavata da sola: se `REPORT_TOPIC_ID` è impostato, il
+report va nel gruppo indicato da `TELEGRAM_GROUP_ID`. Non serve quindi
+duplicare l'ID del gruppo in `REPORT_DESTINATION` — che resta comunque
+disponibile per inviare altrove, e accetta anche il valore `group` come
+alias esplicito del gruppo.
 
 Nessuna modifica al codice è necessaria.
+
+> Attenzione all'ID del gruppo: `generate_session.py` stampa la forma
+> *marcata* (`-100…`), che è quella richiesta dalle API. I link `t.me/c/…`
+> mostrano invece la forma grezza, senza il prefisso `-100`: sono lo stesso
+> gruppo, ma solo la prima funziona come `TELEGRAM_GROUP_ID`.
 
 ## Note
 

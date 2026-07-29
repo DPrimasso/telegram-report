@@ -19,6 +19,11 @@ on:
         options:
           - newspaper
           - text
+      list_topics:
+        description: "Elenca i topic del gruppo con i loro ID, senza inviare nulla."
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   report:
@@ -50,6 +55,10 @@ jobs:
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
           NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
         run: |
+          if [ "${{ github.event.inputs.list_topics }}" = "true" ]; then
+            python main.py --list-topics
+            exit 0
+          fi
           FORMAT="${{ github.event.inputs.format }}"
           FORMAT="${FORMAT:-newspaper}"
           if [ -n "${{ github.event.inputs.date }}" ]; then
