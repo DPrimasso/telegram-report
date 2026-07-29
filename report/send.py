@@ -50,22 +50,25 @@ async def send_report(client: TelegramClient, config: Config, text: str) -> None
 
 
 async def send_photo_report(
-    client: TelegramClient, config: Config, image_path: str, caption: str = ""
+    client: TelegramClient, config: Config, image_paths: list[str], caption: str = ""
 ) -> None:
-    """Invia la prima pagina come foto, così è visibile in anteprima nella
-    chat senza doverla scaricare. Telegram ricomprime le foto: la pagina va
-    quindi renderizzata a risoluzione doppia (vedi newspaper.py) perché il
-    testo piccolo resti leggibile dopo la compressione."""
+    """Invia le pagine del giornale come foto, così sono visibili in
+    anteprima nella chat senza doverle scaricare. Con più pagine Telegram le
+    raggruppa in un album, quindi arrivano come un unico blocco sfogliabile.
+    Telegram ricomprime le foto: le pagine vanno renderizzate a risoluzione
+    doppia (vedi newspaper.py) perché il testo resti leggibile."""
     target = _resolve_target(config)
 
     kwargs = {"parse_mode": "html"}
     if caption:
-        kwargs["caption"] = caption
+        # In un album la didascalia va sulla prima immagine: ripeterla su
+        # ognuna la farebbe comparire più volte sotto il gruppo.
+        kwargs["caption"] = [caption] + [""] * (len(image_paths) - 1)
     if config.report_topic_id:
         kwargs["reply_to"] = config.report_topic_id
 
     try:
-        await client.send_file(target, image_path, force_document=False, **kwargs)
+        await client.send_file(target, image_paths, force_document=False, **kwargs)
     except RPCError as exc:
         detail = (getattr(exc, "message", "") or str(exc)).upper()
         if not any(hint in detail for hint in _PHOTO_REJECTION_HINTS):
@@ -74,4 +77,4 @@ async def send_photo_report(
             f"Telegram ha rifiutato l'invio come foto ({detail}): "
             "ripiego sull'invio come documento."
         )
-        await client.send_file(target, image_path, force_document=True, **kwargs)
+        await client.send_file(target, image_paths, force_document=True, **kwargs)
