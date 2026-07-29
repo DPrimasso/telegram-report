@@ -9,7 +9,7 @@ from openai import OpenAI
 
 from report.config import Config, load_config
 from report.fetch import SimpleMessage, TopicMessages, fetch_day_messages, get_group_title
-from report.newspaper import build_front_page_html, render_html_to_png
+from report.newspaper import build_pages_html, render_html_to_png
 from report.report_builder import build_report
 from report.send import send_photo_report, send_report
 from report.summarize import (
@@ -163,7 +163,7 @@ async def _run_newspaper_report(
         client, config.group_id
     )
 
-    html_content = build_front_page_html(
+    pages_html = build_pages_html(
         newspaper_name,
         target_date,
         lead_headline,
@@ -172,14 +172,17 @@ async def _run_newspaper_report(
         articles,
     )
 
-    print("Genero l'immagine della prima pagina...")
+    print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")
     with tempfile.TemporaryDirectory() as tmp_dir:
-        image_path = str(Path(tmp_dir) / "prima_pagina.png")
-        await render_html_to_png(html_content, image_path)
+        image_paths = []
+        for number, page_html in enumerate(pages_html, start=1):
+            image_path = str(Path(tmp_dir) / f"pagina_{number}.png")
+            await render_html_to_png(page_html, image_path)
+            image_paths.append(image_path)
 
-        print("Invio la prima pagina su Telegram...")
+        print("Invio il giornale su Telegram...")
         caption = f"📰 {newspaper_name} — {target_date.strftime('%d/%m/%Y')}"
-        await send_photo_report(client, config, image_path, caption=caption)
+        await send_photo_report(client, config, image_paths, caption=caption)
 
     print("Fatto.")
 

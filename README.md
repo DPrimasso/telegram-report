@@ -17,14 +17,19 @@ riepilogo. Due formati disponibili:
   un account utente per poter recuperare retroattivamente i messaggi di un
   giorno qualsiasi, sia in automatico che a comando.
 - **Testi**: OpenAI API (modello configurabile, default `gpt-4o-mini`).
-- **Prima pagina**: template HTML/CSS in stile giornale, trasformato in
-  immagine PNG con [Playwright](https://playwright.dev/python/) (Chromium
-  headless).
+- **Pagine**: template HTML/CSS in stile giornale, trasformato in immagini
+  PNG con [Playwright](https://playwright.dev/python/) (Chromium headless).
+  Il giornale si divide su due pagine quando ci sono almeno 4 articoli, con
+  gli articoli ripartiti in modo da bilanciare il volume di testo; sotto
+  quella soglia resta una pagina sola.
 - **Invio**: per ora il report arriva in DM privato (Saved Messages, cioè
   messaggio a "te stesso"). In futuro, quando validato, si può spostare in un
-  topic dedicato del gruppo cambiando solo configurazione (vedi sotto). La
-  prima pagina viene inviata come documento (non foto) per preservare la
-  piena risoluzione del testo, che altrimenti Telegram comprimerebbe.
+  topic dedicato del gruppo cambiando solo configurazione (vedi sotto). Le
+  pagine vengono inviate come foto (raggruppate in un album se sono più di
+  una), così sono leggibili in anteprima senza scaricarle: per resistere
+  alla ricompressione di Telegram vengono renderizzate a risoluzione doppia.
+  Se Telegram rifiuta l'immagine perché troppo grande, l'invio ripiega
+  automaticamente sul documento.
 - **Scheduling**: GitHub Actions, con un cron giornaliero e un trigger
   manuale (`workflow_dispatch`) per i run on-demand — gira anche a PC spento.
 
