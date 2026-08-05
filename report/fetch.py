@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 from telethon import TelegramClient
 from telethon.tl.functions.channels import GetForumTopicsRequest
 
+from report import scribe
+
 GENERAL_TOPIC_ID = 1
 
 
@@ -65,6 +67,57 @@ def _topic_id_for_message(message, known_topic_ids: set[int]) -> int:
     return GENERAL_TOPIC_ID
 
 
+async def _author_of(message, sender_cache: dict[int, str]) -> str:
+    sender_id = message.sender_id
+    if sender_id is not None and sender_id not in sender_cache:
+        try:
+            sender = await message.get_sender()
+            sender_cache[sender_id] = _display_name(sender)
+        except Exception:
+            sender_cache[sender_id] = f"Utente {sender_id}"
+    return sender_cache.get(sender_id, "Sconosciuto")
+
+
+async def _unwrap_scribe(
+    message,
+    text: str,
+    topic_id: int,
+    sender_cache: dict[int, str],
+    summary_markers: tuple[str, ...],
+) -> tuple[str, str] | None:
+    """Traduce un messaggio del bot trascrittore in (autore vero, testo).
+
+    Restituisce None quando il messaggio non deve entrare nel report: è un
+    riepilogo su richiesta, oppure una trascrizione di cui non si riesce a
+    stabilire chi ha parlato. Attribuirla al bot la farebbe passare per una
+    presa di posizione dello "Scribacchino", che non esiste."""
+    classified = scribe.classify(text, summary_markers)
+    if classified is None:
+        return None
+    author, text = classified
+    # Il nome in testa al testo è la via normale e non costa chiamate.
+    if author is not None:
+        return author, text
+
+    # Se il bot risponde al vocale invece di citarne l'autore, l'autore è il
+    # mittente del messaggio a cui risponde. In un forum reply_to_msg_id
+    # vale l'ID del topic anche quando non si sta rispondendo a nessuno:
+    # senza questo confronto attribuiremmo tutto a chi ha aperto il topic.
+    reply = message.reply_to
+    replied_id = getattr(reply, "reply_to_msg_id", None) if reply is not None else None
+    if replied_id and replied_id != topic_id:
+        try:
+            original = await message.get_reply_message()
+        except Exception:
+            original = None
+        if original is not None:
+            author = await _author_of(original, sender_cache)
+            if author and not scribe.is_scribe(author):
+                return author, text
+
+    return None
+
+
 async def _resolve_group(client: TelegramClient, group_id: int):
     # StringSession non persiste la cache delle entità: un client "fresco"
     # potrebbe non riuscire a risolvere l'ID senza aver prima visto i
@@ -114,6 +167,8 @@ async def fetch_day_messages(
     day: date,
     timezone: str,
     debug: bool = False,
+    scribe_names: tuple[str, ...] = scribe.DEFAULT_BOT_NAMES,
+    summary_markers: tuple[str, ...] = scribe.DEFAULT_SUMMARY_MARKERS,
 ) -> list[TopicMessages]:
     tz = ZoneInfo(timezone)
     start = datetime.combine(day, time.min, tzinfo=tz)
@@ -131,6 +186,8 @@ async def fetch_day_messages(
         print(f"[DEBUG] topic noti: {titles}")
     sender_cache: dict[int, str] = {}
     buckets: dict[int, list[SimpleMessage]] = {}
+    skipped_scribe = 0
+    reattributed = 0
 
     async for message in client.iter_messages(group, offset_date=end):
         if message.date < start:
@@ -140,16 +197,20 @@ async def fetch_day_messages(
         if text is None:
             continue
 
-        sender_id = message.sender_id
-        if sender_id is not None and sender_id not in sender_cache:
-            try:
-                sender = await message.get_sender()
-                sender_cache[sender_id] = _display_name(sender)
-            except Exception:
-                sender_cache[sender_id] = f"Utente {sender_id}"
-        author = sender_cache.get(sender_id, "Sconosciuto")
-
+        author = await _author_of(message, sender_cache)
         topic_id = _topic_id_for_message(message, known_topic_ids)
+
+        if scribe.is_scribe(author, scribe_names):
+            unwrapped = await _unwrap_scribe(
+                message, text, topic_id, sender_cache, summary_markers
+            )
+            if unwrapped is None:
+                skipped_scribe += 1
+                if debug:
+                    print(f"[DEBUG] scartato dal bot | msg_id={message.id} testo={text[:80]!r}")
+                continue
+            author, text = unwrapped
+            reattributed += 1
 
         if debug and topic_id == GENERAL_TOPIC_ID:
             reply = message.reply_to
@@ -162,6 +223,13 @@ async def fetch_day_messages(
 
         buckets.setdefault(topic_id, []).append(
             SimpleMessage(author=author, timestamp=message.date, text=text)
+        )
+
+    if reattributed or skipped_scribe:
+        print(
+            f"Bot trascrittore: {reattributed} vocali riattribuiti a chi ha "
+            f"parlato, {skipped_scribe} messaggi ignorati (riepiloghi o non "
+            "attribuibili)."
         )
 
     topics = []

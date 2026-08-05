@@ -266,25 +266,37 @@ ARTICLE_FORMAT_RULE = (
 )
 
 
+DUPLICATE_MARKER = "DUPLICATO"
+
+
 def _avoid_repetition_rule(written: list[tuple[str, str]]) -> str:
     """Ogni articolo viene generato da una chiamata separata, che di per sé
-    non sa nulla degli altri pezzi della pagina. Passandogli i titoli e gli
-    attacchi già usati gli diamo il contesto minimo per non ricalcarli."""
-    titles = [h for h, _ in written if h]
-    openings = [" ".join(b.split()[:7]) for _, b in written if b]
-    if not titles and not openings:
+    non sa nulla degli altri pezzi della pagina.
+
+    Passargli i pezzi già scritti serve a due cose: non ricalcarne attacchi
+    e titoli, e riconoscere quando il fatto è lo stesso. Lo stesso
+    argomento discusso in tre topic diversi produceva tre articoli quasi
+    identici, uno per topic; qui il modello può dire che il suo pezzo è un
+    doppione e non scriverlo affatto. I pezzi arrivano in ordine di topic
+    più attivo, quindi a tenersi la notizia è il topic che l'ha discussa
+    di più."""
+    pieces = [(h, b) for h, b in written if h]
+    if not pieces:
         return ""
 
-    parts = ["Questo pezzo comparirà accanto ad altri nella stessa pagina."]
-    if titles:
-        parts.append("Titoli già presenti: " + "; ".join(titles) + ".")
-    if openings:
-        parts.append("Prime parole dei pezzi già scritti: " + "; ".join(openings) + ".")
-    parts.append(
+    already = "\n".join(f"- {h}: {b}" for h, b in pieces)
+    return (
+        "Questo pezzo comparirà accanto ad altri nella stessa pagina. "
+        f"Pezzi già scritti per l'edizione di oggi:\n{already}\n"
         "Non riprendere quei titoli né quegli attacchi: apri con una "
-        "costruzione diversa e usa un lessico diverso."
+        "costruzione diversa e usa un lessico diverso.\n"
+        "Se il fatto principale di questo tema è già raccontato lì sopra — "
+        "succede quando lo stesso argomento gira in più topic — non "
+        "riscriverlo: racconta soltanto ciò che qui c'è di diverso, cioè un "
+        "dettaglio, uno sviluppo o una posizione che lì non compaiono. Se "
+        "non c'è nulla di diverso da aggiungere, rispondi con la sola "
+        f"parola {DUPLICATE_MARKER}, senza altro testo."
     )
-    return " ".join(parts)
 
 
 def _split_headline_body(raw: str) -> tuple[str, str]:
@@ -337,6 +349,11 @@ def write_topic_article(
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
+    # Doppione di un pezzo già in pagina: si restituisce vuoto e il topic
+    # resta nell'indice col suo contatore, senza un articolo che ripete
+    # quello che il lettore ha appena letto.
+    if raw.strip().upper().startswith(DUPLICATE_MARKER):
+        return "", ""
     return _split_headline_body(raw)
 
 
