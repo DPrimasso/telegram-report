@@ -10,8 +10,10 @@ principali rispetto alla versione a quotidiano di carta:
   della carta avorio, così il report si riconosce nello scroll della chat.
 - blocchi nuovi: indice dei topic con i contatori, barra statistiche,
   frase del giorno, foto di apertura.
-- la seconda pagina non dipende più dal numero di articoli ma
-  dall'altezza stimata della prima: si spezza solo quando serve davvero.
+- le pagine non sono più al massimo due: le notizie si distribuiscono su
+  quante pagine servono, ognuna sotto la stessa altezza utile, perché con
+  molti topic attivi l'ultima pagina raccoglieva tutto il resto e
+  diventava una striscia illeggibile.
 """
 
 import base64
@@ -33,14 +35,15 @@ PAGE_WIDTH = 1080
 
 # Oltre questa altezza stimata (in px CSS) la pagina diventa una striscia
 # troppo lunga: Telegram la mostra rimpicciolita in anteprima e il testo
-# torna illeggibile. Sopra la soglia si passa alla seconda pagina.
+# torna illeggibile. Il tetto vale per OGNI pagina: superarlo apre la
+# successiva, quante volte serve.
 MAX_PAGE_HEIGHT = 2400
 
 # Anche quando l'altezza lo permetterebbe, la prima pagina non porta più di
 # così tante notizie: oltre, la gerarchia si appiattisce.
 MAX_ARTICLES_FIRST_PAGE = 3
 
-# Sotto questa soglia una seconda pagina conterrebbe un trafiletto in mezzo
+# Sotto questa soglia una pagina in più conterrebbe un trafiletto in mezzo
 # al bianco: meglio una pagina sola, anche un po' più lunga.
 MIN_ARTICLES_FOR_SPLIT = 4
 
@@ -379,10 +382,15 @@ def _footer_html(note: str = FOOTER_NOTE) -> str:
 # decidere se spezzare la pagina, non a posizionare nulla, quindi
 # un'approssimazione grossolana basta.
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
+_H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
 _H_INDEX_ROW = 46
 _H_HERO = 460
 _H_QUOTE = 220
 _H_STATS = 120
+
+# Frase del giorno e statistiche stanno sempre in ultima pagina: chi
+# impagina deve tenerne lo spazio da parte.
+_H_TAIL = _H_QUOTE + _H_STATS
 
 
 def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
@@ -410,43 +418,76 @@ def _text_height(text: str, chars_per_line: int, line_height: int) -> int:
     return lines * line_height
 
 
-def split_articles(
+def paginate_articles(
     articles: list[Article],
     lead: Lead,
     hero: Hero | None,
     index_rows: int,
-) -> tuple[list[Article], list[Article]]:
-    """Decide quante notizie restano in prima pagina. La seconda pagina
-    nasce solo se ci sono abbastanza pezzi da riempirla E la prima
-    sfonderebbe l'altezza utile."""
+) -> list[list[Article]]:
+    """Distribuisce le notizie su quante pagine servono e restituisce una
+    lista per pagina; la prima sta sotto l'apertura.
+
+    Il numero di pagine non è fissato: dipende da quanto testo c'è. Con
+    dieci topic attivi una seconda pagina unica raccoglieva tutto il resto
+    e diventava una striscia che Telegram mostra rimpicciolita, cioè
+    illeggibile — che è il motivo per cui il tetto d'altezza vale per ogni
+    pagina e non solo per la prima."""
     usable = [a for a in articles if a.headline]
     if len(usable) < MIN_ARTICLES_FOR_SPLIT:
-        return usable, []
+        return [usable]
 
     height = (
         _H_CHROME
         + index_rows * _H_INDEX_ROW
         + _estimate_lead_height(lead, hero)
-        + _estimate_article_height(usable[0])
     )
-    cut = 1
-    for a in usable[1:]:
-        if cut >= MAX_ARTICLES_FIRST_PAGE:
+    first: list[Article] = []
+    for a in usable:
+        if len(first) >= MAX_ARTICLES_FIRST_PAGE:
             break
         nxt = height + _estimate_article_height(a)
-        if nxt > MAX_PAGE_HEIGHT:
+        # La prima notizia resta in prima pagina comunque: una prima con la
+        # sola apertura lascerebbe vuoto lo spazio sotto il taglio.
+        if first and nxt > MAX_PAGE_HEIGHT:
             break
         height = nxt
-        cut += 1
+        first.append(a)
 
-    # Se tutto sta in prima pagina, niente pagina 2.
-    tail = usable[cut:]
-    if not tail:
-        return usable, []
-    # Una pagina 2 con un solo trafiletto: meglio tenerlo in prima.
-    if len(tail) == 1 and height + _estimate_article_height(tail[0]) < MAX_PAGE_HEIGHT + 500:
-        return usable, []
-    return usable[:cut], tail
+    pages = [first]
+    heights = [height]
+
+    rest = usable[len(first):]
+    current: list[Article] = []
+    height = _H_CONT_CHROME
+    for index, a in enumerate(rest):
+        # Frase del giorno e statistiche chiudono l'ultima pagina: quando
+        # sistemiamo l'ultima notizia vanno contate, o è proprio la coda a
+        # far sfondare la pagina finale.
+        reserve = _H_TAIL if index == len(rest) - 1 else 0
+        h = _estimate_article_height(a)
+        if current and height + h + reserve > MAX_PAGE_HEIGHT:
+            pages.append(current)
+            heights.append(height)
+            current, height = [], _H_CONT_CHROME
+        current.append(a)
+        height += h
+    if current:
+        pages.append(current)
+        heights.append(height)
+
+    # Un'ultima pagina con un solo trafiletto in mezzo al bianco si evita in
+    # due modi. Riaccorparla nella precedente vale solo se ci sta davvero:
+    # farlo a forza era ciò che rimetteva insieme la striscia lunga. Se non
+    # ci sta, si scala giù una notizia dalla penultima, così l'edizione
+    # chiude con due pezzi invece che con uno solo.
+    if len(pages) > 1 and len(pages[-1]) == 1:
+        merged = heights[-2] + _estimate_article_height(pages[-1][0]) + _H_TAIL
+        if merged <= MAX_PAGE_HEIGHT:
+            pages[-2].extend(pages.pop())
+        elif len(pages[-2]) > 1:
+            pages[-1].insert(0, pages[-2].pop())
+
+    return pages
 
 
 def build_pages_html(
@@ -462,51 +503,65 @@ def build_pages_html(
     quote: Quote | None = None,
     edition_number: int | None = None,
 ) -> list[str]:
-    """Compone il gazzettino e restituisce l'HTML di ciascuna pagina (una o
-    due). `articles` deve arrivare già ordinata per rilevanza."""
+    """Compone il gazzettino e restituisce l'HTML di ciascuna pagina.
+
+    Le pagine sono quante ne servono: una sola quando la giornata è magra,
+    tre o quattro quando i topic attivi sono molti. `articles` deve arrivare
+    già ordinata per rilevanza."""
     logo_uri = data_uri(logo_path) if logo_path else None
     index_entries = index_entries or []
     index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
-    first, second = split_articles(articles, lead, hero, index_rows)
-
+    chunks = paginate_articles(articles, lead, hero, index_rows)
+    total = len(chunks)
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
-    folio = f"{edition} · Pagina 1 di 2" if second else edition
-
-    page1 = _wrap_page(
-        _masthead(logo_uri, newspaper_name)
-        + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
-        f'<span class="folio">{html.escape(folio)}</span></div>'
-        + _index_html(index_entries)
-        + _lead_html(lead, hero)
-        + _articles_html(first, "Il resto della giornata")
-        + (
-            '<div class="footer-continue">'
-            f'<span class="note">{html.escape(FOOTER_NOTE)}</span>'
-            '<span class="next">Continua a pagina 2 ▸</span></div>'
-            if second
-            else _quote_html(quote) + _stats_html(stats) + _footer_html()
-        )
-    )
-
-    if not second:
-        return [page1]
 
     brand = (
         f'<img src="{logo_uri}" alt="{html.escape(newspaper_name)}">'
         if logo_uri
         else f'<span class="folio">{html.escape(newspaper_name)}</span>'
     )
-    page2 = _wrap_page(
-        f'<div class="continuation">{brand}'
-        f'<span class="folio">{html.escape(short_italian_date(day))} · Pagina 2</span>'
-        '</div><div class="rule-accent"></div>'
-        + _articles_html(second, "Segue dalla prima")
-        + _quote_html(quote)
-        + _stats_html(stats)
-        + _footer_html("Fine dell'edizione · pagina 2 di 2")
-    )
-    return [page1, page2]
+
+    pages: list[str] = []
+    for number, chunk in enumerate(chunks, start=1):
+        if number == 1:
+            folio = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
+            head = (
+                _masthead(logo_uri, newspaper_name)
+                + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
+                f'<span class="folio">{html.escape(folio)}</span></div>'
+                + _index_html(index_entries)
+                + _lead_html(lead, hero)
+            )
+            label = "Il resto della giornata"
+        else:
+            head = (
+                f'<div class="continuation">{brand}'
+                f'<span class="folio">{html.escape(short_italian_date(day))} · '
+                f"Pagina {number} di {total}</span>"
+                '</div><div class="rule-accent"></div>'
+            )
+            # "Segue dalla prima" è vero solo a pagina 2: dalla terza in poi
+            # si segue la pagina precedente, non la prima.
+            label = "Segue dalla prima" if number == 2 else "Segue"
+
+        if number == total:
+            note = (
+                FOOTER_NOTE
+                if total == 1
+                else f"Fine dell'edizione · pagina {number} di {total}"
+            )
+            tail = _quote_html(quote) + _stats_html(stats) + _footer_html(note)
+        else:
+            tail = (
+                '<div class="footer-continue">'
+                f'<span class="note">{html.escape(FOOTER_NOTE)}</span>'
+                f'<span class="next">Continua a pagina {number + 1} ▸</span></div>'
+            )
+
+        pages.append(_wrap_page(head + _articles_html(chunk, label) + tail))
+
+    return pages
 
 
 async def render_html_to_png(
