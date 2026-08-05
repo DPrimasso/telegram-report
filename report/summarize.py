@@ -250,7 +250,11 @@ HEADLINE_RULE = (
     "Il titolo deve essere in stile testata: sintetico e concreto, senza "
     "punto finale, senza virgolette, senza markdown e senza la formula "
     "'Argomento: spiegazione'. Deve dire che cosa è successo, non "
-    "annunciare di che cosa si parla."
+    "annunciare di che cosa si parla. Massimo 8 parole: preferisci un verbo "
+    "forte a un aggettivo, e il dettaglio concreto (un nome, un numero, "
+    "un'ora) al giudizio generico. Il tono è quello di un tifoso che "
+    "racconta ad altri tifosi: diretto e caldo, mai sguaiato — niente punti "
+    "esclamativi, niente maiuscolo urlato."
 )
 
 ARTICLE_FORMAT_RULE = (
@@ -323,7 +327,8 @@ def write_topic_article(
         f'Sei un cronista di quotidiano e stai scrivendo il pezzo della '
         f'sezione "{topic_title}" per la prima pagina di oggi. Di seguito '
         f"trovi {source_label}.\n"
-        "Scrivi un articolo breve di 2-4 frasi, che si apra con il fatto più "
+        "Scrivi 1-2 frasi (massimo 320 caratteri in totale), che si aprano "
+        "con il fatto più "
         "concreto e significativo e si regga da solo, senza presupporre che "
         "il lettore sappia da dove arriva la notizia.\n\n"
         f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
@@ -399,7 +404,8 @@ def write_lead_story(
         "sensazionalistico.\n"
         "RIGA 2: un occhiello di una frase, che aggiunga informazione invece "
         "di riformulare il titolo.\n"
-        "RIGHE successive: 2-3 paragrafi brevi separati da una riga vuota. "
+        "RIGHE successive: 2 paragrafi brevi (massimo 300 caratteri "
+        "ciascuno) separati da una riga vuota. "
         "Il primo apre con il fatto principale, gli altri aggiungono "
         "contesto o conseguenze.\n\n"
         f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n{HEADLINE_RULE}\n\n"

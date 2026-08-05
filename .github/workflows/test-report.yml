@@ -1,0 +1,74 @@
+name: Prova gazzettino (invia solo a te)
+
+# Nessuno "schedule": parte solo a mano. Serve a vedere il gazzettino
+# senza scriverlo nel gruppo, quindi la destinazione non e' configurabile
+# ed e' cablata sotto.
+on:
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Data da riepilogare (YYYY-MM-DD). Vuoto = ieri."
+        required: false
+        default: ""
+      format:
+        description: "Formato del report."
+        required: false
+        default: "newspaper"
+        type: choice
+        options:
+          - newspaper
+          - text
+
+jobs:
+  prova:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: playwright install --with-deps chromium
+
+      - name: Genera il gazzettino e invialo nei Messaggi salvati
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
+          TELEGRAM_GROUP_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+          # Le due variabili che decidono la destinazione sono scritte qui e
+          # NON lette da "vars": e' cio' che impedisce a questo workflow di
+          # postare nel gruppo, qualunque cosa dicano le variabili del repo.
+          # "me" = Messaggi salvati dell'account di TELEGRAM_SESSION.
+          REPORT_DESTINATION: me
+          # Vuota per forza: send.py passa il topic come reply_to a
+          # prescindere dalla destinazione, e in Messaggi salvati quell'ID
+          # di messaggio non esiste.
+          REPORT_TOPIC_ID: ""
+
+          # Queste non toccano la destinazione: restano quelle del repo, cosi
+          # la prova somiglia al report vero.
+          REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
+          NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
+
+          # Gli input passano da env e non vengono interpolati dentro lo
+          # script: cosi' quello che scrivi nel campo resta un dato e non
+          # puo' diventare un comando.
+          INPUT_DATE: ${{ inputs.date }}
+          INPUT_FORMAT: ${{ inputs.format }}
+        run: |
+          FORMAT="${INPUT_FORMAT:-newspaper}"
+          if [ -n "$INPUT_DATE" ]; then
+            python main.py --date "$INPUT_DATE" --format "$FORMAT"
+          else
+            python main.py --format "$FORMAT"
+          fi

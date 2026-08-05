@@ -15,7 +15,9 @@ from report.fetch import (
     get_group_title,
     list_topics,
 )
-from report.newspaper import build_pages_html, render_html_to_png
+from report.highlights import build_stats, index_entries, pick_quote
+from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
+from report.photo import pick_hero_photo
 from report.report_builder import build_report
 from report.send import send_photo_report, send_report
 from report.summarize import (
@@ -145,50 +147,72 @@ async def _run_newspaper_report(
         print("Fatto.")
         return
 
-    articles: list[tuple[str, str, int]] = []
+    articles: list[Article] = []
     for topic in topics:
         if not topic.messages:
             continue
-        print(
-            f"Scrivo l'articolo per '{topic.title}' "
-            f"({len(topic.messages)} messaggi)..."
-        )
+        print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
         headline, body = write_topic_article(
             openai_client,
             config.openai_model,
             topic.title,
             topic.messages,
-            # Ogni pezzo vede quelli già scritti, così non ne ricalca
-            # titoli e attacchi: le chiamate sono altrimenti indipendenti.
-            written_so_far=[(h, b) for h, b, _ in articles],
+            written_so_far=[(a.headline, a.body) for a in articles],
         )
-        articles.append((headline, body, len(topic.messages)))
-    articles.sort(key=lambda item: item[2], reverse=True)
+        articles.append(
+            Article(topic=topic.title, headline=headline, body=body, count=len(topic.messages))
+        )
+    articles.sort(key=lambda a: a.count, reverse=True)
 
     print("Scrivo l'articolo di apertura...")
     lead_headline, lead_deck, lead_paragraphs = write_lead_story(
         openai_client,
         config.openai_model,
         all_messages,
-        page_headlines=[h for h, _, _ in articles],
+        page_headlines=[a.headline for a in articles],
     )
+    # L'apertura non è un topic: il kicker prende il topic più attivo, che è
+    # quello da cui la giornata è stata trascinata.
+    lead_topic = articles[0].topic if articles else ""
+    lead = Lead(
+        kicker=lead_topic,
+        headline=lead_headline,
+        deck=lead_deck,
+        paragraphs=lead_paragraphs,
+    )
+
+    print("Scelgo la frase del giorno...")
+    quote = pick_quote(openai_client, config.openai_model, all_messages)
 
     print("Recupero il nome del gruppo per la testata...")
-    newspaper_name = config.newspaper_name or await get_group_title(
-        client, config.group_id
-    )
+    newspaper_name = config.newspaper_name or await get_group_title(client, config.group_id)
 
-    pages_html = build_pages_html(
-        newspaper_name,
-        target_date,
-        lead_headline,
-        lead_deck,
-        lead_paragraphs,
-        articles,
-    )
-
-    print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")
     with tempfile.TemporaryDirectory() as tmp_dir:
+        print("Cerco la foto di apertura...")
+        hero = await pick_hero_photo(
+            client,
+            config.group_id,
+            target_date,
+            config.timezone,
+            tmp_dir,
+            preferred_topic=lead_topic,
+            youtube_channel_id=config.youtube_channel_id,
+        )
+
+        logo = Path(config.logo_path)
+        pages_html = build_pages_html(
+            newspaper_name,
+            target_date,
+            lead,
+            articles,
+            logo_path=logo if logo.exists() else None,
+            hero=hero,
+            index_entries=index_entries(topics),
+            stats=build_stats(all_messages),
+            quote=quote,
+        )
+
+        print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")
         image_paths = []
         for number, page_html in enumerate(pages_html, start=1):
             image_path = str(Path(tmp_dir) / f"pagina_{number}.png")
