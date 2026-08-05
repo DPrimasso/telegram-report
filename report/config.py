@@ -25,6 +25,8 @@ class Config:
     report_topic_id: int | None
     timezone: str
     newspaper_name: str | None
+    youtube_channel_id: str
+    logo_path: str
 
 
 def load_config() -> Config:
@@ -57,4 +59,6 @@ def load_config() -> Config:
         report_topic_id=int(topic_id) if topic_id else None,
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",
         newspaper_name=os.environ.get("NEWSPAPER_NAME") or None,
+        youtube_channel_id=os.environ.get("YOUTUBE_CHANNEL_ID") or "UCrXpaY2E4glX7Syy9xQiDIg",
+        logo_path=os.environ.get("LOGO_PATH") or "assets/logo-azzurro.png",
     )
