@@ -148,7 +148,13 @@ async def _run_newspaper_report(
         return
 
     articles: list[Article] = []
-    for topic in topics:
+    # Si scrive dal topic più attivo al meno attivo, e l'ordine conta: chi
+    # ha discusso di più un argomento se lo tiene, mentre i topic che lo
+    # hanno solo sfiorato lo riconoscono come già raccontato e si fermano
+    # (vedi _avoid_repetition_rule). Scrivendo in ordine di topic_id la
+    # notizia sarebbe finita a chi ne ha parlato meno. La lista esce quindi
+    # già ordinata per rilevanza, come build_pages_html si aspetta.
+    for topic in sorted(topics, key=lambda t: len(t.messages), reverse=True):
         if not topic.messages:
             continue
         print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
@@ -159,10 +165,12 @@ async def _run_newspaper_report(
             topic.messages,
             written_so_far=[(a.headline, a.body) for a in articles],
         )
+        if not headline:
+            print(f"  '{topic.title}': stesso fatto di un pezzo già in pagina, non lo ripeto.")
+            continue
         articles.append(
             Article(topic=topic.title, headline=headline, body=body, count=len(topic.messages))
         )
-    articles.sort(key=lambda a: a.count, reverse=True)
 
     print("Scrivo l'articolo di apertura...")
     lead_headline, lead_deck, lead_paragraphs = write_lead_story(
@@ -263,7 +271,13 @@ async def run(
 
     async with client:
         topics = await fetch_day_messages(
-            client, config.group_id, target_date, config.timezone, debug=debug
+            client,
+            config.group_id,
+            target_date,
+            config.timezone,
+            debug=debug,
+            scribe_names=config.scribe_names,
+            summary_markers=config.scribe_summary_markers,
         )
 
         if dump_topic:

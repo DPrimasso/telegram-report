@@ -3,6 +3,8 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
+from report import scribe
+
 load_dotenv()
 
 
@@ -11,6 +13,16 @@ def _require(name: str) -> str:
     if not value:
         raise RuntimeError(f"Variabile d'ambiente mancante: {name}")
     return value
+
+
+def _csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    """Lista separata da virgole, con ricaduta sul default. Serve per il
+    nome del bot trascrittore e per i marcatori dei suoi riepiloghi: sono
+    l'unica parte che dipende da come è configurato quel bot, e cambiarli
+    non deve richiedere una modifica al codice."""
+    raw = os.environ.get(name) or ""
+    values = tuple(part.strip() for part in raw.split(",") if part.strip())
+    return values or default
 
 
 @dataclass(frozen=True)
@@ -27,6 +39,8 @@ class Config:
     newspaper_name: str | None
     youtube_channel_id: str
     logo_path: str
+    scribe_names: tuple[str, ...]
+    scribe_summary_markers: tuple[str, ...]
 
 
 def load_config() -> Config:
@@ -61,4 +75,8 @@ def load_config() -> Config:
         newspaper_name=os.environ.get("NEWSPAPER_NAME") or None,
         youtube_channel_id=os.environ.get("YOUTUBE_CHANNEL_ID") or "UCrXpaY2E4glX7Syy9xQiDIg",
         logo_path=os.environ.get("LOGO_PATH") or "assets/logo-azzurro.png",
+        scribe_names=_csv("SCRIBE_BOT_NAMES", scribe.DEFAULT_BOT_NAMES),
+        scribe_summary_markers=_csv(
+            "SCRIBE_SUMMARY_MARKERS", scribe.DEFAULT_SUMMARY_MARKERS
+        ),
     )
