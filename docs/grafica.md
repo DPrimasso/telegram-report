@@ -89,66 +89,50 @@ completa invece di ripeterli.
   dominante aggiunge poco; in quelle equilibrate diventa una fila di
   segmenti tutti uguali.
 
-## Illustrazione generata: com'è incorniciata
-
-È l'idea che viene per prima quando si dice "aggiungiamo grafica", ed è
-anche quella con il rapporto rischio/resa peggiore: **un'illustrazione
-generata non dice niente che il testo non dica già**, e viola quindi il
-principio alla radice. Per questo è **spenta di default**
-(`ILLUSTRATION_FALLBACK=1` per accenderla) e sta all'ultimo posto della
-catena, dopo la foto del gruppo e la copertina YouTube — cioè entra in
-gioco solo nei casi in cui oggi l'apertura resta tipografica, che è
-comunque una pagina valida.
-
-Se la si vuole, il modo in cui è incorniciata in `report/illustration.py`
-è quello che la rende sopportabile in una testata. Tre difese, in ordine:
-
-1. **Uno stile solo, bloccato in una costante.** `ART_DIRECTION` non si
-   compone a runtime e non dipende dalla notizia. Una testata che cambia
-   registro grafico ogni giorno non sembra una testata, ed è esattamente
-   quello che succede lasciando scegliere lo stile al modello.
-2. **Il soggetto lo decide un passaggio separato.** Prima un modello di
-   testo riduce il titolo a un soggetto visivo semplice — un oggetto o
-   una natura morta, mai una scena con persone — poi quel soggetto entra
-   nel prompt dell'immagine. Buttare il titolo dentro il generatore
-   significa ritrovarsi scritte sbagliate, volti di giocatori veri e
-   stemmi in prima pagina, che è il caso in cui l'immagine generata si
-   nota di più ed è anche quello con i problemi di diritti.
-3. **Passa dallo stesso filtro duotone delle foto vere.** Non entra in
-   pagina una seconda tavolozza, e l'illustrazione si accorda con le
-   giornate in cui al suo posto c'è una fotografia. Una sorgente già a un
-   solo inchiostro attraversa quel passaggio senza dominanti impreviste:
-   è il motivo per cui lo stile chiesto è una linoleografia monocroma e
-   non un'illustrazione a colori.
-
-La didascalia dice sempre che è generata. Un'immagine finta senza
-etichetta dentro un riepilogo di cose vere è l'unica cosa qui dentro che
-sarebbe un problema anche fuori dalla grafica.
-
-### Provarla
-
-```bash
-python illustrazione.py                        # 3 varianti sul titolo di esempio
-python illustrazione.py --titolo "..." --n 1   # un titolo tuo, una sola immagine
-python illustrazione.py --pagina               # anche la prima pagina completa
-python illustrazione.py --qualita low          # bozze rapide e più economiche
-python illustrazione.py --finto                # prova a secco, nessuna spesa
-```
-
-Ogni variante è una chiamata a pagamento al modello di immagini; lo
-script stampa quante ne sta per fare prima di partire. Il confronto
-mostra ogni variante grezza, in bicromia morbida e in bicromia piena,
-perché un'immagine generata non si giudica da sola ma nello slot in cui
-finisce, dopo il trattamento.
-
-Sul formato: lo slot dell'apertura è un 2.57:1, quindi si chiede
-`1600x624` e non un 16:9 — con il 16:9 si perde quasi un terzo
-dell'altezza nel ritaglio, e su una composizione centrata il taglio
-mangia il soggetto. Con `gpt-image-1`, che accetta solo misure fisse, va
-impostato `OPENAI_IMAGE_SIZE=1536x1024` accettando un ritaglio più
-aggressivo.
-
 ## Cosa è stato scartato (e perché)
+
+### Illustrazioni generate dall'IA
+
+È l'idea che viene per prima quando si dice "aggiungiamo grafica". È
+stata implementata per intero, provata, e poi rimossa: il codice sta
+nella storia di git (`git log --diff-filter=D -- report/illustration.py`)
+per chi volesse ripartire da lì, ma la prova ha confermato l'obiezione di
+principio invece di smentirla.
+
+**Cosa è successo.** L'implementazione era incorniciata bene: uno stile
+unico bloccato in una costante e indipendente dalla notizia, il soggetto
+ricavato da un passaggio di testo separato che escludeva volti, maglie,
+stemmi e scritte, l'immagine passata dallo stesso filtro duotone delle
+foto vere, la didascalia sempre esplicita. Su un titolo di mercato —
+prestito, firma attesa entro giovedì, slot in lista da liberare — è
+uscita una linoleografia pulita e ben fatta: un pallone appoggiato su un
+contratto, con una penna accanto.
+
+**Perché non basta.** Quell'immagine illustra *la categoria, non la
+notizia*. Andrebbe identica su qualunque titolo di mercato, oggi e fra
+due anni; del titolo specifico non raccoglie niente. Ed è un esito
+strutturale, non un sorteggio sfortunato: sono proprio i vincoli
+necessari — niente persone, niente scritte, niente stemmi, che senza si
+finisce con volti di giocatori veri e testo sbagliato in prima pagina — a
+lasciare disponibili solo oggetti di scena generici. Stringere il prompt
+per renderla più specifica porta a immagini più strane, non più
+pertinenti.
+
+Torna quindi il principio: **un'illustrazione generata non dice niente
+che il testo non dica già**. Con una foto vera del gruppo il problema non
+si pone — quella *è* la giornata, non una rappresentazione della
+giornata.
+
+**E il caso senza foto?** Non è un buco da riempire. La prima pagina
+senza immagine regge da sola — titolo, occhiello e capolettera fanno il
+lavoro — e ci guadagna: i 420px liberati fanno salire un secondo pezzo
+sopra il taglio. Confrontabile con `python preview.py --no-hero`.
+
+Se un giorno la si volesse riprendere, le tre difese dell'impianto
+rimosso restano quelle giuste (stile bloccato, soggetto da un passaggio
+separato, stesso trattamento cromatico delle foto vere). Quello che
+manca, e che nessuna di quelle difese risolve, è un modo di legare
+l'immagine al fatto e non all'argomento.
 
 ### Foto sui pezzi secondari
 
