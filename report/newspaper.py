@@ -63,9 +63,18 @@ HERO_DEFAULT_HEIGHT = 420
 # errore.
 FRAME_INSTEAD_OF_CROP = 1.35
 
-# Fascia di chiusura "Il giorno in immagini".
+# Provino di chiusura "Il giorno in immagini". Piccolo di proposito: è la
+# dimensione a cui uno screenshot o un fermo immagine si legge per quello
+# che è — materiale pubblicato nel gruppo — senza pretendere di
+# illustrare una notizia.
 STRIP_COLUMNS = 4
-STRIP_TILE_HEIGHT = 168
+STRIP_TILE_HEIGHT = 132
+
+# Oltre questa posizione in classifica un topic non ha un articolo suo ma
+# una riga nel box "In breve". Con tredici topic attivi, tredici articoli
+# della stessa forma sono una schedina, non un giornale: la gerarchia si
+# vede solo se qualcosa è grande e qualcos'altro è piccolo.
+MAX_FULL_ARTICLES = 5
 
 # Le foto dei pezzi secondari stanno sotto quella di apertura anche in
 # altezza: se fossero uguali, la gerarchia della pagina sparirebbe.
@@ -192,6 +201,17 @@ class GraphicsOptions:
     weight_bars: bool = True    # barretta di peso accanto al contatore messaggi
     topic_glyphs: bool = True   # pittogramma nei tag e nell'indice
     share_bar: bool = True      # barra delle proporzioni sotto l'indice
+    number_block: bool = True   # il dato grande sotto l'indice
+    brief_box: bool = True      # i topic minori raccolti in un box "In breve"
+
+    # Immagini grandi dentro la pagina (apertura e articoli). Spente: le
+    # immagini di una chat sono artefatti di conversazione — fermi
+    # immagine sottotitolati, screenshot di testo, meme — leggibili a
+    # dimensione chat e dentro il loro contesto. Ingrandite a piena pagina
+    # non aggiungono informazione, occupano lo spazio di qualcosa che
+    # potrebbe darla. Restano nel provino in fondo, dove il registro è
+    # quello giusto: "ecco cosa ha pubblicato il gruppo".
+    inline_photos: bool = False
 
     @classmethod
     def none(cls) -> "GraphicsOptions":
@@ -204,6 +224,9 @@ class GraphicsOptions:
             weight_bars=False,
             topic_glyphs=False,
             share_bar=False,
+            number_block=False,
+            brief_box=False,
+            inline_photos=True,
         )
 
     @property
@@ -381,6 +404,35 @@ p {{ margin: 0; }}
   text-transform: uppercase; color: #5a5a5a; margin-top: 8px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }}
+
+/* Il dato grande: il numero che descrive la giornata, alla scala a cui i
+   numeri si guardano invece di leggerli. È l'elemento che dà peso visivo
+   alla testa della pagina senza chiedere niente a un'immagine. */
+.number {{
+  background: {NAVY}; color: #fff; padding: 26px 56px;
+  display: flex; align-items: baseline; gap: 26px;
+}}
+.number .big {{
+  font-size: 92px; font-weight: 800; letter-spacing: -0.04em;
+  line-height: 0.9; color: {AZZURRO};
+}}
+.number .said {{ font-size: 26px; line-height: 1.25; font-weight: 600; max-width: 620px; }}
+.number .said b {{ color: {AZZURRO_PALE}; }}
+
+/* In breve: i topic minori in due colonne, titolo e basta. Un trafiletto
+   di quattro righe per un topic da sei messaggi è una promessa che il
+   contenuto non mantiene. */
+.brief {{ background: #fff; padding: 26px 56px 30px 56px; border-top: 6px solid {NAVY}; }}
+.brief > .section-label {{ display: block; margin-bottom: 16px; }}
+.brief-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }}
+.brief-item {{ border-top: 2px solid {NAVY}; padding: 14px 0; }}
+.brief-item .head {{
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  font-size: 14px; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+.brief-item .head .n {{ color: #8a8a8a; }}
+.brief-item p {{ font-size: 25px; line-height: 1.22; font-weight: 700; letter-spacing: -0.015em; }}
 
 .quote {{ background: {AZZURRO}; color: {NAVY}; padding: 34px 56px; }}
 .quote .section-label {{ display: block; color: {NAVY}; margin-bottom: 14px; }}
@@ -651,6 +703,51 @@ def _articles_html(
     )
 
 
+def _number_html(entries: list[tuple[str, int]], stats: Stats | None) -> str:
+    """Il dato grande della giornata.
+
+    Non è una statistica in più — quelle stanno già nella fascia navy in
+    fondo. È l'unico modo di dare peso visivo alla testa della pagina
+    senza un'immagine: un numero grande occupa lo spazio e lo giustifica,
+    perché quello spazio lo riempie di informazione."""
+    if not entries:
+        return ""
+    topic, count = entries[0]
+    share = ""
+    total = sum(c for _, c in entries)
+    if total > 0 and stats is not None:
+        share = f" — <b>{round(100 * count / total)}%</b> di tutto quello che si è detto"
+    return (
+        '<div class="number">'
+        f'<span class="big">{count}</span>'
+        f'<span class="said">messaggi su <b>{html.escape(topic)}</b>{share}</span>'
+        "</div>"
+    )
+
+
+def _brief_html(articles: list[Article], gfx: GraphicsOptions) -> str:
+    """I topic minori: tag, contatore e titolo, su due colonne."""
+    if not articles:
+        return ""
+    items = []
+    for a in articles:
+        if not a.headline:
+            continue
+        glyph = topic_glyph_svg(a.topic, size=15) if gfx.topic_glyphs else ""
+        items.append(
+            '<div class="brief-item"><div class="head">'
+            f"{glyph}<span>{html.escape(a.topic)}</span>"
+            f'<span class="n">{a.count}</span></div>'
+            f"<p>{html.escape(a.headline)}</p></div>"
+        )
+    if not items:
+        return ""
+    return (
+        '<div class="brief"><span class="section-label">In breve</span>'
+        f'<div class="brief-grid">{"".join(items)}</div></div>'
+    )
+
+
 def _strip_html(strip: list[Hero], gfx: GraphicsOptions) -> str:
     """La fascia con le immagini della giornata.
 
@@ -660,7 +757,7 @@ def _strip_html(strip: list[Hero], gfx: GraphicsOptions) -> str:
     if not strip:
         return ""
     cells = []
-    for picture in strip[:STRIP_COLUMNS]:
+    for picture in strip[: STRIP_COLUMNS * 2]:
         label = (
             f'<figcaption class="cap">{html.escape(picture.label)}</figcaption>'
             if picture.label
@@ -745,7 +842,10 @@ _H_PIC_CAPTION = 40         # didascalia sotto la foto di un pezzo
 _H_QUOTE = 220
 _H_STATS = 120
 _H_CHART = 200          # titolo + grafico orario + regolo di separazione
-_H_STRIP = 280          # titolo + riquadri + etichette della fascia immagini
+_H_STRIP = 250          # titolo + riquadri + etichette del provino
+_H_NUMBER = 145         # blocco del dato grande
+_H_BRIEF_HEAD = 70      # titolo del box "In breve"
+_H_BRIEF_ROW = 108      # una riga del box (due voci affiancate)
 _H_SHARE = 48           # barra delle proporzioni sotto l'indice
 
 # Frase del giorno e statistiche stanno sempre in ultima pagina: chi
@@ -936,6 +1036,20 @@ def build_pages_html(
     index_entries = index_entries or []
     index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
+    # Senza immagini in linea l'apertura e gli articoli tornano
+    # tipografici: le foto restano solo nel provino in fondo.
+    if not gfx.inline_photos:
+        hero = None
+        articles = [replace(a, picture=None) for a in articles]
+
+    # I topic minori escono dalla colonna e diventano righe del box "In
+    # breve": è la separazione che rende visibile la gerarchia.
+    usable = [a for a in articles if a.headline]
+    brief: list[Article] = []
+    if gfx.brief_box and len(usable) > MAX_FULL_ARTICLES:
+        brief = usable[MAX_FULL_ARTICLES:]
+        articles = usable[:MAX_FULL_ARTICLES]
+
     # Il contatore più alto fa da fondoscala alle barrette di peso: il
     # confronto è fra i topic della giornata, non con una soglia fissa.
     top_count = max((a.count for a in articles), default=0)
@@ -945,6 +1059,10 @@ def build_pages_html(
         _H_TAIL
         + (_H_CHART if gfx.hourly_chart and hourly else 0)
         + (_H_STRIP if strip else 0)
+        + (_H_BRIEF_HEAD + _H_BRIEF_ROW * -(-len(brief) // 2) if brief else 0)
+    )
+    index_extra = (_H_SHARE if gfx.share_bar and index_entries else 0) + (
+        _H_NUMBER if gfx.number_block and index_entries else 0
     )
     chunks = paginate_articles(
         articles,
@@ -952,10 +1070,9 @@ def build_pages_html(
         hero,
         index_rows,
         tail_height=closing_height,
-        index_extra=_H_SHARE if gfx.share_bar and index_entries else 0,
+        index_extra=index_extra,
     )
 
-    index_extra = _H_SHARE if gfx.share_bar and index_entries else 0
     first_used = (
         _H_CHROME
         + index_rows * _H_INDEX_ROW
@@ -985,6 +1102,7 @@ def build_pages_html(
                 + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
                 f'<span class="folio">{html.escape(folio)}</span></div>'
                 + _index_html(index_entries, gfx)
+                + (_number_html(index_entries, stats) if gfx.number_block else "")
                 + _lead_html(lead, hero, gfx)
             )
             label = "Il resto della giornata"
@@ -1006,7 +1124,8 @@ def build_pages_html(
                 else f"Fine dell'edizione · pagina {number} di {total}"
             )
             tail = (
-                _strip_html(strip, gfx)
+                _brief_html(brief, gfx)
+                + _strip_html(strip, gfx)
                 + _quote_html(quote)
                 + _stats_html(stats, hourly, gfx)
                 + _footer_html(note)

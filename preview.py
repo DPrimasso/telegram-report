@@ -259,6 +259,11 @@ async def main() -> None:
         "--no-share", action="store_true", help="spegne la barra delle proporzioni"
     )
     parser.add_argument(
+        "--foto-in-pagina",
+        action="store_true",
+        help="rimette le immagini grandi nell'apertura e negli articoli",
+    )
+    parser.add_argument(
         "--foto",
         choices=PHOTO_TREATMENTS,
         default=None,
@@ -282,7 +287,7 @@ async def main() -> None:
     strip = []
     if not args.plain and not args.no_hero:
         # Un pezzo con foto grande a piena larghezza, uno con la miniatura
-        # di un video nel colonnino: i due casi reali.
+        # di un video nel colonnino: servono solo con --foto-in-pagina.
         for article, shape, caption in (
             (SAMPLE_ARTICLES[0], "wide", "Foto dal topic Partita · 18:32"),
             (SAMPLE_ARTICLES[1], "miniatura", "Fotogramma da un video nel topic Tattica · 16:05"),
@@ -290,11 +295,13 @@ async def main() -> None:
             article.picture = _sample_hero(out, shape)
             if article.picture is not None:
                 article.picture.caption = caption
-        # La fascia di chiusura: quattro immagini di formati diversi, come
-        # quelle vere — miniature di video comprese.
+        # Il provino di chiusura: formati diversi, come quelli veri —
+        # miniature di video e screenshot compresi.
         for topic, shape in zip(
-            ("Tattica", "Canale YouTube", "Biglietti", "Off topic"),
-            ("wide", "quadrata", "telefono", "verticale"),
+            ("Match Day", "SSC Napoli", "CalcioMercato", "Le Altre Squadre",
+             "Fantacalcio", "Ko-Fi", "Nazionali", "Off topic"),
+            ("wide", "quadrata", "telefono", "verticale",
+             "miniatura", "wide", "quadrata", "telefono"),
         ):
             picture = _sample_hero(out, shape)
             if picture is not None:
@@ -307,6 +314,8 @@ async def main() -> None:
         gfx.topic_glyphs = False
     if args.no_share:
         gfx.share_bar = False
+    if args.foto_in_pagina:
+        gfx.inline_photos = True
     if args.foto:
         gfx.photo_treatment = args.foto
 

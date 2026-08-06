@@ -50,18 +50,19 @@ python catalogo.py          # scrive catalogo.png
 
 | Elemento | Cosa dice | Dove sta |
 |---|---|---|
-| **Bicromia sulle immagini** | niente, ma *uniforma*: rende usabili immagini qualsiasi da chat | ovunque ce ne sia una |
+| **Dato grande** | quanto ha dominato il topic principale | sotto l'indice |
 | **Capolettera** | dove comincia il pezzo principale | primo paragrafo dell'apertura |
 | **Quadratino di fine pezzo** | dove finisce un articolo | ultima riga di ogni pezzo |
 | **Barretta di peso** | quanto pesa quel topic rispetto al più discusso | riga del contatore messaggi |
 | **Pittogrammi dei topic** | distingue i topic a colpo d'occhio | tag dei pezzi e indice |
 | **Barra delle proporzioni** | quanto ha pesato ogni topic sulla giornata | sotto l'indice |
-| **Fascia «Il giorno in immagini»** | cosa ha pubblicato il gruppo | ultima pagina |
+| **Box «In breve»** | i topic minori, senza fingere che siano notizie | ultima pagina |
+| **Provino «Il giorno in immagini»** | cosa ha pubblicato il gruppo | ultima pagina |
 | **Andamento orario** | *quando* è successo: la forma della giornata | fascia navy di chiusura |
+| **Bicromia** | niente, ma *uniforma*: lega le immagini alla testata | provino, e immagini in linea se accese |
 
-Il **trattamento delle fotografie** è la scelta che conta di più, perché è
-quella che permette di mettere in pagina una foto qualsiasi senza che la
-pagina si sfaldi. Tre opzioni (`photo_treatment`):
+Il **trattamento cromatico** uniforma immagini che arrivano da telefoni e
+sorgenti diverse. Tre opzioni (`photo_treatment`):
 
 - `mono` — bianco e nero. Uniforma ma spegne. Era il comportamento
   precedente.
@@ -71,74 +72,63 @@ pagina si sfaldi. Tre opzioni (`photo_treatment`):
   miniatura nello scroll della chat, ma è una scelta forte: su un
   ritratto si vede parecchio.
 
-### Quante immagini, e come sono ritagliate
+### Le immagini: perché stanno solo nel provino
 
-**La regola che governa tutto: l'immagine segue la notizia.** Un'immagine
-sotto un titolo si legge come illustrazione di quel titolo, quindi ogni
-immagine sta accanto al pezzo del topic da cui proviene — mai "dove c'è
-posto". Ne discendono i tre posti:
+Questa è la sezione che ha cambiato idea più volte, e vale la pena
+dire come è andata, perché la conclusione non è ovvia.
 
-- l'**apertura**: solo un'immagine del topic dell'apertura. Se quel topic
-  non ne ha una abbastanza grande, l'apertura resta tipografica e le
-  immagini vanno ai pezzi a cui appartengono. È la correzione del difetto
-  visto sul gazzettino vero, dove la foto più votata finiva sotto
-  l'apertura anche se veniva da tutt'altro topic. Per lo stesso motivo la
-  copertina YouTube entra solo nei giorni in cui il gruppo non ha
-  prodotto nessuna immagine;
-- i **pezzi secondari**: l'immagine del loro topic, fino a quattro pezzi
-  illustrati (`MAX_ARTICLE_PHOTOS`). Sorgente grande → blocco a piena
-  larghezza fra titolo e testo; sorgente piccola (la miniatura di un
-  video) → colonnino accanto al testo, alla maniera dei quotidiani, così
-  non va mai ingrandita oltre quel che regge. Quando la pagina non ci
-  sta, si toglie la foto e si tiene il testo;
-- la **fascia di chiusura** «Il giorno in immagini», fino a quattro
-  (`MAX_STRIP_PHOTOS`): quello che resta — di solito i topic senza un
-  articolo illustrato. Sta fuori dagli articoli, quindi non tocca la
-  gerarchia dei pezzi.
+Il primo tentativo metteva una foto grande sotto l'apertura e nei pezzi.
+Sulla pagina vera il risultato era brutto, e non per un difetto di
+impaginazione: dipende da **cosa sono davvero le immagini di una chat**.
+Su una giornata reale del gruppo, le tre immagini scelte erano un fermo
+immagine di un video con i sottotitoli impressi, lo screenshot di un
+articolo di giornale e uno scarabocchio con un logo sopra.
 
-**Anche i video.** In un gruppo di tifosi la maggior parte del materiale
-visivo sono clip — il gol, l'intervista, il momento della partita — e
-ignorarle lasciava il gazzettino con una sola immagine al giorno anche
-nelle giornate piene. Di un video si prende il fotogramma di copertina,
-che Telegram allega già al messaggio: si scarica solo quello, non il file
-da decine di megabyte. La didascalia lo dichiara («Fotogramma da un
-video»), perché una copertina di video non ha la nitidezza di uno scatto
-e senza quella riga sembrerebbe una foto venuta male.
+Non sono fotografie editoriali. Sono **artefatti di conversazione**:
+funzionano a dimensione chat, dentro il loro contesto, in mezzo ai
+messaggi che li spiegano. Ingranditi a piena pagina non aggiungono
+informazione — la tolgono, perché occupano lo spazio di qualcosa che
+potrebbe darla. Nessun trattamento cromatico, nessuna regola di ritaglio
+e nessuna cornice risolve questo: il problema non è come l'immagine è
+messa in pagina, è che a quella scala non dice niente.
 
-Le miniature dei video sono però piccole, spesso 320px: a piena larghezza
-sgranerebbero. Da qui le due soglie — `MIN_PHOTO_WIDTH` (600) per andare
-a piena larghezza (apertura e blocco grande dei pezzi), `MIN_STRIP_WIDTH`
-(260) per gli usi in piccolo (colonnino e fascia).
+Quindi, di default (`inline_photos = False`):
 
-Gli sticker restano fuori: hanno colori, contorni e un linguaggio grafico
-propri, e in pagina sarebbero la cosa più fuori posto di tutte.
+- **niente immagini nell'apertura e negli articoli**. Lo spazio va al
+  titolo, all'occhiello e al testo, che a quella scala l'informazione ce
+  l'hanno;
+- le immagini restano nel **provino** «Il giorno in immagini» in fondo,
+  fino a otto, piccole. È la scala giusta: uno screenshot lì si legge per
+  quello che è — «il gruppo ha pubblicato questo» — senza pretendere di
+  illustrare una notizia. Ogni riquadro porta l'etichetta del suo topic.
 
-**Come sono ritagliate.** Il riquadro prende le proporzioni
-dell'immagine, non viceversa. Un riquadro ad altezza fissa andava bene
-finché le immagini erano foto orizzontali; su un fermo immagine di un
-video o su uno screenshot di telefono — che è la maggior parte di quello
-che gira in una chat — ne buttava via i due terzi, tagliando esattamente
-la parte con il soggetto.
+Le immagini grandi si riaccendono con `inline_photos = True`
+(`python preview.py --foto-in-pagina`): il codice per gestirle c'è tutto
+— proporzioni dal messaggio, cornice invece del taglio per le verticali,
+colonnino per le miniature dei video — e torna utile il giorno in cui il
+gruppo pubblicasse foto vere.
 
-Le dimensioni arrivano gratis dal messaggio: Telegram allega a ogni foto
-l'elenco delle sue "size", quindi non serve aprire il file scaricato né
-una libreria di immagini.
+**Se le immagini non riempiono la pagina, cosa la riempie?** La
+tipografia e i dati. Sono gli elementi qui sotto: il dato grande, il box
+«In breve», il capolettera, il grafico orario, la barra delle
+proporzioni. Una pagina fatta di questi non ha buchi da tappare.
 
-Restano un tetto e un pavimento (`HERO_MAX_HEIGHT`, `HERO_MIN_HEIGHT`),
-perché la pagina ha una sua economia: una foto verticale a piena
-larghezza sarebbe alta più di mille pixel e spingerebbe l'articolo fuori
-dalla prima schermata. Cosa succede oltre il tetto dipende da quanto si
-sfora:
+### Il dato grande e il box «In breve»
 
-- **poco** (fino a `FRAME_INSTEAD_OF_CROP`, cioè il 35%): si ritaglia, ma
-  **dal basso** e non dal centro. In una foto il soggetto sta quasi
-  sempre nella metà alta, e in un fermo immagine con i sottotitoli
-  impressi quello che si perde sono i sottotitoli;
-- **molto** (una verticale da telefono, che sforerebbe del triplo):
-  ritagliare vorrebbe dire buttare via mezza immagine, quindi la si
-  incornicia intera su fondo navy. Meglio una foto verticale con due
-  bande ai lati — che sembra una scelta — di una foto verticale amputata,
-  che sembra un errore.
+Due elementi nati dallo stesso problema: **tredici topic attivi
+producevano tredici articoli della stessa forma**, cioè quattro pagine
+senza gerarchia — una schedina, non un giornale.
+
+- **Il dato grande** (`number_block`) sta sotto l'indice: il numero di
+  messaggi del topic più discusso, alla scala a cui i numeri si guardano
+  invece di leggerli, più la sua quota sulla giornata. Dà peso visivo
+  alla testa della pagina riempiendo lo spazio di informazione, che è
+  l'unico modo onesto di riempirlo.
+- **Il box «In breve»** (`brief_box`) raccoglie i topic oltre il quinto
+  (`MAX_FULL_ARTICLES`) in due colonne di soli titoli. Un trafiletto di
+  quattro righe per un topic da sei messaggi è una promessa che il
+  contenuto non mantiene; una riga di titolo la mantiene. La gerarchia si
+  vede solo se qualcosa è grande e qualcos'altro è piccolo.
 
 ### Da dove arrivano le immagini
 
