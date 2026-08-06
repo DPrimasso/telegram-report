@@ -36,9 +36,15 @@ from telethon import TelegramClient
 from report.fetch import GENERAL_TOPIC_ID, _fetch_topic_titles, _resolve_group, _topic_id_for_message
 from report.newspaper import Hero
 
-# Sotto questa larghezza la foto, ingrandita a 1080px, sgrana: meglio
+# Sotto questa larghezza la foto, ingrandita a 968px, sgrana: meglio
 # passare alla ricaduta successiva.
 MIN_PHOTO_WIDTH = 600
+
+# La fascia in fondo mostra le immagini a un quarto di larghezza, quindi
+# regge sorgenti molto più piccole. È la soglia che rende utilizzabili i
+# fotogrammi dei video: Telegram allega ai video miniature da 320px, che a
+# tutta pagina sarebbero impresentabili e in una fascia da quattro no.
+MIN_STRIP_WIDTH = 260
 
 # Quante immagini possono andare ai pezzi secondari, oltre a quella di
 # apertura. Il limite non è tecnico: una foto in pagina dice "questo pezzo
@@ -46,6 +52,10 @@ MIN_PHOTO_WIDTH = 600
 # aggiungerlo. Due lasciano una gerarchia leggibile — apertura, poi due
 # pezzi illustrati, poi il resto in colonna.
 MAX_ARTICLE_PHOTOS = 2
+
+# Le immagini della fascia di chiusura. Quattro riempiono esattamente la
+# larghezza utile e restano abbastanza grandi da riconoscere un soggetto.
+MAX_STRIP_PHOTOS = 4
 
 _YT_FEED = "https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
 # Le dimensioni sono note per costruzione. maxresdefault è un 16:9 pieno,
@@ -75,6 +85,8 @@ class _Candidate:
     width: int = 0
     height: int = 0
     webpage: object = None  # valorizzato solo per le anteprime dei link
+    kind: str = "foto"      # "foto" oppure "video"
+    thumb: object = None    # la PhotoSize da scaricare, per i video
 
 
 def _photo_size(message) -> tuple[int, int]:
@@ -94,6 +106,44 @@ def _photo_size(message) -> tuple[int, int]:
         if w > best_w:
             best_w, best_h = w, h
     return best_w, best_h
+
+
+def _largest_thumb(document):
+    """La miniatura più grande di un video, saltando quelle senza
+    dimensioni (le "stripped", che sono venti byte di anteprima sfocata)."""
+    best, best_w = None, 0
+    for thumb in getattr(document, "thumbs", None) or []:
+        w = getattr(thumb, "w", 0) or 0
+        h = getattr(thumb, "h", 0) or 0
+        if w > best_w and h > 0:
+            best, best_w = thumb, w
+    return best
+
+
+def _visual_of(message) -> tuple[str, int, int, object] | None:
+    """Che immagine si può ricavare da un messaggio: (tipo, w, h, miniatura).
+
+    I video contano quanto le foto. In un gruppo di tifosi la maggior
+    parte del materiale visivo sono clip — il gol, l'intervista, il
+    momento della partita — e ignorarle lasciava il gazzettino con una
+    sola immagine al giorno anche nelle giornate piene. Di un video si
+    prende il fotogramma di copertina, che Telegram allega già.
+
+    Gli sticker restano fuori: hanno un loro linguaggio grafico, colori e
+    contorni propri, e in pagina sarebbero la cosa più fuori posto di
+    tutte."""
+    if getattr(message, "sticker", None) is not None:
+        return None
+    if getattr(message, "photo", None):
+        width, height = _photo_size(message)
+        return ("foto", width, height, None)
+    document = getattr(message, "video", None) or getattr(message, "gif", None)
+    if document is None:
+        return None
+    thumb = _largest_thumb(document)
+    if thumb is None:
+        return None
+    return ("video", getattr(thumb, "w", 0) or 0, getattr(thumb, "h", 0) or 0, thumb)
 
 
 def _source_name(webpage) -> str:
@@ -125,15 +175,18 @@ def _engagement(message) -> int:
 
 @dataclass
 class DayPhotos:
-    """Le immagini della giornata: quella di apertura e, per i pezzi
-    secondari, al più una per topic."""
+    """Le immagini della giornata: quella di apertura, quelle dei pezzi
+    secondari (al più una per topic) e quelle della fascia di chiusura."""
 
     hero: Hero | None = None
     by_topic: dict[str, Hero] = None  # type: ignore[assignment]
+    strip: list[Hero] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.by_topic is None:
             self.by_topic = {}
+        if self.strip is None:
+            self.strip = []
 
 
 async def pick_day_photos(
@@ -146,6 +199,7 @@ async def pick_day_photos(
     preferred_topic: str = "",
     youtube_channel_id: str = "",
     max_article_photos: int = MAX_ARTICLE_PHOTOS,
+    max_strip_photos: int = MAX_STRIP_PHOTOS,
 ) -> DayPhotos:
     """Sceglie le foto del giorno in un passaggio solo sui messaggi.
 
@@ -153,14 +207,15 @@ async def pick_day_photos(
     a Telegram — in un gruppo da millesettecento messaggi al giorno non è
     trascurabile — quindi i candidati si raccolgono una volta e si
     smistano dopo: il migliore in assoluto apre, i migliori dei topic
-    rimasti vanno ai pezzi secondari."""
+    rimasti vanno ai pezzi secondari, il resto alla fascia di chiusura."""
     tz = ZoneInfo(timezone)
+    dest_dir = Path(dest_dir)
     candidates = await _collect_candidates(
         client, group_id, day, tz, preferred_topic
     )
 
     if not candidates:
-        # Senza foto nel gruppo resta la copertina del canale, che però
+        # Senza niente nel gruppo resta la copertina del canale, che però
         # apre e basta: non ha un topic a cui appartenere.
         hero = (
             _thumbnail_from_youtube(youtube_channel_id, day, dest_dir)
@@ -168,30 +223,67 @@ async def pick_day_photos(
             else None
         )
         return DayPhotos(hero=hero)
-
-    dest_dir = Path(dest_dir)
     ordered = sorted(candidates, key=lambda c: (c.score, c.message.date), reverse=True)
 
-    hero = await _download(client, ordered[0], dest_dir / "hero.jpg", tz)
-    used_topics = {ordered[0].topic}
+    # Apertura e pezzi vogliono sorgenti grandi: vanno a tutta larghezza,
+    # e un fotogramma da 320px lì si vedrebbe sfocato.
+    big = [c for c in ordered if c.width >= MIN_PHOTO_WIDTH]
+
+    used: set[int] = set()
+    hero = None
+    used_topics: set[str] = set()
+    if big:
+        hero = await _download(client, big[0], dest_dir / "hero.jpg", tz)
+        if hero is not None:
+            used.add(big[0].message.id)
+            used_topics.add(big[0].topic)
+    if hero is None and youtube_channel_id:
+        hero = _thumbnail_from_youtube(youtube_channel_id, day, dest_dir)
 
     by_topic: dict[str, Hero] = {}
-    for candidate in ordered[1:]:
+    for candidate in big:
         if len(by_topic) >= max_article_photos:
             break
         # Una foto per topic: due immagini sotto lo stesso titolo non
         # raccontano il doppio, riempiono il doppio. E il topic
         # dell'apertura ha già la sua.
+        if candidate.message.id in used:
+            continue
         if not candidate.topic or candidate.topic in used_topics:
             continue
-        name = f"topic-{len(by_topic)}.jpg"
-        picture = await _download(client, candidate, dest_dir / name, tz)
+        picture = await _download(
+            client, candidate, dest_dir / f"topic-{len(by_topic)}.jpg", tz
+        )
         if picture is None:
             continue
         by_topic[candidate.topic] = picture
+        used.add(candidate.message.id)
         used_topics.add(candidate.topic)
 
-    return DayPhotos(hero=hero, by_topic=by_topic)
+    # La fascia raccoglie il resto, comprese le miniature dei video: sono
+    # piccole ma in una griglia da quattro reggono, e sono il grosso di
+    # quello che il gruppo ha davvero pubblicato.
+    strip: list[Hero] = []
+    strip_topics: set[str] = set()
+    for candidate in ordered:
+        if len(strip) >= max_strip_photos:
+            break
+        if candidate.message.id in used:
+            continue
+        # Preferire topic diversi rende la fascia un riassunto della
+        # giornata invece di quattro fotogrammi della stessa clip.
+        if candidate.topic and candidate.topic in strip_topics:
+            continue
+        picture = await _download(
+            client, candidate, dest_dir / f"strip-{len(strip)}.jpg", tz
+        )
+        if picture is None:
+            continue
+        strip.append(picture)
+        used.add(candidate.message.id)
+        strip_topics.add(candidate.topic)
+
+    return DayPhotos(hero=hero, by_topic=by_topic, strip=strip)
 
 
 async def _collect_candidates(
@@ -215,10 +307,13 @@ async def _collect_candidates(
     async for message in client.iter_messages(group, offset_date=end):
         if message.date < start:
             break
-        if not getattr(message, "photo", None):
+        visual = _visual_of(message)
+        if visual is None:
             continue
-        width, height = _photo_size(message)
-        if width < MIN_PHOTO_WIDTH:
+        kind, width, height, thumb = visual
+        # La soglia bassa è quella della fascia: chi vuole un'immagine a
+        # tutta larghezza filtra dopo, con MIN_PHOTO_WIDTH.
+        if width < MIN_STRIP_WIDTH:
             continue
         topic = titles.get(_topic_id_for_message(message, known), "")
         score = _engagement(message)
@@ -239,6 +334,8 @@ async def _collect_candidates(
                 width=width,
                 height=height,
                 webpage=webpage,
+                kind=kind,
+                thumb=thumb,
             )
         )
     return candidates
@@ -247,18 +344,26 @@ async def _collect_candidates(
 def _caption_for(candidate: _Candidate, tz: ZoneInfo) -> str:
     when = candidate.message.date.astimezone(tz).strftime("%H:%M")
     where = f"topic {candidate.topic}" if candidate.topic else "gruppo"
-    if candidate.webpage is None:
-        return f"Foto dal {where} · {when}"
-    source = _source_name(candidate.webpage)
-    if source:
-        return f"Da {source} · link condiviso nel {where}, {when}"
-    return f"Anteprima di un link condiviso nel {where} · {when}"
+    if candidate.webpage is not None:
+        source = _source_name(candidate.webpage)
+        if source:
+            return f"Da {source} · link condiviso nel {where}, {when}"
+        return f"Anteprima di un link condiviso nel {where} · {when}"
+    if candidate.kind == "video":
+        # Dire che è un fotogramma evita la domanda "e perché è mossa?":
+        # una copertina di video non ha la nitidezza di uno scatto.
+        return f"Fotogramma da un video nel {where} · {when}"
+    return f"Foto dal {where} · {when}"
 
 
 async def _download(
     client: TelegramClient, candidate: _Candidate, dest: Path, tz: ZoneInfo
 ) -> Hero | None:
-    path = await client.download_media(candidate.message, file=str(dest))
+    # Per i video si scarica la sola miniatura: il file intero pesa
+    # decine di megabyte e di quel materiale ci serve un fotogramma.
+    path = await client.download_media(
+        candidate.message, file=str(dest), thumb=candidate.thumb
+    )
     if not path:
         return None
     return Hero(
@@ -266,6 +371,7 @@ async def _download(
         caption=_caption_for(candidate, tz),
         width=candidate.width,
         height=candidate.height,
+        label=candidate.topic or "Dal gruppo",
     )
 
 

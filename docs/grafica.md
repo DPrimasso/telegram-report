@@ -50,10 +50,13 @@ python catalogo.py          # scrive catalogo.png
 
 | Elemento | Cosa dice | Dove sta |
 |---|---|---|
-| **Bicromia sulle foto** | niente, ma *uniforma*: rende usabile una foto qualsiasi da chat | foto di apertura |
+| **Bicromia sulle immagini** | niente, ma *uniforma*: rende usabili immagini qualsiasi da chat | ovunque ce ne sia una |
 | **Capolettera** | dove comincia il pezzo principale | primo paragrafo dell'apertura |
 | **Quadratino di fine pezzo** | dove finisce un articolo | ultima riga di ogni pezzo |
 | **Barretta di peso** | quanto pesa quel topic rispetto al più discusso | riga del contatore messaggi |
+| **Pittogrammi dei topic** | distingue i topic a colpo d'occhio | tag dei pezzi e indice |
+| **Barra delle proporzioni** | quanto ha pesato ogni topic sulla giornata | sotto l'indice |
+| **Fascia «Il giorno in immagini»** | cosa ha pubblicato il gruppo | ultima pagina |
 | **Andamento orario** | *quando* è successo: la forma della giornata | fascia navy di chiusura |
 
 Il **trattamento delle fotografie** è la scelta che conta di più, perché è
@@ -70,12 +73,35 @@ pagina si sfaldi. Tre opzioni (`photo_treatment`):
 
 ### Quante immagini, e come sono ritagliate
 
-**Quante.** L'apertura più al massimo due pezzi secondari, uno per topic
-(`MAX_ARTICLE_PHOTOS` in `report/photo.py`). Il limite non è tecnico: una
-foto in pagina dice «questo pezzo conta più degli altri», e darne una a
-tutti toglie il segnale invece di aggiungerlo. Quando la prima pagina non
-ci sta, si toglie la foto e si tiene il testo — fra le due, la parte
-rinunciabile è la foto.
+**Quante.** In tre posti diversi, con criteri diversi:
+
+- l'**apertura**, una;
+- i **pezzi secondari**, al massimo due, uno per topic
+  (`MAX_ARTICLE_PHOTOS`). Il limite non è tecnico: una foto dentro un
+  articolo dice «questo pezzo conta più degli altri», e darne una a tutti
+  toglie il segnale invece di aggiungerlo. Quando la prima pagina non ci
+  sta, si toglie la foto e si tiene il testo;
+- la **fascia di chiusura** «Il giorno in immagini», fino a quattro
+  (`MAX_STRIP_PHOTOS`). Sta fuori dagli articoli, quindi non tocca la
+  gerarchia dei pezzi: è il posto dove far vedere quello che il gruppo ha
+  pubblicato senza dover decidere che una cosa vale più di un'altra.
+
+**Anche i video.** In un gruppo di tifosi la maggior parte del materiale
+visivo sono clip — il gol, l'intervista, il momento della partita — e
+ignorarle lasciava il gazzettino con una sola immagine al giorno anche
+nelle giornate piene. Di un video si prende il fotogramma di copertina,
+che Telegram allega già al messaggio: si scarica solo quello, non il file
+da decine di megabyte. La didascalia lo dichiara («Fotogramma da un
+video»), perché una copertina di video non ha la nitidezza di uno scatto
+e senza quella riga sembrerebbe una foto venuta male.
+
+Le miniature dei video sono però piccole, spesso 320px: a piena larghezza
+sgranerebbero. Da qui le due soglie — `MIN_PHOTO_WIDTH` (600) per
+l'apertura e i pezzi, `MIN_STRIP_WIDTH` (260) per la fascia, dove le
+immagini stanno a un quarto di larghezza e reggono benissimo.
+
+Gli sticker restano fuori: hanno colori, contorni e un linguaggio grafico
+propri, e in pagina sarebbero la cosa più fuori posto di tutte.
 
 **Come sono ritagliate.** Il riquadro prende le proporzioni
 dell'immagine, non viceversa. Un riquadro ad altezza fissa andava bene
@@ -91,10 +117,18 @@ una libreria di immagini.
 Restano un tetto e un pavimento (`HERO_MAX_HEIGHT`, `HERO_MIN_HEIGHT`),
 perché la pagina ha una sua economia: una foto verticale a piena
 larghezza sarebbe alta più di mille pixel e spingerebbe l'articolo fuori
-dalla prima schermata. Sopra il tetto si ritaglia comunque, ma **dal
-basso**, non dal centro: in una foto il soggetto sta quasi sempre nella
-metà alta, e in un fermo immagine con i sottotitoli impressi quello che
-si perde sono i sottotitoli.
+dalla prima schermata. Cosa succede oltre il tetto dipende da quanto si
+sfora:
+
+- **poco** (fino a `FRAME_INSTEAD_OF_CROP`, cioè il 35%): si ritaglia, ma
+  **dal basso** e non dal centro. In una foto il soggetto sta quasi
+  sempre nella metà alta, e in un fermo immagine con i sottotitoli
+  impressi quello che si perde sono i sottotitoli;
+- **molto** (una verticale da telefono, che sforerebbe del triplo):
+  ritagliare vorrebbe dire buttare via mezza immagine, quindi la si
+  incornicia intera su fondo navy. Meglio una foto verticale con due
+  bande ai lati — che sembra una scelta — di una foto verticale amputata,
+  che sembra un errore.
 
 ### Da dove arrivano le immagini
 
@@ -131,20 +165,22 @@ racconta cosa si è detto, il grafico racconta che se n'è parlato tutto
 d'un fiato dopo cena. Sta nella stessa fascia navy dei quattro numeri e li
 completa invece di ripeterli.
 
-### Spenti di default
-
 - **Pittogrammi dei topic** (`topic_glyphs`) — set disegnato a mano, nove
   segni sulla stessa griglia e sullo stesso tratto: è l'omogeneità a
   salvarlo, non il singolo disegno. L'abbinamento topic → segno lo fa un
   elenco di parole chiave in `report/graphics.py`, **mai il modello**: un
   topic che cambia icona da un giorno all'altro è il modo migliore per
-  non sembrare una testata. Restano spenti perché con i tag già colorati
-  aggiungono un secondo segnale nello stesso punto, e perché un topic che
-  non c'entra con nessuna icona ricade sui tre puntini, cioè su niente.
-- **Barra delle proporzioni** (`share_bar`) — corretta e leggibile, ma
-  l'indice a chip dice già i numeri. Nelle giornate con un topic
-  dominante aggiunge poco; in quelle equilibrate diventa una fila di
-  segmenti tutti uguali.
+  non sembrare una testata. Un topic che non c'entra con nessuna icona
+  ricade sui tre puntini.
+- **Barra delle proporzioni** (`share_bar`) — quanto ha pesato ogni topic
+  sulla giornata, sotto l'indice.
+- **Fascia «Il giorno in immagini»** — vedi sopra.
+
+Gli ultimi due elementi erano spenti all'inizio per prudenza, e sono
+stati accesi perché sulla pagina vera la prudenza risultava in una pagina
+povera: con tredici topic attivi e un'immagine sola l'edizione era una
+colonna di testo. Si spengono uno per uno da `GraphicsOptions`, o
+dall'anteprima con `--no-glyphs` e `--no-share`.
 
 ## Cosa è stato scartato (e perché)
 

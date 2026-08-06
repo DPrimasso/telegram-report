@@ -52,9 +52,20 @@ CONTENT_WIDTH = PAGE_WIDTH - 112
 # fuori dalla prima schermata; il minimo perché una panoramica molto
 # larga diventerebbe una striscia. Fuori da questi limiti si ritaglia,
 # ma è il caso raro invece che quello normale.
-HERO_MAX_HEIGHT = 620
+HERO_MAX_HEIGHT = 760
 HERO_MIN_HEIGHT = 240
 HERO_DEFAULT_HEIGHT = 420
+
+# Oltre questo rapporto fra altezza naturale e riquadro, ritagliare vuol
+# dire buttare via mezza immagine: si passa allora a incorniciarla intera
+# su fondo navy. Meglio una foto verticale con due bande ai lati — che
+# sembra una scelta — di una foto verticale amputata, che sembra un
+# errore.
+FRAME_INSTEAD_OF_CROP = 1.35
+
+# Fascia di chiusura "Il giorno in immagini".
+STRIP_COLUMNS = 4
+STRIP_TILE_HEIGHT = 168
 
 # Le foto dei pezzi secondari stanno sotto quella di apertura anche in
 # altezza: se fossero uguali, la gerarchia della pagina sparirebbe.
@@ -145,6 +156,9 @@ class Hero:
     caption: str = ""
     width: int = 0
     height: int = 0
+    # Etichetta corta per la fascia in fondo, dove una didascalia intera
+    # sotto ogni riquadro sarebbe più lunga dell'immagine.
+    label: str = ""
 
 
 @dataclass
@@ -166,8 +180,8 @@ class GraphicsOptions:
     end_mark: bool = True       # quadratino di fine articolo
     hourly_chart: bool = True   # andamento orario nella fascia di chiusura
     weight_bars: bool = True    # barretta di peso accanto al contatore messaggi
-    topic_glyphs: bool = False  # pittogramma nei tag e nell'indice
-    share_bar: bool = False     # barra delle proporzioni sotto l'indice
+    topic_glyphs: bool = True   # pittogramma nei tag e nell'indice
+    share_bar: bool = True      # barra delle proporzioni sotto l'indice
 
     @classmethod
     def none(cls) -> "GraphicsOptions":
@@ -287,6 +301,7 @@ p {{ margin: 0; }}
    ritagli. Il duotone navy/azzurro le uniforma e le lega alla testata. */
 .hero {{ width: 100%; height: {HERO_DEFAULT_HEIGHT}px; overflow: hidden; margin-bottom: 12px; }}
 .hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+.hero.framed, .art-pic.framed {{ background: {NAVY}; }}
 .hero.mono img {{ filter: grayscale(1) contrast(1.08); }}
 .hero.duotone img {{ filter: url(#duotone) contrast(1.04); }}
 .hero.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
@@ -326,6 +341,26 @@ p {{ margin: 0; }}
 .art-pic-caption {{
   font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
   color: #5a5a5a; margin-bottom: 14px;
+}}
+
+/* Fascia di chiusura: quello che il gruppo ha pubblicato, in piccolo.
+   Sono le immagini che non reggono la piena larghezza — miniature dei
+   video comprese — e che in una griglia da quattro invece funzionano.
+   Riempie l'edizione di materiale vero senza toccare la gerarchia dei
+   pezzi, perché sta fuori dagli articoli. */
+.strip {{ background: {GROUND}; padding: 26px 56px 30px 56px; border-top: 2px solid {NAVY}; }}
+.strip .section-label {{ display: block; margin-bottom: 16px; }}
+.strip-grid {{ display: grid; grid-template-columns: repeat({STRIP_COLUMNS}, 1fr); gap: 12px; }}
+.strip-cell figure {{ margin: 0; }}
+.strip-shot {{ width: 100%; height: {STRIP_TILE_HEIGHT}px; overflow: hidden; background: {NAVY}; }}
+.strip-shot img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+.strip-shot.mono img {{ filter: grayscale(1) contrast(1.08); }}
+.strip-shot.duotone img {{ filter: url(#duotone) contrast(1.04); }}
+.strip-shot.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
+.strip-cell .cap {{
+  font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #5a5a5a; margin-top: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }}
 
 .quote {{ background: {AZZURRO}; color: {NAVY}; padding: 34px 56px; }}
@@ -479,14 +514,22 @@ def _picture_html(
     box = picture_box_height(
         picture, default=default, minimum=minimum, maximum=maximum
     )
-    # Quando l'immagine è più alta del tetto si ritaglia per forza: si
-    # taglia allora dal basso e non dal centro, perché in una foto il
-    # soggetto sta quasi sempre nella metà alta — e in un fermo immagine
-    # con i sottotitoli impressi, quello che si perde sono i sottotitoli.
-    position = "center 22%" if _natural_height(picture) > box else "center"
+    natural = _natural_height(picture)
+    if natural > box * FRAME_INSTEAD_OF_CROP:
+        # Immagine molto più alta del riquadro: incorniciata intera su
+        # fondo navy invece che tagliata.
+        style = "object-fit:contain"
+        extra = " framed"
+    else:
+        # Ritaglio contenuto: si taglia dal basso e non dal centro, perché
+        # in una foto il soggetto sta quasi sempre nella metà alta — e in
+        # un fermo immagine con i sottotitoli impressi, quello che si
+        # perde sono i sottotitoli.
+        style = "object-position:center 22%" if natural > box else "object-position:center"
+        extra = ""
     return (
-        f'<div class="{box_class} {gfx.photo_treatment}" style="height:{box}px">'
-        f'<img src="{data_uri(picture.path)}" alt="" style="object-position:{position}">'
+        f'<div class="{box_class}{extra} {gfx.photo_treatment}" style="height:{box}px">'
+        f'<img src="{data_uri(picture.path)}" alt="" style="{style}">'
         f"</div>{caption}"
     )
 
@@ -559,6 +602,33 @@ def _articles_html(
     )
 
 
+def _strip_html(strip: list[Hero], gfx: GraphicsOptions) -> str:
+    """La fascia con le immagini della giornata.
+
+    Sta fuori dagli articoli di proposito: aggiunge materiale visivo senza
+    dire nulla sulla gerarchia dei pezzi, che è il motivo per cui le foto
+    dentro gli articoli restano poche."""
+    if not strip:
+        return ""
+    cells = []
+    for picture in strip[:STRIP_COLUMNS]:
+        label = (
+            f'<figcaption class="cap">{html.escape(picture.label)}</figcaption>'
+            if picture.label
+            else ""
+        )
+        cells.append(
+            '<div class="strip-cell"><figure>'
+            f'<div class="strip-shot {gfx.photo_treatment}">'
+            f'<img src="{data_uri(picture.path)}" alt="">'
+            f"</div>{label}</figure></div>"
+        )
+    return (
+        '<div class="strip"><span class="section-label">Il giorno in immagini</span>'
+        f'<div class="strip-grid">{"".join(cells)}</div></div>'
+    )
+
+
 def _quote_html(quote: Quote | None) -> str:
     if quote is None or not quote.text:
         return ""
@@ -626,6 +696,7 @@ _H_PIC_CAPTION = 40         # didascalia sotto la foto di un pezzo
 _H_QUOTE = 220
 _H_STATS = 120
 _H_CHART = 200          # titolo + grafico orario + regolo di separazione
+_H_STRIP = 280          # titolo + riquadri + etichette della fascia immagini
 _H_SHARE = 48           # barra delle proporzioni sotto l'indice
 
 # Frase del giorno e statistiche stanno sempre in ultima pagina: chi
@@ -790,6 +861,7 @@ def build_pages_html(
     quote: Quote | None = None,
     edition_number: int | None = None,
     hourly: list[int] | None = None,
+    strip: list[Hero] | None = None,
     graphics: GraphicsOptions | None = None,
 ) -> list[str]:
     """Compone il gazzettino e restituisce l'HTML di ciascuna pagina.
@@ -810,7 +882,12 @@ def build_pages_html(
     # confronto è fra i topic della giornata, non con una soglia fissa.
     top_count = max((a.count for a in articles), default=0)
 
-    closing_height = _H_TAIL + (_H_CHART if gfx.hourly_chart and hourly else 0)
+    strip = strip or []
+    closing_height = (
+        _H_TAIL
+        + (_H_CHART if gfx.hourly_chart and hourly else 0)
+        + (_H_STRIP if strip else 0)
+    )
     chunks = paginate_articles(
         articles,
         lead,
@@ -871,7 +948,8 @@ def build_pages_html(
                 else f"Fine dell'edizione · pagina {number} di {total}"
             )
             tail = (
-                _quote_html(quote)
+                _strip_html(strip, gfx)
+                + _quote_html(quote)
                 + _stats_html(stats, hourly, gfx)
                 + _footer_html(note)
             )
@@ -885,8 +963,10 @@ def build_pages_html(
         body = head + _articles_html(chunk, label, gfx, top_count) + tail
         # Il filtro si include solo nelle pagine che hanno un'immagine:
         # non è più solo la prima, da quando anche i pezzi possono averne.
-        has_image = (number == 1 and hero is not None) or any(
-            a.picture is not None for a in chunk
+        has_image = (
+            (number == 1 and hero is not None)
+            or (number == total and bool(strip))
+            or any(a.picture is not None for a in chunk)
         )
         pages.append(
             _wrap_page(body, duotone=gfx.needs_duotone_filter and has_image)

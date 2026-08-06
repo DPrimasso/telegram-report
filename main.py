@@ -212,9 +212,11 @@ async def _run_newspaper_report(
         for article in articles:
             article.picture = photos.by_topic.get(article.topic)
         if photos.by_topic:
-            print(
-                "Foto anche per: " + ", ".join(sorted(photos.by_topic))
-            )
+            print("Foto anche per: " + ", ".join(sorted(photos.by_topic)))
+        if photos.strip:
+            print(f"Fascia di chiusura: {len(photos.strip)} immagini.")
+        if hero is None and not photos.by_topic and not photos.strip:
+            print("Nessuna immagine utilizzabile: edizione tipografica.")
 
         logo = Path(config.logo_path)
         pages_html = build_pages_html(
@@ -228,6 +230,7 @@ async def _run_newspaper_report(
             stats=build_stats(all_messages),
             quote=quote,
             hourly=hourly_counts(all_messages),
+            strip=photos.strip,
         )
 
         print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")

@@ -252,10 +252,10 @@ async def main() -> None:
         "--scale", type=int, default=1, help="fattore di scala del rendering (default 1)"
     )
     parser.add_argument(
-        "--glyphs", action="store_true", help="accende i pittogrammi dei topic"
+        "--no-glyphs", action="store_true", help="spegne i pittogrammi dei topic"
     )
     parser.add_argument(
-        "--share", action="store_true", help="accende la barra delle proporzioni"
+        "--no-share", action="store_true", help="spegne la barra delle proporzioni"
     )
     parser.add_argument(
         "--foto",
@@ -278,6 +278,7 @@ async def main() -> None:
 
     # Le foto dei pezzi secondari: si provano sui due topic più attivi
     # dopo l'apertura, che è come le assegna main.py.
+    strip = []
     if not args.plain and not args.no_hero:
         for article, shape in zip(SAMPLE_ARTICLES[:2], ("verticale", "wide")):
             article.picture = _sample_hero(out, shape)
@@ -285,11 +286,23 @@ async def main() -> None:
                 article.picture.caption = (
                     f"Foto dal topic {article.topic} · 18:32"
                 )
+        # La fascia di chiusura: quattro immagini di formati diversi, come
+        # quelle vere — miniature di video comprese.
+        for topic, shape in zip(
+            ("Tattica", "Canale YouTube", "Biglietti", "Off topic"),
+            ("wide", "quadrata", "telefono", "verticale"),
+        ):
+            picture = _sample_hero(out, shape)
+            if picture is not None:
+                picture.label = topic
+                strip.append(picture)
     logo = Path("assets/logo-azzurro.png")
 
     gfx = GraphicsOptions.none() if args.plain else GraphicsOptions()
-    gfx.topic_glyphs = args.glyphs
-    gfx.share_bar = args.share
+    if args.no_glyphs:
+        gfx.topic_glyphs = False
+    if args.no_share:
+        gfx.share_bar = False
     if args.foto:
         gfx.photo_treatment = args.foto
 
@@ -304,6 +317,7 @@ async def main() -> None:
         stats=SAMPLE_STATS,
         quote=SAMPLE_QUOTE,
         hourly=None if args.plain else SAMPLE_HOURS,
+        strip=strip,
         graphics=gfx,
     )
 
