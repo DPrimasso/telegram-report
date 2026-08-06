@@ -58,6 +58,9 @@ SAMPLE_ARTICLES = [
     Article(
         topic="Partita",
         headline="L'amichevole finisce in parità, ma la difesa convince",
+        deck=(
+            "Il rigore sbagliato in coda riapre la discussione sui tiratori designati"
+        ),
         body=(
             "Due tempi molto diversi: nel primo la squadra ha tenuto il pallino "
             "senza mai affondare, nel secondo è arrivato il gol su calcio "
@@ -69,6 +72,9 @@ SAMPLE_ARTICLES = [
     Article(
         topic="Tattica",
         headline="Il tridente largo divide: due modi di leggere la stessa mossa",
+        deck=(
+            "L'esterno destro resta isolato per tutto il primo tempo, e il gruppo si divide"
+        ),
         body=(
             "Chi ha visto la partita da fuori area sostiene che l'ampiezza abbia "
             "liberato lo spazio centrale; chi guardava i movimenti senza palla "
@@ -80,6 +86,9 @@ SAMPLE_ARTICLES = [
     Article(
         topic="Canale YouTube",
         headline="Il video sulle statistiche difensive supera le ventimila visualizzazioni",
+        deck=(
+            "Il montaggio sui dati difensivi raccoglie più commenti di ogni altro video del mese"
+        ),
         body=(
             "Pubblicato domenica sera, il montaggio sui dati difensivi della "
             "scorsa stagione ha raccolto più commenti di qualsiasi altro video "
@@ -90,6 +99,9 @@ SAMPLE_ARTICLES = [
     Article(
         topic="Biglietti",
         headline="Prevendita aperta da giovedì, il settore ospiti resta il nodo",
+        deck=(
+            "Fasi di vendita da giovedì per gli abbonati, sabato per tutti gli altri"
+        ),
         body=(
             "Le fasi di vendita partono giovedì alle dieci per gli abbonati e "
             "sabato per tutti gli altri. Sul settore ospiti non c'è ancora "
@@ -100,6 +112,9 @@ SAMPLE_ARTICLES = [
     Article(
         topic="Fantacalcio",
         headline="Le aste si concentrano nel weekend, i listini sono già online",
+        deck=(
+            "Tre leghe fissano l'asta per sabato, il modificatore di difesa resta attivo"
+        ),
         body=(
             "Tre leghe hanno fissato l'asta per sabato pomeriggio. I crediti "
             "restano cento, con la solita discussione sul modificatore di "
@@ -110,6 +125,9 @@ SAMPLE_ARTICLES = [
     Article(
         topic="Off topic",
         headline="La classifica dei panini del sabato trova finalmente un vincitore",
+        deck=(
+            "Tre settimane di ballottaggio si chiudono con una preferenza netta"
+        ),
         body=(
             "Dopo tre settimane di voti sparsi, il ballottaggio si è chiuso con "
             "una preferenza netta. Il verbale resta agli atti del gruppo."

@@ -137,6 +137,11 @@ class Article:
     headline: str
     body: str
     count: int
+    # Sommario: la riga fra titolo e testo che aggiunge informazione
+    # invece di riformulare il titolo. Senza, un pezzo è titolo e blocco
+    # di testo — che è quello che rende una pagina un elenco invece di un
+    # giornale.
+    deck: str = ""
     # Foto del pezzo, quando ce n'è una di quel topic. Sta più bassa
     # dell'apertura per non competerci: in pagina la gerarchia la fanno
     # anche le dimensioni delle immagini, non solo quelle dei titoli.
@@ -361,7 +366,14 @@ p {{ margin: 0; }}
   display: inline-flex; align-items: center; gap: 12px;
   font-size: 16px; font-weight: 700; color: #5a5a5a; white-space: nowrap;
 }}
-.article h3 {{ font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 10px; }}
+.article h3 {{ font-size: 40px; line-height: 1.08; letter-spacing: -0.02em; margin-bottom: 10px; }}
+/* Sommario del pezzo: stessa funzione dell'occhiello dell'apertura, una
+   scala sotto. È il gradino che mancava — titolo, sommario, testo — e
+   senza il quale ogni articolo era un blocco unico. */
+.article .deck {{
+  font-size: 25px; line-height: 1.3; color: {AZZURRO_DEEP};
+  font-weight: 600; margin-bottom: 12px;
+}}
 .article .body {{ font-size: 28px; line-height: 1.45; }}
 
 /* La foto del pezzo secondario sta fra titolo e testo, come nell'apertura:
@@ -677,7 +689,15 @@ def _articles_html(
         glyph = topic_glyph_svg(a.topic, size=17) if gfx.topic_glyphs else ""
         weight = weight_bar_svg(a.count, top_count) if gfx.weight_bars else ""
         end = END_MARK if gfx.end_mark else ""
-        body = f'<p class="body">{html.escape(a.body)}{end}</p>'
+        deck = f'<p class="deck">{html.escape(a.deck)}</p>' if a.deck else ""
+        # Senza corpo il segno di fine pezzo va sul sommario, o resterebbe
+        # appeso a un paragrafo vuoto.
+        if a.body:
+            body = deck + f'<p class="body">{html.escape(a.body)}{end}</p>'
+        elif a.deck:
+            body = f'<p class="deck">{html.escape(a.deck)}{end}</p>'
+        else:
+            body = ""
         if a.picture is not None and a.picture.width >= ARTICLE_PIC_FULL_MIN_WIDTH:
             # Sorgente grande: blocco a piena larghezza fra titolo e testo.
             middle = _article_picture_html(a.picture, gfx) + body
@@ -870,6 +890,7 @@ def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
 def _estimate_article_height(a: Article) -> int:
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
+    h += _text_height(a.deck, chars_per_line=62, line_height=33) + (12 if a.deck else 0)
     if a.picture is not None and a.picture.width >= ARTICLE_PIC_FULL_MIN_WIDTH:
         h += (
             picture_box_height(
@@ -923,15 +944,28 @@ def paginate_articles(
     allunga la chiusura di circa 200px, e ignorarlo faceva sfondare
     l'ultima pagina proprio nel caso in cui era più piena."""
     usable = [a for a in articles if a.headline]
-    if len(usable) < MIN_ARTICLES_FOR_SPLIT:
-        return [usable]
-
-    height = (
+    first_base = (
         _H_CHROME
         + index_rows * _H_INDEX_ROW
         + index_extra
         + _estimate_lead_height(lead, hero)
     )
+
+    # Con poche notizie una pagina sola è meglio di due, ma solo se ci
+    # stanno davvero: da quando la chiusura porta anche il box "In breve"
+    # e il provino, la coda pesa quasi mille pixel e tre trafiletti
+    # bastavano a mandare la pagina unica ben oltre il tetto. La soglia
+    # non è più l'unica condizione: conta anche l'altezza.
+    if len(usable) < MIN_ARTICLES_FOR_SPLIT:
+        single = (
+            first_base
+            + sum(_estimate_article_height(a) for a in usable)
+            + tail_height
+        )
+        if single <= MAX_PAGE_HEIGHT or len(usable) < 2:
+            return [usable]
+
+    height = first_base
     first: list[Article] = []
     for a in usable:
         if len(first) >= MAX_ARTICLES_FIRST_PAGE:
@@ -978,7 +1012,65 @@ def paginate_articles(
         elif len(pages[-2]) > 1:
             pages[-1].insert(0, pages[-2].pop())
 
-    return pages
+    return _balance_pages(pages, first_base, tail_height)
+
+
+def _balance_pages(
+    pages: list[list[Article]], first_base: int, tail_height: int
+) -> list[list[Article]]:
+    """Ridistribuisce le notizie perché le pagine vengano simili fra loro.
+
+    Il riempimento avido decide bene *quante* pagine servono e male *come*
+    riempirle: caricando ogni pagina fino al tetto, l'ultima si prende gli
+    avanzi e in mezzo restano pagine mezze bianche — misurate 1875, 999 e
+    2084 px su tre pagine, cioè una pagina piena, una vuota e una piena.
+    A parità di numero di pagine, distribuire verso un'altezza obiettivo
+    non costa niente e si vede subito.
+
+    Il numero di pagine non cambia mai: se il ribilanciamento sfonda il
+    tetto si tiene il risultato avido, che almeno è sicuro."""
+    total_pages = len(pages)
+    if total_pages < 2:
+        return pages
+
+    flat = [a for page in pages for a in page]
+    heights = {id(a): _estimate_article_height(a) for a in flat}
+    fixed = first_base + _H_CONT_CHROME * (total_pages - 1) + tail_height
+    target = (fixed + sum(heights.values())) / total_pages
+
+    balanced: list[list[Article]] = []
+    index = 0
+    for page_number in range(total_pages):
+        base = first_base if page_number == 0 else _H_CONT_CHROME
+        if page_number == total_pages - 1:
+            balanced.append(flat[index:])
+            break
+        current: list[Article] = []
+        height = base
+        # Ogni pagina lascia almeno una notizia a ciascuna di quelle dopo.
+        available = len(flat) - index - (total_pages - page_number - 1)
+        limit = MAX_ARTICLES_FIRST_PAGE if page_number == 0 else available
+        while index < len(flat) and len(current) < min(limit, available):
+            h = heights[id(flat[index])]
+            # Si supera l'obiettivo solo se la notizia ci sta più dentro
+            # che fuori: senza questo, un pezzo lungo apre sempre la
+            # pagina dopo e l'obiettivo non viene mai raggiunto.
+            if current and height + h > target and height + h / 2 > target:
+                break
+            current.append(flat[index])
+            height += h
+            index += 1
+        balanced.append(current)
+
+    if any(not page for page in balanced):
+        return pages
+    for number, page in enumerate(balanced):
+        base = first_base if number == 0 else _H_CONT_CHROME
+        if number == len(balanced) - 1:
+            base += tail_height
+        if base + sum(heights[id(a)] for a in page) > MAX_PAGE_HEIGHT:
+            return pages
+    return balanced
 
 
 def _fit_page(chunk: list[Article], used: int) -> list[Article]:

@@ -113,6 +113,45 @@ tipografia e i dati. Sono gli elementi qui sotto: il dato grande, il box
 «In breve», il capolettera, il grafico orario, la barra delle
 proporzioni. Una pagina fatta di questi non ha buchi da tappare.
 
+### Titolo, sommario, testo
+
+Un articolo ha tre gradini: **titolo, sommario, testo**. Senza il gradino
+di mezzo la pagina è un elenco di blocchi, non un giornale — ed è quello
+che si vedeva sull'edizione vera, dove parecchi pezzi uscivano come un
+unico paragrafo in grassetto senza corpo.
+
+La causa non era il layout ma il formato chiesto al modello. Era
+posizionale — «RIGA 1: il titolo, dalla RIGA 2 il corpo» — e falliva nel
+modo peggiore: quando il modello rispondeva in un blocco unico, il parser
+prendeva **tutto il testo come titolo** e l'articolo usciva senza corpo,
+con un paragrafo intero stampato a 40px.
+
+Ora il formato è a etichette (`TITOLO:` / `SOMMARIO:` / `TESTO:`), che
+sono molto più difficili da sbagliare, e il parser le riconosce anche
+fuori ordine, senza due punti e su più righe. Ma la difesa vera è
+l'invariante finale (`_enforce_headline` in `report/summarize.py`):
+**qualunque cosa risponda il modello, quello che esce è un titolo corto**.
+Oltre 90 caratteri il testo viene tagliato alla prima fine di frase, il
+resto scala nel sommario e poi nel corpo. Un h3 con dentro un paragrafo
+non è un difetto di stile: è una pagina rotta, e il layout non può essere
+l'unico posto in cui ce ne accorgiamo.
+
+### L'impaginazione bilancia le pagine
+
+Il riempimento avido decide bene *quante* pagine servono e male *come*
+riempirle: caricando ogni pagina fino al tetto, l'ultima si prende gli
+avanzi. Misurate su tre pagine: 1875, 999 e 2084 px — una piena, una
+vuota, una piena. Dopo il ribilanciamento verso un'altezza obiettivo:
+1875, 1314, 1769. Il numero di pagine non cambia mai, e se la
+redistribuzione sfondasse il tetto si tiene il risultato avido.
+
+Nella stessa occasione è caduta un'assunzione diventata falsa: «sotto le
+quattro notizie basta una pagina sola». Valeva quando la chiusura pesava
+340px; ora che porta anche il box «In breve» e il provino ne pesa quasi
+mille, e tre trafiletti bastavano a mandare la pagina unica ben oltre il
+tetto. La soglia ora è una condizione sulla *altezza*, non solo sul
+numero.
+
 ### Il dato grande e il box «In breve»
 
 Due elementi nati dallo stesso problema: **tredici topic attivi

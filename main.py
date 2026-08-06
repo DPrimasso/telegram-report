@@ -158,7 +158,7 @@ async def _run_newspaper_report(
         if not topic.messages:
             continue
         print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
-        headline, body = write_topic_article(
+        headline, deck, body = write_topic_article(
             openai_client,
             config.openai_model,
             topic.title,
@@ -169,7 +169,13 @@ async def _run_newspaper_report(
             print(f"  '{topic.title}': stesso fatto di un pezzo già in pagina, non lo ripeto.")
             continue
         articles.append(
-            Article(topic=topic.title, headline=headline, body=body, count=len(topic.messages))
+            Article(
+                topic=topic.title,
+                headline=headline,
+                deck=deck,
+                body=body,
+                count=len(topic.messages),
+            )
         )
 
     print("Scrivo l'articolo di apertura...")
