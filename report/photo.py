@@ -1,13 +1,27 @@
 """Foto di apertura del gazzettino.
 
-Catena di ricadute, in ordine: (1) una foto pubblicata nel gruppo nel
-giorno riepilogato, (2) la copertina del video YouTube del canale pubblicato
-lo stesso giorno, (3) niente foto — l'apertura resta tipografica, che è
-comunque una pagina valida (vedi newspaper._lead_html).
+Catena di ricadute, in ordine: (1) una foto scattata e pubblicata nel
+gruppo nel giorno riepilogato, (2) l'immagine dell'anteprima di un link
+condiviso nel gruppo, (3) la copertina del video YouTube del canale
+pubblicato lo stesso giorno, (4) niente foto — l'apertura resta
+tipografica, che è comunque una pagina valida (vedi
+newspaper._lead_html).
 
-Le foto dei messaggi valgono più di una copertina generica: sono materiale
-del gruppo e sono pertinenti per costruzione. La copertina YouTube serve nei
-giorni di sola chiacchiera, e lega il report al canale.
+L'ordine non è arbitrario. Le foto dei messaggi valgono più di tutto il
+resto: sono materiale del gruppo e sono pertinenti per costruzione. Le
+anteprime dei link vengono dopo perché non sono del gruppo — sono della
+testata che ha pubblicato l'articolo — ma riguardano il fatto preciso di
+cui si parla, che è più di quanto sappia fare qualunque immagine scelta
+per argomento. La copertina YouTube serve nei giorni di sola chiacchiera
+e lega il report al canale.
+
+Nota su come Telethon espone le due cose: `message.photo` restituisce
+anche la foto dell'anteprima di un link, non solo le foto vere (vedi la
+sua docstring). Senza distinguere i due casi l'immagine di un quotidiano
+finiva in pagina con la didascalia «Foto dal topic Mercato», cioè
+attribuita al gruppo. In un riepilogo di cose vere la provenienza
+sbagliata è il difetto più grave che possa avere un'immagine, quindi qui
+i due casi sono separati e la didascalia dice sempre da dove arriva.
 """
 
 import urllib.request
@@ -34,17 +48,41 @@ _YT_THUMBS = (
 _ATOM = {"a": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015"}
 
 
+# Una foto vera del gruppo batte sempre l'anteprima di un link, anche se
+# l'anteprima ha più reazioni: le reazioni stanno sotto il messaggio, non
+# sotto l'immagine, e un link molto commentato non rende quell'immagine
+# più del gruppo di quanto sia.
+_GROUP_PHOTO_BONUS = 1000
+
+
 @dataclass
 class _Candidate:
     message: object
     topic: str
     score: int
+    webpage: object = None  # valorizzato solo per le anteprime dei link
 
 
 def _photo_width(message) -> int:
     """La foto ha più "size" (thumbnail incluse): guardiamo la più grande."""
     sizes = getattr(getattr(message, "photo", None), "sizes", None) or []
     return max((getattr(s, "w", 0) or 0) for s in sizes) if sizes else 0
+
+
+def _source_name(webpage) -> str:
+    """Come si chiama la testata, per la didascalia.
+
+    `site_name` è quello che Telegram mostra in grassetto nell'anteprima;
+    quando manca si ripiega sul dominio, che è comunque una provenienza
+    verificabile — meglio «ilmattino.it» di un generico «dal web»."""
+    name = (getattr(webpage, "site_name", None) or "").strip()
+    if name:
+        return name
+    url = (getattr(webpage, "url", None) or "").strip()
+    if not url:
+        return ""
+    host = url.split("//", 1)[-1].split("/", 1)[0]
+    return host[4:] if host.startswith("www.") else host
 
 
 def _engagement(message) -> int:
@@ -111,7 +149,14 @@ async def _photo_from_group(
         # a un titolo che parla di quel tema.
         if preferred_topic and topic == preferred_topic:
             score += 3
-        candidates.append(_Candidate(message=message, topic=topic, score=score))
+        # `message.photo` copre entrambi i casi: se c'è un'anteprima, la
+        # foto arriva da lì e va attribuita alla testata, non al gruppo.
+        webpage = getattr(message, "web_preview", None)
+        if webpage is None:
+            score += _GROUP_PHOTO_BONUS
+        candidates.append(
+            _Candidate(message=message, topic=topic, score=score, webpage=webpage)
+        )
 
     if not candidates:
         return None
@@ -123,9 +168,16 @@ async def _photo_from_group(
         return None
 
     when = best.message.date.astimezone(tz).strftime("%H:%M")
-    caption = (
-        f"Foto dal topic {best.topic} · {when}" if best.topic else f"Foto dal gruppo · {when}"
-    )
+    where = f"topic {best.topic}" if best.topic else "gruppo"
+    if best.webpage is not None:
+        source = _source_name(best.webpage)
+        caption = (
+            f"Da {source} · link condiviso nel {where}, {when}"
+            if source
+            else f"Anteprima di un link condiviso nel {where} · {when}"
+        )
+    else:
+        caption = f"Foto dal {where} · {when}"
     return Hero(path=path, caption=caption)
 
 

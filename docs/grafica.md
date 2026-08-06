@@ -68,6 +68,35 @@ pagina si sfaldi. Tre opzioni (`photo_treatment`):
   miniatura nello scroll della chat, ma è una scelta forte: su un
   ritratto si vede parecchio.
 
+### Da dove arrivano le immagini
+
+La catena è, in ordine: una foto scattata e pubblicata nel gruppo,
+l'immagine dell'anteprima di un link condiviso nel gruppo, la copertina
+del video YouTube del giorno, niente.
+
+Il secondo anello è la risposta alla domanda «e se cercassimo l'immagine
+online?». Cercarla davvero — un motore di ricerca immagini, o uno scraper
+— porta tre problemi in una volta: quasi tutto quello che si trova è
+protetto da diritti d'autore (foto d'agenzia, del club, dei quotidiani);
+una ricerca per parole chiave restituisce facilmente il giocatore
+sbagliato, una foto di tre anni fa o un fotomontaggio, e in un riepilogo
+di cose vere un'immagine sbagliata è peggio di nessuna immagine; e
+servirebbe un'API in più con la sua chiave e il suo costo.
+
+L'anteprima di un link condiviso nel gruppo evita tutti e tre: è la
+testata stessa ad aver scelto quell'immagine **per quel fatto preciso**,
+Telegram l'ha già scaricata (quindi non serve nessuna richiesta
+esterna: la prende lo stesso client Telethon), e soprattutto è materiale
+che il gruppo ha messo lì — vale la stessa regola delle foto, non è la
+macchina che pesca un'immagine a caso da internet.
+
+Resta una cosa da sapere: quell'immagine non è del gruppo, è di chi ha
+pubblicato l'articolo. Per questo la didascalia lo dice sempre — «Da Il
+Mattino · link condiviso nel topic Mercato, 21:14» — e per questo una
+foto vera del gruppo vince sempre sull'anteprima, anche con meno
+reazioni. Se il gazzettino dovesse uscire dal gruppo che ha già visto
+quelle anteprime, la questione dei diritti andrebbe guardata sul serio.
+
 L'**andamento orario** è l'elemento che aggiunge di più, perché è l'unico
 che porta in pagina un'informazione che il testo non ha: il gazzettino
 racconta cosa si è detto, il grafico racconta che se n'è parlato tutto
