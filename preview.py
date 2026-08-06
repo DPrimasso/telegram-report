@@ -148,7 +148,19 @@ SAMPLE_HOURS = [
 ]
 
 
-def _sample_hero(dest_dir: Path) -> Hero | None:
+# Proporzioni con cui provare la foto di apertura. Il 16:9 è il caso
+# comodo; gli altri sono quelli che girano davvero in una chat — il fermo
+# immagine di un video verticale, lo screenshot di un telefono — ed erano
+# quelli che il riquadro ad altezza fissa tagliava a metà.
+SAMPLE_SHAPES = {
+    "wide": (1600, 900),       # 16:9
+    "quadrata": (1200, 1200),  # 1:1
+    "verticale": (1080, 1440),  # 3:4
+    "telefono": (1080, 1920),  # 9:16, il caso peggiore
+}
+
+
+def _sample_hero(dest_dir: Path, shape: str = "wide") -> Hero | None:
     """Foto di apertura finta.
 
     Non è un disegno decorativo: serve a giudicare il trattamento
@@ -168,9 +180,10 @@ def _sample_hero(dest_dir: Path) -> Hero | None:
         return None
 
     rnd = random.Random(7)
-    w, h = 1600, 900
+    w, h = SAMPLE_SHAPES.get(shape, SAMPLE_SHAPES["wide"])
     img = Image.new("RGB", (w, h))
     draw = ImageDraw.Draw(img)
+    ground = int(h * 0.80)
 
     # Cielo: dal quasi nero in alto al grigio chiaro sull'orizzonte.
     for y in range(h):
@@ -179,19 +192,24 @@ def _sample_hero(dest_dir: Path) -> Hero | None:
         draw.line([(0, y), (w, y)], fill=(v, int(v * 1.02), int(v * 1.06)))
 
     # Sorgente di luce: porta le alte luci a fondo scala, dove i duotoni
-    # fatti male bruciano.
-    for r in range(300, 0, -6):
-        v = int(255 - (r / 300) * 120)
-        draw.ellipse([1120 - r, 240 - r, 1120 + r, 240 + r], fill=(v, v, min(255, v + 4)))
+    # fatti male bruciano. Sta in alto, dove il ritaglio taglia.
+    cx, cy, rad = int(w * 0.70), int(h * 0.27), int(min(w, h) * 0.19)
+    for r in range(rad, 0, -3):
+        v = int(255 - (r / rad) * 120)
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(v, v, min(255, v + 4)))
 
     # Soggetto in controluce e piano d'appoggio: i mezzitoni.
-    draw.polygon([(420, 900), (560, 380), (700, 900)], fill=(58, 60, 66))
-    draw.ellipse([520, 300, 640, 420], fill=(96, 94, 98))
-    draw.rectangle([0, 720, w, h], fill=(38, 42, 50))
+    head_r = int(min(w, h) * 0.075)
+    hx, hy = int(w * 0.36), int(h * 0.40)
+    draw.polygon(
+        [(hx - int(w * 0.09), h), (hx, hy), (hx + int(w * 0.09), h)], fill=(58, 60, 66)
+    )
+    draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=(96, 94, 98))
+    draw.rectangle([0, ground, w, h], fill=(38, 42, 50))
 
     # Folla: blocchi irregolari che fanno da tessitura nelle ombre.
     for _ in range(900):
-        x, y = rnd.randrange(w), rnd.randrange(720, h)
+        x, y = rnd.randrange(w), rnd.randrange(ground, h)
         s = rnd.randrange(6, 26)
         v = rnd.randrange(30, 96)
         draw.rectangle([x, y, x + s, y + s], fill=(v, v, v + 6))
@@ -211,9 +229,14 @@ def _sample_hero(dest_dir: Path) -> Hero | None:
             max(0, min(255, b + n)),
         )
 
-    path = dest_dir / "hero-sample.jpg"
+    path = dest_dir / f"hero-sample-{shape}.jpg"
     img.save(path, quality=88)
-    return Hero(path=str(path), caption="Foto dal topic Mercato · 21:14")
+    return Hero(
+        path=str(path),
+        caption="Foto dal topic Mercato · 21:14",
+        width=w,
+        height=h,
+    )
 
 
 async def main() -> None:
@@ -240,12 +263,28 @@ async def main() -> None:
         default=None,
         help="trattamento della foto di apertura",
     )
+    parser.add_argument(
+        "--formato",
+        choices=sorted(SAMPLE_SHAPES),
+        default="wide",
+        help="proporzioni della foto di apertura di prova (default: wide)",
+    )
     args = parser.parse_args()
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    hero = None if args.no_hero else _sample_hero(out)
+    hero = None if args.no_hero else _sample_hero(out, args.formato)
+
+    # Le foto dei pezzi secondari: si provano sui due topic più attivi
+    # dopo l'apertura, che è come le assegna main.py.
+    if not args.plain and not args.no_hero:
+        for article, shape in zip(SAMPLE_ARTICLES[:2], ("verticale", "wide")):
+            article.picture = _sample_hero(out, shape)
+            if article.picture is not None:
+                article.picture.caption = (
+                    f"Foto dal topic {article.topic} · 18:32"
+                )
     logo = Path("assets/logo-azzurro.png")
 
     gfx = GraphicsOptions.none() if args.plain else GraphicsOptions()

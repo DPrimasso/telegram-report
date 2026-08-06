@@ -17,7 +17,7 @@ from report.fetch import (
 )
 from report.highlights import build_stats, hourly_counts, index_entries, pick_quote
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
-from report.photo import pick_hero_photo
+from report.photo import pick_day_photos
 from report.report_builder import build_report
 from report.send import send_photo_report, send_report
 from report.summarize import (
@@ -196,8 +196,8 @@ async def _run_newspaper_report(
     newspaper_name = config.newspaper_name or await get_group_title(client, config.group_id)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        print("Cerco la foto di apertura...")
-        hero = await pick_hero_photo(
+        print("Cerco le foto della giornata...")
+        photos = await pick_day_photos(
             client,
             config.group_id,
             target_date,
@@ -206,6 +206,15 @@ async def _run_newspaper_report(
             preferred_topic=lead_topic,
             youtube_channel_id=config.youtube_channel_id,
         )
+        hero = photos.hero
+        # Le foto dei pezzi si assegnano per topic: se quel topic non ne
+        # ha una, l'articolo resta di solo testo, che è il caso normale.
+        for article in articles:
+            article.picture = photos.by_topic.get(article.topic)
+        if photos.by_topic:
+            print(
+                "Foto anche per: " + ", ".join(sorted(photos.by_topic))
+            )
 
         logo = Path(config.logo_path)
         pages_html = build_pages_html(

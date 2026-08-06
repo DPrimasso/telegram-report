@@ -68,6 +68,34 @@ pagina si sfaldi. Tre opzioni (`photo_treatment`):
   miniatura nello scroll della chat, ma è una scelta forte: su un
   ritratto si vede parecchio.
 
+### Quante immagini, e come sono ritagliate
+
+**Quante.** L'apertura più al massimo due pezzi secondari, uno per topic
+(`MAX_ARTICLE_PHOTOS` in `report/photo.py`). Il limite non è tecnico: una
+foto in pagina dice «questo pezzo conta più degli altri», e darne una a
+tutti toglie il segnale invece di aggiungerlo. Quando la prima pagina non
+ci sta, si toglie la foto e si tiene il testo — fra le due, la parte
+rinunciabile è la foto.
+
+**Come sono ritagliate.** Il riquadro prende le proporzioni
+dell'immagine, non viceversa. Un riquadro ad altezza fissa andava bene
+finché le immagini erano foto orizzontali; su un fermo immagine di un
+video o su uno screenshot di telefono — che è la maggior parte di quello
+che gira in una chat — ne buttava via i due terzi, tagliando esattamente
+la parte con il soggetto.
+
+Le dimensioni arrivano gratis dal messaggio: Telegram allega a ogni foto
+l'elenco delle sue "size", quindi non serve aprire il file scaricato né
+una libreria di immagini.
+
+Restano un tetto e un pavimento (`HERO_MAX_HEIGHT`, `HERO_MIN_HEIGHT`),
+perché la pagina ha una sua economia: una foto verticale a piena
+larghezza sarebbe alta più di mille pixel e spingerebbe l'articolo fuori
+dalla prima schermata. Sopra il tetto si ritaglia comunque, ma **dal
+basso**, non dal centro: in una foto il soggetto sta quasi sempre nella
+metà alta, e in un fermo immagine con i sottotitoli impressi quello che
+si perde sono i sottotitoli.
+
 ### Da dove arrivano le immagini
 
 La catena è, in ordine: una foto scattata e pubblicata nel gruppo,
@@ -162,17 +190,6 @@ rimosso restano quelle giuste (stile bloccato, soggetto da un passaggio
 separato, stesso trattamento cromatico delle foto vere). Quello che
 manca, e che nessuna di quelle difese risolve, è un modo di legare
 l'immagine al fatto e non all'argomento.
-
-### Foto sui pezzi secondari
-
-Tentazione ovvia, visto che la seconda pagina è cinque blocchi di testo
-uguali. Scartata perché le foto buone in un gruppo Telegram sono poche:
-una per l'apertura si trova quasi sempre, cinque no. Il risultato reale
-sarebbe stato un pezzo con la foto e quattro senza, cioè una gerarchia
-falsa — sembrerebbe che quel pezzo conti di più, quando invece era solo
-l'unico con un'immagine sopra i 600px. La barretta di peso risolve lo
-stesso problema (spezzare la monotonia, dare una gerarchia) con
-un'informazione vera.
 
 ### Classifica dei partecipanti
 

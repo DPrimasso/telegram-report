@@ -20,7 +20,7 @@ import base64
 import html
 import mimetypes
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path
 
@@ -41,6 +41,26 @@ INK = "#101820"
 INK_SOFT = "#3d3d3d"
 
 PAGE_WIDTH = 1080
+
+# Larghezza utile del testo e delle immagini: la pagina meno i 56px di
+# margine per lato.
+CONTENT_WIDTH = PAGE_WIDTH - 112
+
+# Il riquadro della foto di apertura prende le proporzioni dell'immagine,
+# entro questi limiti. Il tetto serve perché una foto verticale a piena
+# larghezza sarebbe alta più di mille pixel e spingerebbe l'articolo
+# fuori dalla prima schermata; il minimo perché una panoramica molto
+# larga diventerebbe una striscia. Fuori da questi limiti si ritaglia,
+# ma è il caso raro invece che quello normale.
+HERO_MAX_HEIGHT = 620
+HERO_MIN_HEIGHT = 240
+HERO_DEFAULT_HEIGHT = 420
+
+# Le foto dei pezzi secondari stanno sotto quella di apertura anche in
+# altezza: se fossero uguali, la gerarchia della pagina sparirebbe.
+ARTICLE_PIC_MAX_HEIGHT = 340
+ARTICLE_PIC_MIN_HEIGHT = 180
+ARTICLE_PIC_DEFAULT_HEIGHT = 260
 
 # Oltre questa altezza stimata (in px CSS) la pagina diventa una striscia
 # troppo lunga: Telegram la mostra rimpicciolita in anteprima e il testo
@@ -87,6 +107,10 @@ class Article:
     headline: str
     body: str
     count: int
+    # Foto del pezzo, quando ce n'è una di quel topic. Sta più bassa
+    # dell'apertura per non competerci: in pagina la gerarchia la fanno
+    # anche le dimensioni delle immagini, non solo quelle dei titoli.
+    picture: "Hero | None" = None
 
 
 @dataclass
@@ -109,9 +133,18 @@ class Quote:
 class Hero:
     """Foto di apertura. `path` è un file locale (già scaricato); `caption`
     dice da dove arriva, perché una foto senza provenienza in un report
-    automatico sembra decorazione."""
+    automatico sembra decorazione.
+
+    `width` e `height` sono le dimensioni vere dell'immagine, quando si
+    conoscono: servono a dare al riquadro le proporzioni dell'immagine
+    invece di imporgliene una fisse. Con un riquadro fisso le foto
+    verticali e i fermo immagine dei video — cioè buona parte di quello
+    che gira davvero in una chat — venivano tagliati a metà. Zero
+    significa "non so", e si ricade sull'altezza di default."""
     path: str
     caption: str = ""
+    width: int = 0
+    height: int = 0
 
 
 @dataclass
@@ -252,7 +285,7 @@ p {{ margin: 0; }}
 /* Le fotografie non entrano in pagina come sono: arrivano da una chat,
    con luci e dominanti tutte diverse, e accanto al navy pieno sembrano
    ritagli. Il duotone navy/azzurro le uniforma e le lega alla testata. */
-.hero {{ width: 100%; height: 420px; overflow: hidden; margin-bottom: 12px; }}
+.hero {{ width: 100%; height: {HERO_DEFAULT_HEIGHT}px; overflow: hidden; margin-bottom: 12px; }}
 .hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
 .hero.mono img {{ filter: grayscale(1) contrast(1.08); }}
 .hero.duotone img {{ filter: url(#duotone) contrast(1.04); }}
@@ -282,6 +315,18 @@ p {{ margin: 0; }}
 }}
 .article h3 {{ font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 10px; }}
 .article .body {{ font-size: 28px; line-height: 1.45; }}
+
+/* La foto del pezzo secondario sta fra titolo e testo, come nell'apertura:
+   stessa grammatica, scala diversa. */
+.art-pic {{ width: 100%; height: {ARTICLE_PIC_DEFAULT_HEIGHT}px; overflow: hidden; margin: 4px 0 10px 0; }}
+.art-pic img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+.art-pic.mono img {{ filter: grayscale(1) contrast(1.08); }}
+.art-pic.duotone img {{ filter: url(#duotone) contrast(1.04); }}
+.art-pic.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
+.art-pic-caption {{
+  font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #5a5a5a; margin-bottom: 14px;
+}}
 
 .quote {{ background: {AZZURRO}; color: {NAVY}; padding: 34px 56px; }}
 .quote .section-label {{ display: block; color: {NAVY}; margin-bottom: 14px; }}
@@ -385,18 +430,79 @@ def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
     )
 
 
-def _hero_html(hero: Hero | None, gfx: GraphicsOptions) -> str:
-    if hero is None:
+def _natural_height(picture: Hero) -> int:
+    if picture.width <= 0 or picture.height <= 0:
+        return 0
+    return round(CONTENT_WIDTH * picture.height / picture.width)
+
+
+def picture_box_height(
+    picture: Hero,
+    *,
+    default: int = HERO_DEFAULT_HEIGHT,
+    minimum: int = HERO_MIN_HEIGHT,
+    maximum: int = HERO_MAX_HEIGHT,
+) -> int:
+    """Altezza del riquadro di un'immagine in pagina.
+
+    Le proporzioni le detta l'immagine: è l'unico modo di non tagliare a
+    metà una foto verticale o un fermo immagine di un video, che nelle
+    chat sono la maggioranza — un riquadro fisso a 420px su uno scatto da
+    telefono ne buttava via due terzi. I limiti restano perché la pagina
+    ha una sua economia: vedi HERO_MAX_HEIGHT."""
+    natural = _natural_height(picture)
+    if natural <= 0:
+        return default
+    return max(minimum, min(maximum, natural))
+
+
+def hero_box_height(hero: Hero) -> int:
+    return picture_box_height(hero)
+
+
+def _picture_html(
+    picture: Hero | None,
+    gfx: GraphicsOptions,
+    *,
+    box_class: str = "hero",
+    default: int = HERO_DEFAULT_HEIGHT,
+    minimum: int = HERO_MIN_HEIGHT,
+    maximum: int = HERO_MAX_HEIGHT,
+) -> str:
+    if picture is None:
         return ""
     caption = (
-        f'<div class="hero-caption">{html.escape(hero.caption)}</div>'
-        if hero.caption
+        f'<div class="{box_class}-caption">{html.escape(picture.caption)}</div>'
+        if picture.caption
         else ""
     )
-    treatment = gfx.photo_treatment
+    box = picture_box_height(
+        picture, default=default, minimum=minimum, maximum=maximum
+    )
+    # Quando l'immagine è più alta del tetto si ritaglia per forza: si
+    # taglia allora dal basso e non dal centro, perché in una foto il
+    # soggetto sta quasi sempre nella metà alta — e in un fermo immagine
+    # con i sottotitoli impressi, quello che si perde sono i sottotitoli.
+    position = "center 22%" if _natural_height(picture) > box else "center"
     return (
-        f'<div class="hero {treatment}"><img src="{data_uri(hero.path)}" alt="">'
+        f'<div class="{box_class} {gfx.photo_treatment}" style="height:{box}px">'
+        f'<img src="{data_uri(picture.path)}" alt="" style="object-position:{position}">'
         f"</div>{caption}"
+    )
+
+
+def _hero_html(hero: Hero | None, gfx: GraphicsOptions) -> str:
+    return _picture_html(hero, gfx)
+
+
+def _article_picture_html(picture: Hero | None, gfx: GraphicsOptions) -> str:
+    return _picture_html(
+        picture,
+        gfx,
+        box_class="art-pic",
+        default=ARTICLE_PIC_DEFAULT_HEIGHT,
+        minimum=ARTICLE_PIC_MIN_HEIGHT,
+        maximum=ARTICLE_PIC_MAX_HEIGHT,
     )
 
 
@@ -441,6 +547,7 @@ def _articles_html(
             f'<span class="topic-tag">{glyph}{html.escape(a.topic)}</span>'
             f'<span class="msg-count">{weight}<span>{a.count} {unit}</span></span></div>'
             f"<h3>{html.escape(a.headline)}</h3>"
+            f"{_article_picture_html(a.picture, gfx)}"
             f'<p class="body">{html.escape(a.body)}{end}</p></div>'
         )
     if not blocks:
@@ -514,7 +621,8 @@ def _footer_html(note: str = FOOTER_NOTE) -> str:
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
 _H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
 _H_INDEX_ROW = 46
-_H_HERO = 460
+_H_HERO_CAPTION = 52        # didascalia + regolo sotto la foto di apertura
+_H_PIC_CAPTION = 40         # didascalia sotto la foto di un pezzo
 _H_QUOTE = 220
 _H_STATS = 120
 _H_CHART = 200          # titolo + grafico orario + regolo di separazione
@@ -530,7 +638,10 @@ def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
     h += _text_height(lead.headline, chars_per_line=26, line_height=68)
     h += _text_height(lead.deck, chars_per_line=52, line_height=41)
     if hero is not None:
-        h += _H_HERO
+        # Il riquadro non è più alto uguale per tutti: chi impagina deve
+        # chiedere quanto misura davvero, o con una foto verticale la
+        # stima sbaglia di trecento pixel.
+        h += hero_box_height(hero) + _H_HERO_CAPTION
     for p in lead.paragraphs:
         h += _text_height(p, chars_per_line=58, line_height=45) + 16
     return h
@@ -539,6 +650,16 @@ def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
 def _estimate_article_height(a: Article) -> int:
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
+    if a.picture is not None:
+        h += (
+            picture_box_height(
+                a.picture,
+                default=ARTICLE_PIC_DEFAULT_HEIGHT,
+                minimum=ARTICLE_PIC_MIN_HEIGHT,
+                maximum=ARTICLE_PIC_MAX_HEIGHT,
+            )
+            + _H_PIC_CAPTION
+        )
     h += _text_height(a.body, chars_per_line=62, line_height=41)
     return h
 
@@ -631,6 +752,31 @@ def paginate_articles(
     return pages
 
 
+def _fit_page(chunk: list[Article], used: int) -> list[Article]:
+    """Toglie le foto ai pezzi finché la pagina rientra nell'altezza utile.
+
+    Serve perché una notizia in prima pagina ci resta comunque, anche
+    quando l'apertura ha già preso quasi tutto lo spazio (vedi
+    paginate_articles): senza questo, apertura ingombrante più pezzo
+    illustrato mandavano la pagina trecento pixel oltre il tetto. Fra il
+    testo di una notizia e la sua foto, la parte a cui si rinuncia è la
+    foto — e si comincia dall'ultimo pezzo della pagina, che è il meno
+    importante.
+
+    `used` è l'altezza già occupata da testata, indice e apertura."""
+    height = used + sum(_estimate_article_height(a) for a in chunk)
+    fitted = list(chunk)
+    for i in range(len(fitted) - 1, -1, -1):
+        if height <= MAX_PAGE_HEIGHT:
+            break
+        if fitted[i].picture is None:
+            continue
+        stripped = replace(fitted[i], picture=None)
+        height -= _estimate_article_height(fitted[i]) - _estimate_article_height(stripped)
+        fitted[i] = stripped
+    return fitted
+
+
 def build_pages_html(
     newspaper_name: str,
     day: date,
@@ -673,6 +819,19 @@ def build_pages_html(
         tail_height=closing_height,
         index_extra=_H_SHARE if gfx.share_bar and index_entries else 0,
     )
+
+    index_extra = _H_SHARE if gfx.share_bar and index_entries else 0
+    first_used = (
+        _H_CHROME
+        + index_rows * _H_INDEX_ROW
+        + index_extra
+        + _estimate_lead_height(lead, hero)
+    )
+    chunks[0] = _fit_page(chunks[0], first_used)
+    for number in range(1, len(chunks)):
+        used = _H_CONT_CHROME + (closing_height if number == len(chunks) - 1 else 0)
+        chunks[number] = _fit_page(chunks[number], used)
+
     total = len(chunks)
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
 
@@ -724,9 +883,13 @@ def build_pages_html(
             )
 
         body = head + _articles_html(chunk, label, gfx, top_count) + tail
-        # Il filtro serve solo dove c'è la foto, cioè in prima pagina.
+        # Il filtro si include solo nelle pagine che hanno un'immagine:
+        # non è più solo la prima, da quando anche i pezzi possono averne.
+        has_image = (number == 1 and hero is not None) or any(
+            a.picture is not None for a in chunk
+        )
         pages.append(
-            _wrap_page(body, duotone=gfx.needs_duotone_filter and hero is not None)
+            _wrap_page(body, duotone=gfx.needs_duotone_filter and has_image)
         )
 
     return pages
