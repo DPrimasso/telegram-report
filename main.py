@@ -211,6 +211,11 @@ async def _run_newspaper_report(
         # ha una, l'articolo resta di solo testo, che è il caso normale.
         for article in articles:
             article.picture = photos.by_topic.get(article.topic)
+        if hero is None and (photos.by_topic or photos.strip):
+            print(
+                f"Il topic '{lead_topic}' non ha immagini adatte: "
+                "apertura tipografica."
+            )
         if photos.by_topic:
             print("Foto anche per: " + ", ".join(sorted(photos.by_topic)))
         if photos.strip:

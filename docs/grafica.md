@@ -73,18 +73,28 @@ pagina si sfaldi. Tre opzioni (`photo_treatment`):
 
 ### Quante immagini, e come sono ritagliate
 
-**Quante.** In tre posti diversi, con criteri diversi:
+**La regola che governa tutto: l'immagine segue la notizia.** Un'immagine
+sotto un titolo si legge come illustrazione di quel titolo, quindi ogni
+immagine sta accanto al pezzo del topic da cui proviene — mai "dove c'è
+posto". Ne discendono i tre posti:
 
-- l'**apertura**, una;
-- i **pezzi secondari**, al massimo due, uno per topic
-  (`MAX_ARTICLE_PHOTOS`). Il limite non è tecnico: una foto dentro un
-  articolo dice «questo pezzo conta più degli altri», e darne una a tutti
-  toglie il segnale invece di aggiungerlo. Quando la prima pagina non ci
+- l'**apertura**: solo un'immagine del topic dell'apertura. Se quel topic
+  non ne ha una abbastanza grande, l'apertura resta tipografica e le
+  immagini vanno ai pezzi a cui appartengono. È la correzione del difetto
+  visto sul gazzettino vero, dove la foto più votata finiva sotto
+  l'apertura anche se veniva da tutt'altro topic. Per lo stesso motivo la
+  copertina YouTube entra solo nei giorni in cui il gruppo non ha
+  prodotto nessuna immagine;
+- i **pezzi secondari**: l'immagine del loro topic, fino a quattro pezzi
+  illustrati (`MAX_ARTICLE_PHOTOS`). Sorgente grande → blocco a piena
+  larghezza fra titolo e testo; sorgente piccola (la miniatura di un
+  video) → colonnino accanto al testo, alla maniera dei quotidiani, così
+  non va mai ingrandita oltre quel che regge. Quando la pagina non ci
   sta, si toglie la foto e si tiene il testo;
 - la **fascia di chiusura** «Il giorno in immagini», fino a quattro
-  (`MAX_STRIP_PHOTOS`). Sta fuori dagli articoli, quindi non tocca la
-  gerarchia dei pezzi: è il posto dove far vedere quello che il gruppo ha
-  pubblicato senza dover decidere che una cosa vale più di un'altra.
+  (`MAX_STRIP_PHOTOS`): quello che resta — di solito i topic senza un
+  articolo illustrato. Sta fuori dagli articoli, quindi non tocca la
+  gerarchia dei pezzi.
 
 **Anche i video.** In un gruppo di tifosi la maggior parte del materiale
 visivo sono clip — il gol, l'intervista, il momento della partita — e
@@ -96,9 +106,9 @@ video»), perché una copertina di video non ha la nitidezza di uno scatto
 e senza quella riga sembrerebbe una foto venuta male.
 
 Le miniature dei video sono però piccole, spesso 320px: a piena larghezza
-sgranerebbero. Da qui le due soglie — `MIN_PHOTO_WIDTH` (600) per
-l'apertura e i pezzi, `MIN_STRIP_WIDTH` (260) per la fascia, dove le
-immagini stanno a un quarto di larghezza e reggono benissimo.
+sgranerebbero. Da qui le due soglie — `MIN_PHOTO_WIDTH` (600) per andare
+a piena larghezza (apertura e blocco grande dei pezzi), `MIN_STRIP_WIDTH`
+(260) per gli usi in piccolo (colonnino e fascia).
 
 Gli sticker restano fuori: hanno colori, contorni e un linguaggio grafico
 propri, e in pagina sarebbero la cosa più fuori posto di tutte.

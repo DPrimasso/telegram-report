@@ -47,11 +47,12 @@ MIN_PHOTO_WIDTH = 600
 MIN_STRIP_WIDTH = 260
 
 # Quante immagini possono andare ai pezzi secondari, oltre a quella di
-# apertura. Il limite non è tecnico: una foto in pagina dice "questo pezzo
-# conta più degli altri", e darne una a tutti toglie il segnale invece di
-# aggiungerlo. Due lasciano una gerarchia leggibile — apertura, poi due
-# pezzi illustrati, poi il resto in colonna.
-MAX_ARTICLE_PHOTOS = 2
+# apertura. Da quando le sorgenti piccole stanno in un colonnino accanto
+# al testo invece che a piena larghezza, un pezzo illustrato non schiaccia
+# più gli altri: il limite serve solo a non trasformare l'edizione in un
+# album, e ci pensa comunque l'impaginatore a togliere le foto che non
+# stanno nella pagina.
+MAX_ARTICLE_PHOTOS = 4
 
 # Le immagini della fascia di chiusura. Quattro riempiono esattamente la
 # larghezza utile e restano abbastanza grandi da riconoscere un soggetto.
@@ -225,23 +226,37 @@ async def pick_day_photos(
         return DayPhotos(hero=hero)
     ordered = sorted(candidates, key=lambda c: (c.score, c.message.date), reverse=True)
 
-    # Apertura e pezzi vogliono sorgenti grandi: vanno a tutta larghezza,
-    # e un fotogramma da 320px lì si vedrebbe sfocato.
-    big = [c for c in ordered if c.width >= MIN_PHOTO_WIDTH]
-
     used: set[int] = set()
-    hero = None
     used_topics: set[str] = set()
-    if big:
-        hero = await _download(client, big[0], dest_dir / "hero.jpg", tz)
-        if hero is not None:
-            used.add(big[0].message.id)
-            used_topics.add(big[0].topic)
-    if hero is None and youtube_channel_id:
-        hero = _thumbnail_from_youtube(youtube_channel_id, day, dest_dir)
 
+    # L'apertura può portare SOLO un'immagine del suo topic. L'immagine
+    # sotto un titolo si legge come illustrazione di quel titolo: una foto
+    # di un altro topic lì sopra è un'attribuzione sbagliata, non una
+    # decorazione — è il difetto visto sul gazzettino vero, con la foto di
+    # un topic qualunque sotto l'apertura sul mercato. Se il topic
+    # dell'apertura non ha un'immagine abbastanza grande, l'apertura resta
+    # tipografica e le immagini vanno ai pezzi a cui appartengono.
+    hero = None
+    hero_pool = [
+        c
+        for c in ordered
+        if c.width >= MIN_PHOTO_WIDTH
+        and (not preferred_topic or c.topic == preferred_topic)
+    ]
+    if hero_pool:
+        hero = await _download(client, hero_pool[0], dest_dir / "hero.jpg", tz)
+        if hero is not None:
+            used.add(hero_pool[0].message.id)
+            used_topics.add(hero_pool[0].topic)
+    # La copertina YouTube entra solo quando il gruppo non ha prodotto
+    # nessuna immagine (vedi il ramo `not candidates` sopra): usarla qui
+    # ricreerebbe lo stesso problema, un'immagine slegata dal titolo.
+
+    # Ai pezzi va l'immagine del loro topic. Qui vanno bene anche le
+    # miniature dei video: il layout le mostra come colonnino accanto al
+    # testo, non a piena larghezza, quindi la sorgente piccola regge.
     by_topic: dict[str, Hero] = {}
-    for candidate in big:
+    for candidate in ordered:
         if len(by_topic) >= max_article_photos:
             break
         # Una foto per topic: due immagini sotto lo stesso titolo non

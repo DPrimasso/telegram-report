@@ -157,6 +157,7 @@ SAMPLE_SHAPES = {
     "quadrata": (1200, 1200),  # 1:1
     "verticale": (1080, 1440),  # 3:4
     "telefono": (1080, 1920),  # 9:16, il caso peggiore
+    "miniatura": (320, 180),   # copertina di un video: la sorgente piccola
 }
 
 
@@ -280,12 +281,15 @@ async def main() -> None:
     # dopo l'apertura, che è come le assegna main.py.
     strip = []
     if not args.plain and not args.no_hero:
-        for article, shape in zip(SAMPLE_ARTICLES[:2], ("verticale", "wide")):
+        # Un pezzo con foto grande a piena larghezza, uno con la miniatura
+        # di un video nel colonnino: i due casi reali.
+        for article, shape, caption in (
+            (SAMPLE_ARTICLES[0], "wide", "Foto dal topic Partita · 18:32"),
+            (SAMPLE_ARTICLES[1], "miniatura", "Fotogramma da un video nel topic Tattica · 16:05"),
+        ):
             article.picture = _sample_hero(out, shape)
             if article.picture is not None:
-                article.picture.caption = (
-                    f"Foto dal topic {article.topic} · 18:32"
-                )
+                article.picture.caption = caption
         # La fascia di chiusura: quattro immagini di formati diversi, come
         # quelle vere — miniature di video comprese.
         for topic, shape in zip(

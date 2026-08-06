@@ -73,6 +73,16 @@ ARTICLE_PIC_MAX_HEIGHT = 340
 ARTICLE_PIC_MIN_HEIGHT = 180
 ARTICLE_PIC_DEFAULT_HEIGHT = 260
 
+# Sotto questa larghezza di sorgente l'immagine di un pezzo non va a piena
+# pagina (sgranerebbe) ma in un colonnino accanto al testo, alla maniera
+# dei quotidiani. È ciò che rende usabili le miniature dei video anche
+# dentro gli articoli, non solo nella fascia in fondo.
+ARTICLE_PIC_FULL_MIN_WIDTH = 600
+SIDE_PIC_WIDTH = 380
+SIDE_PIC_MAX_HEIGHT = 300
+SIDE_PIC_MIN_HEIGHT = 160
+SIDE_PIC_DEFAULT_HEIGHT = 220
+
 # Oltre questa altezza stimata (in px CSS) la pagina diventa una striscia
 # troppo lunga: Telegram la mostra rimpicciolita in anteprima e il testo
 # torna illeggibile. Il tetto vale per OGNI pagina: superarlo apre la
@@ -343,6 +353,15 @@ p {{ margin: 0; }}
   color: #5a5a5a; margin-bottom: 14px;
 }}
 
+/* Colonnino: l'immagine piccola sta a destra del testo, come il taglio
+   basso di un quotidiano. Serve alle miniature dei video, che a piena
+   larghezza sgranerebbero. */
+.art-row {{ display: flex; gap: 24px; align-items: flex-start; }}
+.art-row .body {{ flex: 1; min-width: 0; }}
+.art-side {{ flex: none; width: {SIDE_PIC_WIDTH}px; margin: 4px 0 0 0; }}
+.art-side .art-pic {{ margin: 0 0 8px 0; }}
+.art-side .art-pic-caption {{ margin-bottom: 0; white-space: normal; }}
+
 /* Fascia di chiusura: quello che il gruppo ha pubblicato, in piccolo.
    Sono le immagini che non reggono la piena larghezza — miniature dei
    video comprese — e che in una griglia da quattro invece funzionano.
@@ -549,6 +568,27 @@ def _article_picture_html(picture: Hero | None, gfx: GraphicsOptions) -> str:
     )
 
 
+def _side_pic_height(picture: Hero) -> int:
+    if picture.width <= 0 or picture.height <= 0:
+        return SIDE_PIC_DEFAULT_HEIGHT
+    natural = round(SIDE_PIC_WIDTH * picture.height / picture.width)
+    return max(SIDE_PIC_MIN_HEIGHT, min(SIDE_PIC_MAX_HEIGHT, natural))
+
+
+def _side_picture_html(picture: Hero, gfx: GraphicsOptions) -> str:
+    caption = (
+        f'<figcaption class="art-pic-caption">{html.escape(picture.caption)}'
+        "</figcaption>"
+        if picture.caption
+        else ""
+    )
+    return (
+        '<figure class="art-side">'
+        f'<div class="art-pic {gfx.photo_treatment}" style="height:{_side_pic_height(picture)}px">'
+        f'<img src="{data_uri(picture.path)}" alt=""></div>{caption}</figure>'
+    )
+
+
 def _lead_html(lead: Lead, hero: Hero | None, gfx: GraphicsOptions) -> str:
     kicker = (
         f'<div class="kicker">Apertura · {html.escape(lead.kicker)}</div>'
@@ -585,13 +625,22 @@ def _articles_html(
         glyph = topic_glyph_svg(a.topic, size=17) if gfx.topic_glyphs else ""
         weight = weight_bar_svg(a.count, top_count) if gfx.weight_bars else ""
         end = END_MARK if gfx.end_mark else ""
+        body = f'<p class="body">{html.escape(a.body)}{end}</p>'
+        if a.picture is not None and a.picture.width >= ARTICLE_PIC_FULL_MIN_WIDTH:
+            # Sorgente grande: blocco a piena larghezza fra titolo e testo.
+            middle = _article_picture_html(a.picture, gfx) + body
+        elif a.picture is not None:
+            # Sorgente piccola (tipicamente la miniatura di un video):
+            # colonnino accanto al testo, così non va mai ingrandita
+            # oltre quel che regge.
+            middle = f'<div class="art-row">{body}{_side_picture_html(a.picture, gfx)}</div>'
+        else:
+            middle = body
         blocks.append(
             '<div class="article"><div class="article-head">'
             f'<span class="topic-tag">{glyph}{html.escape(a.topic)}</span>'
             f'<span class="msg-count">{weight}<span>{a.count} {unit}</span></span></div>'
-            f"<h3>{html.escape(a.headline)}</h3>"
-            f"{_article_picture_html(a.picture, gfx)}"
-            f'<p class="body">{html.escape(a.body)}{end}</p></div>'
+            f"<h3>{html.escape(a.headline)}</h3>{middle}</div>"
         )
     if not blocks:
         return ""
@@ -721,7 +770,7 @@ def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
 def _estimate_article_height(a: Article) -> int:
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
-    if a.picture is not None:
+    if a.picture is not None and a.picture.width >= ARTICLE_PIC_FULL_MIN_WIDTH:
         h += (
             picture_box_height(
                 a.picture,
@@ -731,7 +780,16 @@ def _estimate_article_height(a: Article) -> int:
             )
             + _H_PIC_CAPTION
         )
-    h += _text_height(a.body, chars_per_line=62, line_height=41)
+        h += _text_height(a.body, chars_per_line=62, line_height=41)
+    elif a.picture is not None:
+        # Colonnino: testo e immagine si affiancano, conta il più alto dei
+        # due. La colonna di testo è più stretta, quindi meno caratteri
+        # per riga.
+        text_h = _text_height(a.body, chars_per_line=36, line_height=41)
+        side_h = _side_pic_height(a.picture) + _H_PIC_CAPTION
+        h += max(text_h, side_h)
+    else:
+        h += _text_height(a.body, chars_per_line=62, line_height=41)
     return h
 
 
