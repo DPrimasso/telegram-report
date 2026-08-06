@@ -115,6 +115,30 @@ dettaglio disponibile». Un h3 con dentro un paragrafo
 non è un difetto di stile: è una pagina rotta, e il layout non può essere
 l'unico posto in cui ce ne accorgiamo.
 
+### Gli orari sono nel fuso del report, non in UTC
+
+Il grafico del ritmo della giornata è stato per un po' **ruotato di due
+ore**, e la cosa peggiore è che sembrava plausibile lo stesso: le
+colonne c'erano, la forma era credibile, semplicemente il picco non
+cadeva dove era successo il fatto.
+
+La causa: Telethon consegna `message.date` in UTC, e `SimpleMessage` se lo
+teneva così. I confini del giorno erano giusti (il confronto fra datetime
+consapevoli funziona), ma **ogni ora mostrata** era quella di Greenwich:
+il grafico, l'ora di punta nelle statistiche, l'orario della frase del
+giorno, e gli orari nel transcript dato al modello — che quindi scriveva
+i pezzi leggendo orari sfalsati.
+
+Non era un semplice scostamento ma una rotazione: nella finestra
+[00:00, 24:00) ora italiana, un messaggio dell'una di notte finiva nella
+colonna delle 23. Su una partita delle 18:30 il picco si leggeva alle
+16:00.
+
+La conversione si fa **una volta sola in `fetch.py`**, dove il fuso è
+noto: `SimpleMessage.timestamp` è per contratto nel fuso configurato.
+Farla a valle avrebbe significato passare il fuso a chiunque legga
+un'ora, e bastava dimenticarne uno per riavere il difetto.
+
 ### L'impaginazione bilancia le pagine
 
 Il riempimento avido decide bene *quante* pagine servono e male *come*
