@@ -329,6 +329,13 @@ def _avoid_repetition_rule(written: list[tuple[str, str]]) -> str:
 # spezza invece di mandarlo in pagina a caratteri cubitali.
 MAX_HEADLINE_CHARS = 90
 
+# Stessa cosa un gradino più giù. Il sommario che si prende tutto
+# l'articolo è il modo in cui il difetto del titolo si ripresenta appena
+# lo si tappa: il modello riversa il pezzo nell'etichetta successiva e in
+# pagina resta un blocco azzurro lungo dieci righe con sotto "Nessun
+# dettaglio disponibile".
+MAX_DECK_CHARS = 190
+
 _LABELS = ("TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO")
 
 
@@ -365,37 +372,58 @@ def _parse_labeled(raw: str) -> dict[str, str]:
     return {k: "\n".join(v).strip() for k, v in found.items()}
 
 
-def _split_sentence(text: str) -> tuple[str, str]:
-    """Taglia alla prima fine di frase. È la rete di sicurezza quando il
-    modello consegna un blocco unico: meglio un titolo corto e un corpo
-    che un paragrafo intero stampato come titolo."""
+def _split_sentence_at(text: str, limit: int) -> tuple[str, str]:
+    """Taglia alla fine di frase più lontana che sta entro `limit`.
+
+    È la rete di sicurezza quando il modello consegna un blocco unico.
+    Si preferisce la frase intera più lunga possibile: tagliare alla
+    prima disponibile produceva titoli mozzi tipo «Il Napoli valuta»
+    quando il testo cominciava con una frase brevissima."""
+    best = 0
     for end in (". ", "! ", "? ", "; "):
-        index = text.find(end)
-        if 0 < index <= MAX_HEADLINE_CHARS:
-            return text[:index].strip(), text[index + len(end):].strip()
-    if len(text) <= MAX_HEADLINE_CHARS:
+        index = 0
+        while True:
+            index = text.find(end, index)
+            if index < 0 or index > limit:
+                break
+            best = max(best, index + len(end))
+            index += len(end)
+    if best:
+        return text[:best].strip().rstrip(".;"), text[best:].strip()
+    if len(text) <= limit:
         return text, ""
-    cut = text.rfind(" ", 0, MAX_HEADLINE_CHARS)
-    cut = cut if cut > 0 else MAX_HEADLINE_CHARS
+    cut = text.rfind(" ", 0, limit)
+    cut = cut if cut > 0 else limit
     return text[:cut].strip().rstrip(",;:"), text[cut:].strip()
 
 
-def _enforce_headline(headline: str, deck: str, body: str) -> tuple[str, str, str]:
-    """Garantisce che il titolo sia un titolo.
+def _split_sentence(text: str) -> tuple[str, str]:
+    return _split_sentence_at(text, MAX_HEADLINE_CHARS)
+
+
+def _enforce_lengths(headline: str, deck: str, body: str) -> tuple[str, str, str]:
+    """Garantisce che titolo e sommario siano tali.
 
     È l'invariante che il layout dà per scontata: un h3 a 40px con dentro
-    un paragrafo non è un difetto di stile, è una pagina rotta. Qualunque
-    cosa faccia il modello, quello che esce di qui è corto."""
-    if len(headline) <= MAX_HEADLINE_CHARS:
-        return headline, deck, body
-    headline, overflow = _split_sentence(headline)
-    if not overflow:
-        return headline, deck, body
-    if not deck:
-        deck, rest = _split_sentence(overflow)
-        overflow = rest
-    if overflow:
-        body = f"{overflow} {body}".strip()
+    un paragrafo non è un difetto di stile, è una pagina rotta, e un
+    sommario di dieci righe con sotto un corpo vuoto lo è altrettanto.
+    Qualunque cosa faccia il modello, quello che esce di qui sono un
+    titolo corto, un sommario di una frase e tutto il resto nel corpo.
+
+    L'eccedenza scala sempre verso il basso — dal titolo al sommario, dal
+    sommario al corpo — perché è l'unica direzione che non perde testo."""
+    if len(headline) > MAX_HEADLINE_CHARS:
+        headline, overflow = _split_sentence(headline)
+        if overflow:
+            # Quello che avanza dal titolo apre il sommario se è libero,
+            # altrimenti si accoda a quello che c'era già.
+            deck = f"{overflow} {deck}".strip() if deck else overflow
+
+    if len(deck) > MAX_DECK_CHARS:
+        deck, overflow = _split_sentence_at(deck, MAX_DECK_CHARS)
+        if overflow:
+            body = f"{overflow} {body}".strip()
+
     return headline, deck, body
 
 
@@ -418,7 +446,7 @@ def _split_article(raw: str) -> tuple[str, str, str]:
         headline = _clean(lines[0])
         body = body or " ".join(lines[1:]).strip()
 
-    return _enforce_headline(headline, deck, body)
+    return _enforce_lengths(headline, deck, body)
 
 
 def write_topic_article(
@@ -495,7 +523,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str]]:
             rest = [" ".join(first_lines[2:])]
         text = "\n\n".join(rest)
 
-    headline, deck, text = _enforce_headline(headline, deck, text)
+    headline, deck, text = _enforce_lengths(headline, deck, text)
     paragraphs = [
         " ".join(l.strip() for l in block.splitlines() if l.strip())
         for block in text.split("\n\n")

@@ -8,11 +8,8 @@ modello) sta in SAMPLE_* qui sotto.
 
     python preview.py                 # tutte le pagine in preview_out/
     python preview.py --out /tmp/x    # cartella diversa
-    python preview.py --no-hero       # com'è la pagina senza foto
-    python preview.py --plain         # senza gli elementi grafici nuovi
-
-L'immagine di apertura di esempio, se manca, viene generata al volo: non
-teniamo una foto nel repo solo per l'anteprima.
+    python preview.py --plain         # com'era prima degli elementi grafici
+    python preview.py --no-glyphs     # spegne un singolo elemento
 """
 
 import argparse
@@ -20,11 +17,9 @@ import asyncio
 from datetime import date
 from pathlib import Path
 
-from report.graphics import PHOTO_TREATMENTS
 from report.newspaper import (
     Article,
     GraphicsOptions,
-    Hero,
     Lead,
     Quote,
     Stats,
@@ -166,106 +161,13 @@ SAMPLE_HOURS = [
 ]
 
 
-# Proporzioni con cui provare la foto di apertura. Il 16:9 è il caso
-# comodo; gli altri sono quelli che girano davvero in una chat — il fermo
-# immagine di un video verticale, lo screenshot di un telefono — ed erano
-# quelli che il riquadro ad altezza fissa tagliava a metà.
-SAMPLE_SHAPES = {
-    "wide": (1600, 900),       # 16:9
-    "quadrata": (1200, 1200),  # 1:1
-    "verticale": (1080, 1440),  # 3:4
-    "telefono": (1080, 1920),  # 9:16, il caso peggiore
-    "miniatura": (320, 180),   # copertina di un video: la sorgente piccola
-}
-
-
-def _sample_hero(dest_dir: Path, shape: str = "wide") -> Hero | None:
-    """Foto di apertura finta.
-
-    Non è un disegno decorativo: serve a giudicare il trattamento
-    cromatico, quindi deve avere la stessa gamma tonale di una foto vera —
-    ombre profonde, mezzitoni, una luce che va a fondo scala — più un po'
-    di grana. Un'immagine a tinte piatte farebbe sembrare buono
-    qualsiasi filtro.
-    """
-    import random
-
-    try:
-        from PIL import Image, ImageDraw, ImageFilter
-    except ImportError:
-        # Pillow serve solo qui: senza, l'anteprima gira lo stesso e mostra
-        # la pagina nella variante senza foto, che è comunque un caso reale.
-        print("Pillow non installato (pip install pillow): anteprima senza foto.")
-        return None
-
-    rnd = random.Random(7)
-    w, h = SAMPLE_SHAPES.get(shape, SAMPLE_SHAPES["wide"])
-    img = Image.new("RGB", (w, h))
-    draw = ImageDraw.Draw(img)
-    ground = int(h * 0.80)
-
-    # Cielo: dal quasi nero in alto al grigio chiaro sull'orizzonte.
-    for y in range(h):
-        t = y / h
-        v = int(26 + 150 * t ** 1.4)
-        draw.line([(0, y), (w, y)], fill=(v, int(v * 1.02), int(v * 1.06)))
-
-    # Sorgente di luce: porta le alte luci a fondo scala, dove i duotoni
-    # fatti male bruciano. Sta in alto, dove il ritaglio taglia.
-    cx, cy, rad = int(w * 0.70), int(h * 0.27), int(min(w, h) * 0.19)
-    for r in range(rad, 0, -3):
-        v = int(255 - (r / rad) * 120)
-        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(v, v, min(255, v + 4)))
-
-    # Soggetto in controluce e piano d'appoggio: i mezzitoni.
-    head_r = int(min(w, h) * 0.075)
-    hx, hy = int(w * 0.36), int(h * 0.40)
-    draw.polygon(
-        [(hx - int(w * 0.09), h), (hx, hy), (hx + int(w * 0.09), h)], fill=(58, 60, 66)
-    )
-    draw.ellipse([hx - head_r, hy - head_r, hx + head_r, hy + head_r], fill=(96, 94, 98))
-    draw.rectangle([0, ground, w, h], fill=(38, 42, 50))
-
-    # Folla: blocchi irregolari che fanno da tessitura nelle ombre.
-    for _ in range(900):
-        x, y = rnd.randrange(w), rnd.randrange(ground, h)
-        s = rnd.randrange(6, 26)
-        v = rnd.randrange(30, 96)
-        draw.rectangle([x, y, x + s, y + s], fill=(v, v, v + 6))
-
-    img = img.filter(ImageFilter.GaussianBlur(1.2))
-
-    # Grana: una foto da telefono ce l'ha sempre, e cambia il modo in cui
-    # si legge il duotone nelle ombre.
-    pixels = img.load()
-    for _ in range(90_000):
-        x, y = rnd.randrange(w), rnd.randrange(h)
-        r, g, b = pixels[x, y]
-        n = rnd.randrange(-16, 17)
-        pixels[x, y] = (
-            max(0, min(255, r + n)),
-            max(0, min(255, g + n)),
-            max(0, min(255, b + n)),
-        )
-
-    path = dest_dir / f"hero-sample-{shape}.jpg"
-    img.save(path, quality=88)
-    return Hero(
-        path=str(path),
-        caption="Foto dal topic Mercato · 21:14",
-        width=w,
-        height=h,
-    )
-
-
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="preview_out", help="cartella di output")
-    parser.add_argument("--no-hero", action="store_true", help="pagina senza foto")
     parser.add_argument(
         "--plain",
         action="store_true",
-        help="disattiva gli elementi grafici opzionali (capolettera, grafico, pittogrammi)",
+        help="disattiva tutti gli elementi grafici opzionali",
     )
     parser.add_argument(
         "--scale", type=int, default=1, help="fattore di scala del rendering (default 1)"
@@ -277,78 +179,32 @@ async def main() -> None:
         "--no-share", action="store_true", help="spegne la barra delle proporzioni"
     )
     parser.add_argument(
-        "--foto-in-pagina",
-        action="store_true",
-        help="rimette le immagini grandi nell'apertura e negli articoli",
-    )
-    parser.add_argument(
-        "--foto",
-        choices=PHOTO_TREATMENTS,
-        default=None,
-        help="trattamento della foto di apertura",
-    )
-    parser.add_argument(
-        "--formato",
-        choices=sorted(SAMPLE_SHAPES),
-        default="wide",
-        help="proporzioni della foto di apertura di prova (default: wide)",
+        "--no-brief", action="store_true", help="spegne il box In breve"
     )
     args = parser.parse_args()
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    hero = None if args.no_hero else _sample_hero(out, args.formato)
-
-    # Le foto dei pezzi secondari: si provano sui due topic più attivi
-    # dopo l'apertura, che è come le assegna main.py.
-    strip = []
-    if not args.plain and not args.no_hero:
-        # Un pezzo con foto grande a piena larghezza, uno con la miniatura
-        # di un video nel colonnino: servono solo con --foto-in-pagina.
-        for article, shape, caption in (
-            (SAMPLE_ARTICLES[0], "wide", "Foto dal topic Partita · 18:32"),
-            (SAMPLE_ARTICLES[1], "miniatura", "Fotogramma da un video nel topic Tattica · 16:05"),
-        ):
-            article.picture = _sample_hero(out, shape)
-            if article.picture is not None:
-                article.picture.caption = caption
-        # Il provino di chiusura: formati diversi, come quelli veri —
-        # miniature di video e screenshot compresi.
-        for topic, shape in zip(
-            ("Match Day", "SSC Napoli", "CalcioMercato", "Le Altre Squadre",
-             "Fantacalcio", "Ko-Fi", "Nazionali", "Off topic"),
-            ("wide", "quadrata", "telefono", "verticale",
-             "miniatura", "wide", "quadrata", "telefono"),
-        ):
-            picture = _sample_hero(out, shape)
-            if picture is not None:
-                picture.label = topic
-                strip.append(picture)
-    logo = Path("assets/logo-azzurro.png")
-
     gfx = GraphicsOptions.none() if args.plain else GraphicsOptions()
     if args.no_glyphs:
         gfx.topic_glyphs = False
     if args.no_share:
         gfx.share_bar = False
-    if args.foto_in_pagina:
-        gfx.inline_photos = True
-    if args.foto:
-        gfx.photo_treatment = args.foto
+    if args.no_brief:
+        gfx.brief_box = False
 
+    logo = Path("assets/logo-azzurro.png")
     pages = build_pages_html(
         "Azzurro Fluido",
         SAMPLE_DATE,
         SAMPLE_LEAD,
         SAMPLE_ARTICLES,
         logo_path=logo if logo.exists() else None,
-        hero=hero,
         index_entries=SAMPLE_INDEX,
         stats=SAMPLE_STATS,
         quote=SAMPLE_QUOTE,
         hourly=None if args.plain else SAMPLE_HOURS,
-        strip=strip,
         graphics=gfx,
     )
 

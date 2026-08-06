@@ -20,12 +20,11 @@ import base64
 import html
 import mimetypes
 import os
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 from report.graphics import (
-    DUOTONE_FILTER,
     hourly_chart_svg,
     share_bar_svg,
     topic_glyph_svg,
@@ -42,56 +41,6 @@ INK_SOFT = "#3d3d3d"
 
 PAGE_WIDTH = 1080
 
-# Larghezza utile del testo e delle immagini: la pagina meno i 56px di
-# margine per lato.
-CONTENT_WIDTH = PAGE_WIDTH - 112
-
-# Il riquadro della foto di apertura prende le proporzioni dell'immagine,
-# entro questi limiti. Il tetto serve perché una foto verticale a piena
-# larghezza sarebbe alta più di mille pixel e spingerebbe l'articolo
-# fuori dalla prima schermata; il minimo perché una panoramica molto
-# larga diventerebbe una striscia. Fuori da questi limiti si ritaglia,
-# ma è il caso raro invece che quello normale.
-HERO_MAX_HEIGHT = 760
-HERO_MIN_HEIGHT = 240
-HERO_DEFAULT_HEIGHT = 420
-
-# Oltre questo rapporto fra altezza naturale e riquadro, ritagliare vuol
-# dire buttare via mezza immagine: si passa allora a incorniciarla intera
-# su fondo navy. Meglio una foto verticale con due bande ai lati — che
-# sembra una scelta — di una foto verticale amputata, che sembra un
-# errore.
-FRAME_INSTEAD_OF_CROP = 1.35
-
-# Provino di chiusura "Il giorno in immagini". Piccolo di proposito: è la
-# dimensione a cui uno screenshot o un fermo immagine si legge per quello
-# che è — materiale pubblicato nel gruppo — senza pretendere di
-# illustrare una notizia.
-STRIP_COLUMNS = 4
-STRIP_TILE_HEIGHT = 132
-
-# Oltre questa posizione in classifica un topic non ha un articolo suo ma
-# una riga nel box "In breve". Con tredici topic attivi, tredici articoli
-# della stessa forma sono una schedina, non un giornale: la gerarchia si
-# vede solo se qualcosa è grande e qualcos'altro è piccolo.
-MAX_FULL_ARTICLES = 5
-
-# Le foto dei pezzi secondari stanno sotto quella di apertura anche in
-# altezza: se fossero uguali, la gerarchia della pagina sparirebbe.
-ARTICLE_PIC_MAX_HEIGHT = 340
-ARTICLE_PIC_MIN_HEIGHT = 180
-ARTICLE_PIC_DEFAULT_HEIGHT = 260
-
-# Sotto questa larghezza di sorgente l'immagine di un pezzo non va a piena
-# pagina (sgranerebbe) ma in un colonnino accanto al testo, alla maniera
-# dei quotidiani. È ciò che rende usabili le miniature dei video anche
-# dentro gli articoli, non solo nella fascia in fondo.
-ARTICLE_PIC_FULL_MIN_WIDTH = 600
-SIDE_PIC_WIDTH = 380
-SIDE_PIC_MAX_HEIGHT = 300
-SIDE_PIC_MIN_HEIGHT = 160
-SIDE_PIC_DEFAULT_HEIGHT = 220
-
 # Oltre questa altezza stimata (in px CSS) la pagina diventa una striscia
 # troppo lunga: Telegram la mostra rimpicciolita in anteprima e il testo
 # torna illeggibile. Il tetto vale per OGNI pagina: superarlo apre la
@@ -103,8 +52,15 @@ MAX_PAGE_HEIGHT = 2400
 MAX_ARTICLES_FIRST_PAGE = 3
 
 # Sotto questa soglia una pagina in più conterrebbe un trafiletto in mezzo
-# al bianco: meglio una pagina sola, anche un po' più lunga.
+# al bianco: meglio una pagina sola, anche un po' più lunga. Vale solo se
+# quella pagina ci sta davvero — vedi paginate_articles.
 MIN_ARTICLES_FOR_SPLIT = 4
+
+# Oltre questa posizione in classifica un topic non ha un articolo suo ma
+# una riga nel box "In breve". Con tredici topic attivi, tredici articoli
+# della stessa forma sono una schedina, non un giornale: la gerarchia si
+# vede solo se qualcosa è grande e qualcos'altro è piccolo.
+MAX_FULL_ARTICLES = 5
 
 _IT_WEEKDAYS = [
     "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
@@ -142,10 +98,6 @@ class Article:
     # di testo — che è quello che rende una pagina un elenco invece di un
     # giornale.
     deck: str = ""
-    # Foto del pezzo, quando ce n'è una di quel topic. Sta più bassa
-    # dell'apertura per non competerci: in pagina la gerarchia la fanno
-    # anche le dimensioni delle immagini, non solo quelle dei titoli.
-    picture: "Hero | None" = None
 
 
 @dataclass
@@ -165,27 +117,6 @@ class Quote:
 
 
 @dataclass
-class Hero:
-    """Foto di apertura. `path` è un file locale (già scaricato); `caption`
-    dice da dove arriva, perché una foto senza provenienza in un report
-    automatico sembra decorazione.
-
-    `width` e `height` sono le dimensioni vere dell'immagine, quando si
-    conoscono: servono a dare al riquadro le proporzioni dell'immagine
-    invece di imporgliene una fisse. Con un riquadro fisso le foto
-    verticali e i fermo immagine dei video — cioè buona parte di quello
-    che gira davvero in una chat — venivano tagliati a metà. Zero
-    significa "non so", e si ricade sull'altezza di default."""
-    path: str
-    caption: str = ""
-    width: int = 0
-    height: int = 0
-    # Etichetta corta per la fascia in fondo, dove una didascalia intera
-    # sotto ogni riquadro sarebbe più lunga dell'immagine.
-    label: str = ""
-
-
-@dataclass
 class GraphicsOptions:
     """Quali elementi grafici accendere.
 
@@ -197,9 +128,6 @@ class GraphicsOptions:
     pagina di solo testo.
     """
 
-    # "mono" (bianco e nero), "duotone" (navy/azzurro pieno) o
-    # "duotone-soft" (navy/grigio-blu). Vedi report.graphics.
-    photo_treatment: str = "duotone-soft"
     drop_cap: bool = True       # capolettera sull'apertura
     end_mark: bool = True       # quadratino di fine articolo
     hourly_chart: bool = True   # andamento orario nella fascia di chiusura
@@ -209,20 +137,11 @@ class GraphicsOptions:
     number_block: bool = True   # il dato grande sotto l'indice
     brief_box: bool = True      # i topic minori raccolti in un box "In breve"
 
-    # Immagini grandi dentro la pagina (apertura e articoli). Spente: le
-    # immagini di una chat sono artefatti di conversazione — fermi
-    # immagine sottotitolati, screenshot di testo, meme — leggibili a
-    # dimensione chat e dentro il loro contesto. Ingrandite a piena pagina
-    # non aggiungono informazione, occupano lo spazio di qualcosa che
-    # potrebbe darla. Restano nel provino in fondo, dove il registro è
-    # quello giusto: "ecco cosa ha pubblicato il gruppo".
-    inline_photos: bool = False
 
     @classmethod
     def none(cls) -> "GraphicsOptions":
         """Il gazzettino com'era prima di questo modulo."""
         return cls(
-            photo_treatment="mono",
             drop_cap=False,
             end_mark=False,
             hourly_chart=False,
@@ -231,12 +150,7 @@ class GraphicsOptions:
             share_bar=False,
             number_block=False,
             brief_box=False,
-            inline_photos=True,
         )
-
-    @property
-    def needs_duotone_filter(self) -> bool:
-        return self.photo_treatment.startswith("duotone")
 
 
 def italian_date(day: date) -> str:
@@ -334,20 +248,6 @@ p {{ margin: 0; }}
   background: {AZZURRO}; position: relative; top: 1px;
 }}
 
-/* Le fotografie non entrano in pagina come sono: arrivano da una chat,
-   con luci e dominanti tutte diverse, e accanto al navy pieno sembrano
-   ritagli. Il duotone navy/azzurro le uniforma e le lega alla testata. */
-.hero {{ width: 100%; height: {HERO_DEFAULT_HEIGHT}px; overflow: hidden; margin-bottom: 12px; }}
-.hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
-.hero.framed, .art-pic.framed {{ background: {NAVY}; }}
-.hero.mono img {{ filter: grayscale(1) contrast(1.08); }}
-.hero.duotone img {{ filter: url(#duotone) contrast(1.04); }}
-.hero.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
-.hero-caption {{
-  font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: #5a5a5a;
-  border-bottom: 2px solid {NAVY}; padding-bottom: 14px; margin-bottom: 22px;
-}}
-
 .articles {{ background: {GROUND}; padding: 0 56px; }}
 .articles > .section-label {{ display: block; padding: 24px 0 4px 0; }}
 .article {{ border-top: 2px solid {NAVY}; padding: 26px 0; }}
@@ -375,47 +275,6 @@ p {{ margin: 0; }}
   font-weight: 600; margin-bottom: 12px;
 }}
 .article .body {{ font-size: 28px; line-height: 1.45; }}
-
-/* La foto del pezzo secondario sta fra titolo e testo, come nell'apertura:
-   stessa grammatica, scala diversa. */
-.art-pic {{ width: 100%; height: {ARTICLE_PIC_DEFAULT_HEIGHT}px; overflow: hidden; margin: 4px 0 10px 0; }}
-.art-pic img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
-.art-pic.mono img {{ filter: grayscale(1) contrast(1.08); }}
-.art-pic.duotone img {{ filter: url(#duotone) contrast(1.04); }}
-.art-pic.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
-.art-pic-caption {{
-  font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: #5a5a5a; margin-bottom: 14px;
-}}
-
-/* Colonnino: l'immagine piccola sta a destra del testo, come il taglio
-   basso di un quotidiano. Serve alle miniature dei video, che a piena
-   larghezza sgranerebbero. */
-.art-row {{ display: flex; gap: 24px; align-items: flex-start; }}
-.art-row .body {{ flex: 1; min-width: 0; }}
-.art-side {{ flex: none; width: {SIDE_PIC_WIDTH}px; margin: 4px 0 0 0; }}
-.art-side .art-pic {{ margin: 0 0 8px 0; }}
-.art-side .art-pic-caption {{ margin-bottom: 0; white-space: normal; }}
-
-/* Fascia di chiusura: quello che il gruppo ha pubblicato, in piccolo.
-   Sono le immagini che non reggono la piena larghezza — miniature dei
-   video comprese — e che in una griglia da quattro invece funzionano.
-   Riempie l'edizione di materiale vero senza toccare la gerarchia dei
-   pezzi, perché sta fuori dagli articoli. */
-.strip {{ background: {GROUND}; padding: 26px 56px 30px 56px; border-top: 2px solid {NAVY}; }}
-.strip .section-label {{ display: block; margin-bottom: 16px; }}
-.strip-grid {{ display: grid; grid-template-columns: repeat({STRIP_COLUMNS}, 1fr); gap: 12px; }}
-.strip-cell figure {{ margin: 0; }}
-.strip-shot {{ width: 100%; height: {STRIP_TILE_HEIGHT}px; overflow: hidden; background: {NAVY}; }}
-.strip-shot img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
-.strip-shot.mono img {{ filter: grayscale(1) contrast(1.08); }}
-.strip-shot.duotone img {{ filter: url(#duotone) contrast(1.04); }}
-.strip-shot.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
-.strip-cell .cap {{
-  font-size: 14px; font-weight: 700; letter-spacing: 0.08em;
-  text-transform: uppercase; color: #5a5a5a; margin-top: 8px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}}
 
 /* Il dato grande: il numero che descrive la giornata, alla scala a cui i
    numeri si guardano invece di leggerli. È l'elemento che dà peso visivo
@@ -498,11 +357,7 @@ p {{ margin: 0; }}
 """
 
 
-def _wrap_page(inner: str, *, duotone: bool = False) -> str:
-    # Il filtro duotone è un <filter> SVG referenziato dal CSS: deve stare
-    # nel documento, non nel foglio di stile. Lo includiamo solo quando
-    # serve davvero, per non lasciare un nodo inerte in ogni pagina.
-    defs = DUOTONE_FILTER if duotone else ""
+def _wrap_page(inner: str) -> str:
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -512,7 +367,6 @@ def _wrap_page(inner: str, *, duotone: bool = False) -> str:
 <style>{CSS}</style>
 </head>
 <body>
-{defs}
 {inner}
 </body>
 </html>"""
@@ -548,112 +402,7 @@ def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
     )
 
 
-def _natural_height(picture: Hero) -> int:
-    if picture.width <= 0 or picture.height <= 0:
-        return 0
-    return round(CONTENT_WIDTH * picture.height / picture.width)
-
-
-def picture_box_height(
-    picture: Hero,
-    *,
-    default: int = HERO_DEFAULT_HEIGHT,
-    minimum: int = HERO_MIN_HEIGHT,
-    maximum: int = HERO_MAX_HEIGHT,
-) -> int:
-    """Altezza del riquadro di un'immagine in pagina.
-
-    Le proporzioni le detta l'immagine: è l'unico modo di non tagliare a
-    metà una foto verticale o un fermo immagine di un video, che nelle
-    chat sono la maggioranza — un riquadro fisso a 420px su uno scatto da
-    telefono ne buttava via due terzi. I limiti restano perché la pagina
-    ha una sua economia: vedi HERO_MAX_HEIGHT."""
-    natural = _natural_height(picture)
-    if natural <= 0:
-        return default
-    return max(minimum, min(maximum, natural))
-
-
-def hero_box_height(hero: Hero) -> int:
-    return picture_box_height(hero)
-
-
-def _picture_html(
-    picture: Hero | None,
-    gfx: GraphicsOptions,
-    *,
-    box_class: str = "hero",
-    default: int = HERO_DEFAULT_HEIGHT,
-    minimum: int = HERO_MIN_HEIGHT,
-    maximum: int = HERO_MAX_HEIGHT,
-) -> str:
-    if picture is None:
-        return ""
-    caption = (
-        f'<div class="{box_class}-caption">{html.escape(picture.caption)}</div>'
-        if picture.caption
-        else ""
-    )
-    box = picture_box_height(
-        picture, default=default, minimum=minimum, maximum=maximum
-    )
-    natural = _natural_height(picture)
-    if natural > box * FRAME_INSTEAD_OF_CROP:
-        # Immagine molto più alta del riquadro: incorniciata intera su
-        # fondo navy invece che tagliata.
-        style = "object-fit:contain"
-        extra = " framed"
-    else:
-        # Ritaglio contenuto: si taglia dal basso e non dal centro, perché
-        # in una foto il soggetto sta quasi sempre nella metà alta — e in
-        # un fermo immagine con i sottotitoli impressi, quello che si
-        # perde sono i sottotitoli.
-        style = "object-position:center 22%" if natural > box else "object-position:center"
-        extra = ""
-    return (
-        f'<div class="{box_class}{extra} {gfx.photo_treatment}" style="height:{box}px">'
-        f'<img src="{data_uri(picture.path)}" alt="" style="{style}">'
-        f"</div>{caption}"
-    )
-
-
-def _hero_html(hero: Hero | None, gfx: GraphicsOptions) -> str:
-    return _picture_html(hero, gfx)
-
-
-def _article_picture_html(picture: Hero | None, gfx: GraphicsOptions) -> str:
-    return _picture_html(
-        picture,
-        gfx,
-        box_class="art-pic",
-        default=ARTICLE_PIC_DEFAULT_HEIGHT,
-        minimum=ARTICLE_PIC_MIN_HEIGHT,
-        maximum=ARTICLE_PIC_MAX_HEIGHT,
-    )
-
-
-def _side_pic_height(picture: Hero) -> int:
-    if picture.width <= 0 or picture.height <= 0:
-        return SIDE_PIC_DEFAULT_HEIGHT
-    natural = round(SIDE_PIC_WIDTH * picture.height / picture.width)
-    return max(SIDE_PIC_MIN_HEIGHT, min(SIDE_PIC_MAX_HEIGHT, natural))
-
-
-def _side_picture_html(picture: Hero, gfx: GraphicsOptions) -> str:
-    caption = (
-        f'<figcaption class="art-pic-caption">{html.escape(picture.caption)}'
-        "</figcaption>"
-        if picture.caption
-        else ""
-    )
-    return (
-        '<figure class="art-side">'
-        f'<div class="art-pic {gfx.photo_treatment}" style="height:{_side_pic_height(picture)}px">'
-        f'<img src="{data_uri(picture.path)}" alt=""></div>{caption}</figure>'
-    )
-
-
-def _lead_html(lead: Lead, hero: Hero | None, gfx: GraphicsOptions) -> str:
+def _lead_html(lead: Lead, gfx: GraphicsOptions) -> str:
     kicker = (
         f'<div class="kicker">Apertura · {html.escape(lead.kicker)}</div>'
         if lead.kicker
@@ -672,7 +421,7 @@ def _lead_html(lead: Lead, hero: Hero | None, gfx: GraphicsOptions) -> str:
     body_class = "body dropcap" if gfx.drop_cap else "body"
     return (
         f'<div class="lead">{kicker}<h2>{headline}</h2>{deck}'
-        f'{_hero_html(hero, gfx)}<div class="{body_class}">{body}</div></div>'
+        f'<div class="{body_class}">{body}</div></div>'
     )
 
 
@@ -698,21 +447,11 @@ def _articles_html(
             body = f'<p class="deck">{html.escape(a.deck)}{end}</p>'
         else:
             body = ""
-        if a.picture is not None and a.picture.width >= ARTICLE_PIC_FULL_MIN_WIDTH:
-            # Sorgente grande: blocco a piena larghezza fra titolo e testo.
-            middle = _article_picture_html(a.picture, gfx) + body
-        elif a.picture is not None:
-            # Sorgente piccola (tipicamente la miniatura di un video):
-            # colonnino accanto al testo, così non va mai ingrandita
-            # oltre quel che regge.
-            middle = f'<div class="art-row">{body}{_side_picture_html(a.picture, gfx)}</div>'
-        else:
-            middle = body
         blocks.append(
             '<div class="article"><div class="article-head">'
             f'<span class="topic-tag">{glyph}{html.escape(a.topic)}</span>'
             f'<span class="msg-count">{weight}<span>{a.count} {unit}</span></span></div>'
-            f"<h3>{html.escape(a.headline)}</h3>{middle}</div>"
+            f"<h3>{html.escape(a.headline)}</h3>{body}</div>"
         )
     if not blocks:
         return ""
@@ -765,33 +504,6 @@ def _brief_html(articles: list[Article], gfx: GraphicsOptions) -> str:
     return (
         '<div class="brief"><span class="section-label">In breve</span>'
         f'<div class="brief-grid">{"".join(items)}</div></div>'
-    )
-
-
-def _strip_html(strip: list[Hero], gfx: GraphicsOptions) -> str:
-    """La fascia con le immagini della giornata.
-
-    Sta fuori dagli articoli di proposito: aggiunge materiale visivo senza
-    dire nulla sulla gerarchia dei pezzi, che è il motivo per cui le foto
-    dentro gli articoli restano poche."""
-    if not strip:
-        return ""
-    cells = []
-    for picture in strip[: STRIP_COLUMNS * 2]:
-        label = (
-            f'<figcaption class="cap">{html.escape(picture.label)}</figcaption>'
-            if picture.label
-            else ""
-        )
-        cells.append(
-            '<div class="strip-cell"><figure>'
-            f'<div class="strip-shot {gfx.photo_treatment}">'
-            f'<img src="{data_uri(picture.path)}" alt="">'
-            f"</div>{label}</figure></div>"
-        )
-    return (
-        '<div class="strip"><span class="section-label">Il giorno in immagini</span>'
-        f'<div class="strip-grid">{"".join(cells)}</div></div>'
     )
 
 
@@ -857,12 +569,9 @@ def _footer_html(note: str = FOOTER_NOTE) -> str:
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
 _H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
 _H_INDEX_ROW = 46
-_H_HERO_CAPTION = 52        # didascalia + regolo sotto la foto di apertura
-_H_PIC_CAPTION = 40         # didascalia sotto la foto di un pezzo
 _H_QUOTE = 220
 _H_STATS = 120
 _H_CHART = 200          # titolo + grafico orario + regolo di separazione
-_H_STRIP = 250          # titolo + riquadri + etichette del provino
 _H_NUMBER = 145         # blocco del dato grande
 _H_BRIEF_HEAD = 70      # titolo del box "In breve"
 _H_BRIEF_ROW = 108      # una riga del box (due voci affiancate)
@@ -873,15 +582,10 @@ _H_SHARE = 48           # barra delle proporzioni sotto l'indice
 _H_TAIL = _H_QUOTE + _H_STATS
 
 
-def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
+def _estimate_lead_height(lead: Lead) -> int:
     h = 120  # kicker + padding
     h += _text_height(lead.headline, chars_per_line=26, line_height=68)
     h += _text_height(lead.deck, chars_per_line=52, line_height=41)
-    if hero is not None:
-        # Il riquadro non è più alto uguale per tutti: chi impagina deve
-        # chiedere quanto misura davvero, o con una foto verticale la
-        # stima sbaglia di trecento pixel.
-        h += hero_box_height(hero) + _H_HERO_CAPTION
     for p in lead.paragraphs:
         h += _text_height(p, chars_per_line=58, line_height=45) + 16
     return h
@@ -891,26 +595,7 @@ def _estimate_article_height(a: Article) -> int:
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
     h += _text_height(a.deck, chars_per_line=62, line_height=33) + (12 if a.deck else 0)
-    if a.picture is not None and a.picture.width >= ARTICLE_PIC_FULL_MIN_WIDTH:
-        h += (
-            picture_box_height(
-                a.picture,
-                default=ARTICLE_PIC_DEFAULT_HEIGHT,
-                minimum=ARTICLE_PIC_MIN_HEIGHT,
-                maximum=ARTICLE_PIC_MAX_HEIGHT,
-            )
-            + _H_PIC_CAPTION
-        )
-        h += _text_height(a.body, chars_per_line=62, line_height=41)
-    elif a.picture is not None:
-        # Colonnino: testo e immagine si affiancano, conta il più alto dei
-        # due. La colonna di testo è più stretta, quindi meno caratteri
-        # per riga.
-        text_h = _text_height(a.body, chars_per_line=36, line_height=41)
-        side_h = _side_pic_height(a.picture) + _H_PIC_CAPTION
-        h += max(text_h, side_h)
-    else:
-        h += _text_height(a.body, chars_per_line=62, line_height=41)
+    h += _text_height(a.body, chars_per_line=62, line_height=41)
     return h
 
 
@@ -924,7 +609,6 @@ def _text_height(text: str, chars_per_line: int, line_height: int) -> int:
 def paginate_articles(
     articles: list[Article],
     lead: Lead,
-    hero: Hero | None,
     index_rows: int,
     *,
     tail_height: int = _H_TAIL,
@@ -948,7 +632,7 @@ def paginate_articles(
         _H_CHROME
         + index_rows * _H_INDEX_ROW
         + index_extra
-        + _estimate_lead_height(lead, hero)
+        + _estimate_lead_height(lead)
     )
 
     # Con poche notizie una pagina sola è meglio di due, ma solo se ci
@@ -1073,31 +757,6 @@ def _balance_pages(
     return balanced
 
 
-def _fit_page(chunk: list[Article], used: int) -> list[Article]:
-    """Toglie le foto ai pezzi finché la pagina rientra nell'altezza utile.
-
-    Serve perché una notizia in prima pagina ci resta comunque, anche
-    quando l'apertura ha già preso quasi tutto lo spazio (vedi
-    paginate_articles): senza questo, apertura ingombrante più pezzo
-    illustrato mandavano la pagina trecento pixel oltre il tetto. Fra il
-    testo di una notizia e la sua foto, la parte a cui si rinuncia è la
-    foto — e si comincia dall'ultimo pezzo della pagina, che è il meno
-    importante.
-
-    `used` è l'altezza già occupata da testata, indice e apertura."""
-    height = used + sum(_estimate_article_height(a) for a in chunk)
-    fitted = list(chunk)
-    for i in range(len(fitted) - 1, -1, -1):
-        if height <= MAX_PAGE_HEIGHT:
-            break
-        if fitted[i].picture is None:
-            continue
-        stripped = replace(fitted[i], picture=None)
-        height -= _estimate_article_height(fitted[i]) - _estimate_article_height(stripped)
-        fitted[i] = stripped
-    return fitted
-
-
 def build_pages_html(
     newspaper_name: str,
     day: date,
@@ -1105,13 +764,11 @@ def build_pages_html(
     articles: list[Article],
     *,
     logo_path: str | Path | None = None,
-    hero: Hero | None = None,
     index_entries: list[tuple[str, int]] | None = None,
     stats: Stats | None = None,
     quote: Quote | None = None,
     edition_number: int | None = None,
     hourly: list[int] | None = None,
-    strip: list[Hero] | None = None,
     graphics: GraphicsOptions | None = None,
 ) -> list[str]:
     """Compone il gazzettino e restituisce l'HTML di ciascuna pagina.
@@ -1128,12 +785,6 @@ def build_pages_html(
     index_entries = index_entries or []
     index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
-    # Senza immagini in linea l'apertura e gli articoli tornano
-    # tipografici: le foto restano solo nel provino in fondo.
-    if not gfx.inline_photos:
-        hero = None
-        articles = [replace(a, picture=None) for a in articles]
-
     # I topic minori escono dalla colonna e diventano righe del box "In
     # breve": è la separazione che rende visibile la gerarchia.
     usable = [a for a in articles if a.headline]
@@ -1146,11 +797,9 @@ def build_pages_html(
     # confronto è fra i topic della giornata, non con una soglia fissa.
     top_count = max((a.count for a in articles), default=0)
 
-    strip = strip or []
     closing_height = (
         _H_TAIL
         + (_H_CHART if gfx.hourly_chart and hourly else 0)
-        + (_H_STRIP if strip else 0)
         + (_H_BRIEF_HEAD + _H_BRIEF_ROW * -(-len(brief) // 2) if brief else 0)
     )
     index_extra = (_H_SHARE if gfx.share_bar and index_entries else 0) + (
@@ -1159,7 +808,6 @@ def build_pages_html(
     chunks = paginate_articles(
         articles,
         lead,
-        hero,
         index_rows,
         tail_height=closing_height,
         index_extra=index_extra,
@@ -1169,13 +817,8 @@ def build_pages_html(
         _H_CHROME
         + index_rows * _H_INDEX_ROW
         + index_extra
-        + _estimate_lead_height(lead, hero)
+        + _estimate_lead_height(lead)
     )
-    chunks[0] = _fit_page(chunks[0], first_used)
-    for number in range(1, len(chunks)):
-        used = _H_CONT_CHROME + (closing_height if number == len(chunks) - 1 else 0)
-        chunks[number] = _fit_page(chunks[number], used)
-
     total = len(chunks)
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
 
@@ -1195,7 +838,7 @@ def build_pages_html(
                 f'<span class="folio">{html.escape(folio)}</span></div>'
                 + _index_html(index_entries, gfx)
                 + (_number_html(index_entries, stats) if gfx.number_block else "")
-                + _lead_html(lead, hero, gfx)
+                + _lead_html(lead, gfx)
             )
             label = "Il resto della giornata"
         else:
@@ -1217,7 +860,6 @@ def build_pages_html(
             )
             tail = (
                 _brief_html(brief, gfx)
-                + _strip_html(strip, gfx)
                 + _quote_html(quote)
                 + _stats_html(stats, hourly, gfx)
                 + _footer_html(note)
@@ -1230,16 +872,7 @@ def build_pages_html(
             )
 
         body = head + _articles_html(chunk, label, gfx, top_count) + tail
-        # Il filtro si include solo nelle pagine che hanno un'immagine:
-        # non è più solo la prima, da quando anche i pezzi possono averne.
-        has_image = (
-            (number == 1 and hero is not None)
-            or (number == total and bool(strip))
-            or any(a.picture is not None for a in chunk)
-        )
-        pages.append(
-            _wrap_page(body, duotone=gfx.needs_duotone_filter and has_image)
-        )
+        pages.append(_wrap_page(body))
 
     return pages
 

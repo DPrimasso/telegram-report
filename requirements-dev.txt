@@ -1,5 +1,0 @@
-# Dipendenze dei soli strumenti di anteprima (preview.py, catalogo.py).
-# Il gazzettino in produzione non le usa: servono a generare la foto di
-# prova con cui si giudica il trattamento cromatico.
--r requirements.txt
-pillow==12.3.0
