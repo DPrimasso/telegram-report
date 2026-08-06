@@ -19,9 +19,18 @@ principali rispetto alla versione a quotidiano di carta:
 import base64
 import html
 import mimetypes
+import os
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+
+from report.graphics import (
+    DUOTONE_FILTER,
+    hourly_chart_svg,
+    share_bar_svg,
+    topic_glyph_svg,
+    weight_bar_svg,
+)
 
 NAVY = "#0c2340"
 AZZURRO = "#17a3e0"
@@ -57,6 +66,11 @@ _IT_MONTHS = [
 
 FOOTER_NOTE = "Azzurro Fluido · gazzettino automatico del gruppo"
 CHANNEL_LINK = "youtube.com/@AzzurroFluido"
+
+# Lo spazio unificatore lega il quadratino all'ultima parola: senza, quando
+# la riga finale è piena, il segno di chiusura scende da solo su una riga
+# tutta sua e sembra un errore di impaginazione.
+END_MARK = '&#160;<span class="end-mark"></span>'
 
 
 @dataclass
@@ -98,6 +112,46 @@ class Hero:
     automatico sembra decorazione."""
     path: str
     caption: str = ""
+
+
+@dataclass
+class GraphicsOptions:
+    """Quali elementi grafici accendere.
+
+    Sono separati uno per uno perché non hanno lo stesso rischio: il
+    capolettera è una convenzione tipografica e non può stonare, i
+    pittogrammi sui topic sì — bastano due segni che non c'entrano niente
+    con il titolo e la pagina sembra fatta con le clipart. Tenerli
+    distinti permette di spegnere il singolo elemento senza tornare alla
+    pagina di solo testo.
+    """
+
+    # "mono" (bianco e nero), "duotone" (navy/azzurro pieno) o
+    # "duotone-soft" (navy/grigio-blu). Vedi report.graphics.
+    photo_treatment: str = "duotone-soft"
+    drop_cap: bool = True       # capolettera sull'apertura
+    end_mark: bool = True       # quadratino di fine articolo
+    hourly_chart: bool = True   # andamento orario nella fascia di chiusura
+    weight_bars: bool = True    # barretta di peso accanto al contatore messaggi
+    topic_glyphs: bool = False  # pittogramma nei tag e nell'indice
+    share_bar: bool = False     # barra delle proporzioni sotto l'indice
+
+    @classmethod
+    def none(cls) -> "GraphicsOptions":
+        """Il gazzettino com'era prima di questo modulo."""
+        return cls(
+            photo_treatment="mono",
+            drop_cap=False,
+            end_mark=False,
+            hourly_chart=False,
+            weight_bars=False,
+            topic_glyphs=False,
+            share_bar=False,
+        )
+
+    @property
+    def needs_duotone_filter(self) -> bool:
+        return self.photo_treatment.startswith("duotone")
 
 
 def italian_date(day: date) -> str:
@@ -154,10 +208,12 @@ p {{ margin: 0; }}
 .index .section-label {{ display: block; margin-bottom: 14px; }}
 .index-chips {{ display: flex; flex-wrap: wrap; gap: 10px; }}
 .chip {{
-  display: inline-flex; align-items: baseline; gap: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
   border: 2px solid {NAVY}; padding: 7px 12px; font-size: 17px; font-weight: 700;
 }}
 .chip b {{ color: {AZZURRO_DEEP}; }}
+.chip .glyph {{ color: {AZZURRO_DEEP}; flex: none; }}
+.share {{ display: block; margin-top: 14px; }}
 
 .lead {{ padding: 34px 56px 30px 56px; background: #fff; border-bottom: 6px solid {NAVY}; }}
 .kicker {{
@@ -174,10 +230,33 @@ p {{ margin: 0; }}
 .lead .body p {{ margin-bottom: 16px; }}
 .lead .body p:last-child {{ margin-bottom: 0; color: {INK_SOFT}; }}
 
-/* Le fotografie stampano in bianco e nero: una foto da chat, colorata e
-   compressa, accanto al navy pieno spezzerebbe la pagina. */
+/* Capolettera: fa partire l'articolo di apertura da un punto preciso
+   invece che dal margine come tutti gli altri paragrafi. È la differenza
+   fra una pagina impaginata e un blocco di testo. Il float lo tiene
+   allineato alla riga di base della terza riga. */
+.lead .body.dropcap > p:first-child::first-letter {{
+  float: left; font-size: 104px; line-height: 0.78; font-weight: 800;
+  color: {NAVY}; padding: 8px 14px 0 0;
+}}
+
+/* Quadratino di fine pezzo: dice dove finisce l'articolo senza bisogno
+   di un regolo, che a fine colonna aggiungerebbe una riga di stacco.
+   Nel markup è preceduto da uno spazio unificatore, così non può finire
+   da solo su una riga tutta sua — che è il modo più veloce di far
+   sembrare rotta una pagina altrimenti a posto. */
+.end-mark {{
+  display: inline-block; width: 15px; height: 15px;
+  background: {AZZURRO}; position: relative; top: 1px;
+}}
+
+/* Le fotografie non entrano in pagina come sono: arrivano da una chat,
+   con luci e dominanti tutte diverse, e accanto al navy pieno sembrano
+   ritagli. Il duotone navy/azzurro le uniforma e le lega alla testata. */
 .hero {{ width: 100%; height: 420px; overflow: hidden; margin-bottom: 12px; }}
-.hero img {{ width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) contrast(1.08); display: block; }}
+.hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+.hero.mono img {{ filter: grayscale(1) contrast(1.08); }}
+.hero.duotone img {{ filter: url(#duotone) contrast(1.04); }}
+.hero.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
 .hero-caption {{
   font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: #5a5a5a;
   border-bottom: 2px solid {NAVY}; padding-bottom: 14px; margin-bottom: 22px;
@@ -192,10 +271,15 @@ p {{ margin: 0; }}
   gap: 20px; margin-bottom: 10px;
 }}
 .topic-tag {{
+  display: inline-flex; align-items: center; gap: 8px;
   background: {AZZURRO}; color: {NAVY}; font-size: 15px; font-weight: 800;
   letter-spacing: 0.12em; text-transform: uppercase; padding: 6px 11px;
 }}
-.msg-count {{ font-size: 16px; font-weight: 700; color: #5a5a5a; white-space: nowrap; }}
+.topic-tag .glyph {{ flex: none; }}
+.msg-count {{
+  display: inline-flex; align-items: center; gap: 12px;
+  font-size: 16px; font-weight: 700; color: #5a5a5a; white-space: nowrap;
+}}
 .article h3 {{ font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 10px; }}
 .article .body {{ font-size: 28px; line-height: 1.45; }}
 
@@ -204,10 +288,18 @@ p {{ margin: 0; }}
 .quote p {{ font-size: 46px; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }}
 .quote .attrib {{ font-size: 20px; font-weight: 700; }}
 
-.stats {{
-  background: {NAVY}; color: #fff; padding: 28px 56px;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px;
+.stats {{ background: {NAVY}; color: #fff; padding: 28px 56px; }}
+.stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }}
+/* Il grafico e i quattro numeri stanno nella stessa fascia navy perché
+   dicono la stessa cosa da due lati: il grafico la forma della giornata,
+   i numeri le sue misure. Separarli in due blocchi li faceva leggere
+   come due sezioni scollegate. */
+.chart-block {{
+  margin-bottom: 24px; padding-bottom: 22px;
+  border-bottom: 1px solid rgba(143, 201, 232, 0.32);
 }}
+.chart-block .section-label {{ display: block; color: {AZZURRO_PALE}; margin-bottom: 16px; }}
+.chart {{ display: block; }}
 .stats .value {{ font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; }}
 .stats .label {{
   font-size: 15px; letter-spacing: 0.1em; text-transform: uppercase;
@@ -243,7 +335,11 @@ p {{ margin: 0; }}
 """
 
 
-def _wrap_page(inner: str) -> str:
+def _wrap_page(inner: str, *, duotone: bool = False) -> str:
+    # Il filtro duotone è un <filter> SVG referenziato dal CSS: deve stare
+    # nel documento, non nel foglio di stile. Lo includiamo solo quando
+    # serve davvero, per non lasciare un nodo inerte in ogni pagina.
+    defs = DUOTONE_FILTER if duotone else ""
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -253,6 +349,7 @@ def _wrap_page(inner: str) -> str:
 <style>{CSS}</style>
 </head>
 <body>
+{defs}
 {inner}
 </body>
 </html>"""
@@ -272,20 +369,23 @@ def _masthead(logo_uri: str | None, newspaper_name: str) -> str:
     )
 
 
-def _index_html(entries: list[tuple[str, int]]) -> str:
+def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
     if not entries:
         return ""
     chips = "".join(
-        f'<span class="chip">{html.escape(topic)} <b>{count}</b></span>'
+        f'<span class="chip">'
+        f"{topic_glyph_svg(topic, size=18) if gfx.topic_glyphs else ''}"
+        f"{html.escape(topic)} <b>{count}</b></span>"
         for topic, count in entries
     )
+    share = share_bar_svg(entries) if gfx.share_bar else ""
     return (
         '<div class="index"><span class="section-label">In questa edizione</span>'
-        f'<div class="index-chips">{chips}</div></div>'
+        f'<div class="index-chips">{chips}</div>{share}</div>'
     )
 
 
-def _hero_html(hero: Hero | None) -> str:
+def _hero_html(hero: Hero | None, gfx: GraphicsOptions) -> str:
     if hero is None:
         return ""
     caption = (
@@ -293,27 +393,39 @@ def _hero_html(hero: Hero | None) -> str:
         if hero.caption
         else ""
     )
-    return f'<div class="hero"><img src="{data_uri(hero.path)}" alt=""></div>{caption}'
+    treatment = gfx.photo_treatment
+    return (
+        f'<div class="hero {treatment}"><img src="{data_uri(hero.path)}" alt="">'
+        f"</div>{caption}"
+    )
 
 
-def _lead_html(lead: Lead, hero: Hero | None) -> str:
+def _lead_html(lead: Lead, hero: Hero | None, gfx: GraphicsOptions) -> str:
     kicker = (
         f'<div class="kicker">Apertura · {html.escape(lead.kicker)}</div>'
         if lead.kicker
         else '<div class="kicker">Apertura</div>'
     )
     deck = f'<p class="deck">{html.escape(lead.deck)}</p>' if lead.deck else ""
-    body = "".join(f"<p>{html.escape(p)}</p>" for p in lead.paragraphs) or (
-        "<p>Nessun dettaglio disponibile.</p>"
+    end = END_MARK if gfx.end_mark else ""
+    paragraphs = lead.paragraphs or ["Nessun dettaglio disponibile."]
+    body = "".join(
+        f"<p>{html.escape(p)}{end if i == len(paragraphs) - 1 else ''}</p>"
+        for i, p in enumerate(paragraphs)
     )
     headline = html.escape(lead.headline) or "Giornata senza articolo di apertura"
+    # Il capolettera va sul primo paragrafo, che dopo la foto è comunque il
+    # primo blocco di testo lungo della pagina.
+    body_class = "body dropcap" if gfx.drop_cap else "body"
     return (
         f'<div class="lead">{kicker}<h2>{headline}</h2>{deck}'
-        f'{_hero_html(hero)}<div class="body">{body}</div></div>'
+        f'{_hero_html(hero, gfx)}<div class="{body_class}">{body}</div></div>'
     )
 
 
-def _articles_html(articles: list[Article], label: str) -> str:
+def _articles_html(
+    articles: list[Article], label: str, gfx: GraphicsOptions, top_count: int = 0
+) -> str:
     if not articles:
         return ""
     blocks = []
@@ -321,12 +433,15 @@ def _articles_html(articles: list[Article], label: str) -> str:
         if not a.headline:
             continue
         unit = "messaggio" if a.count == 1 else "messaggi"
+        glyph = topic_glyph_svg(a.topic, size=17) if gfx.topic_glyphs else ""
+        weight = weight_bar_svg(a.count, top_count) if gfx.weight_bars else ""
+        end = END_MARK if gfx.end_mark else ""
         blocks.append(
             '<div class="article"><div class="article-head">'
-            f'<span class="topic-tag">{html.escape(a.topic)}</span>'
-            f'<span class="msg-count">{a.count} {unit}</span></div>'
+            f'<span class="topic-tag">{glyph}{html.escape(a.topic)}</span>'
+            f'<span class="msg-count">{weight}<span>{a.count} {unit}</span></span></div>'
             f"<h3>{html.escape(a.headline)}</h3>"
-            f'<p class="body">{html.escape(a.body)}</p></div>'
+            f'<p class="body">{html.escape(a.body)}{end}</p></div>'
         )
     if not blocks:
         return ""
@@ -353,20 +468,35 @@ def _quote_html(quote: Quote | None) -> str:
     )
 
 
-def _stats_html(stats: Stats | None) -> str:
+def _stats_html(
+    stats: Stats | None, hourly: list[int] | None, gfx: GraphicsOptions
+) -> str:
+    chart = ""
+    if gfx.hourly_chart and hourly:
+        svg = hourly_chart_svg(hourly)
+        if svg:
+            chart = (
+                '<div class="chart-block">'
+                '<span class="section-label">Il ritmo della giornata</span>'
+                f"{svg}</div>"
+            )
     if stats is None:
-        return ""
+        # Il grafico da solo regge la fascia: sono comunque dati della
+        # giornata, e senza i numeri resta una chiusura pulita.
+        return f'<div class="stats">{chart}</div>' if chart else ""
+
     cells = [
         (stats.messages, "messaggi"),
         (stats.participants, "partecipanti"),
         (stats.active_topics, "topic attivi"),
         (stats.peak_hour, "ora di punta"),
     ]
-    return '<div class="stats">' + "".join(
+    grid = '<div class="stats-grid">' + "".join(
         f'<div><div class="value">{html.escape(str(v))}</div>'
         f'<div class="label">{label}</div></div>'
         for v, label in cells
     ) + "</div>"
+    return f'<div class="stats">{chart}{grid}</div>'
 
 
 def _footer_html(note: str = FOOTER_NOTE) -> str:
@@ -387,6 +517,8 @@ _H_INDEX_ROW = 46
 _H_HERO = 460
 _H_QUOTE = 220
 _H_STATS = 120
+_H_CHART = 200          # titolo + grafico orario + regolo di separazione
+_H_SHARE = 48           # barra delle proporzioni sotto l'indice
 
 # Frase del giorno e statistiche stanno sempre in ultima pagina: chi
 # impagina deve tenerne lo spazio da parte.
@@ -423,6 +555,9 @@ def paginate_articles(
     lead: Lead,
     hero: Hero | None,
     index_rows: int,
+    *,
+    tail_height: int = _H_TAIL,
+    index_extra: int = 0,
 ) -> list[list[Article]]:
     """Distribuisce le notizie su quante pagine servono e restituisce una
     lista per pagina; la prima sta sotto l'apertura.
@@ -431,7 +566,12 @@ def paginate_articles(
     dieci topic attivi una seconda pagina unica raccoglieva tutto il resto
     e diventava una striscia che Telegram mostra rimpicciolita, cioè
     illeggibile — che è il motivo per cui il tetto d'altezza vale per ogni
-    pagina e non solo per la prima."""
+    pagina e non solo per la prima.
+
+    `tail_height` e `index_extra` esistono perché gli elementi grafici
+    opzionali cambiano l'altezza dei blocchi fissi: il grafico orario
+    allunga la chiusura di circa 200px, e ignorarlo faceva sfondare
+    l'ultima pagina proprio nel caso in cui era più piena."""
     usable = [a for a in articles if a.headline]
     if len(usable) < MIN_ARTICLES_FOR_SPLIT:
         return [usable]
@@ -439,6 +579,7 @@ def paginate_articles(
     height = (
         _H_CHROME
         + index_rows * _H_INDEX_ROW
+        + index_extra
         + _estimate_lead_height(lead, hero)
     )
     first: list[Article] = []
@@ -463,7 +604,7 @@ def paginate_articles(
         # Frase del giorno e statistiche chiudono l'ultima pagina: quando
         # sistemiamo l'ultima notizia vanno contate, o è proprio la coda a
         # far sfondare la pagina finale.
-        reserve = _H_TAIL if index == len(rest) - 1 else 0
+        reserve = tail_height if index == len(rest) - 1 else 0
         h = _estimate_article_height(a)
         if current and height + h + reserve > MAX_PAGE_HEIGHT:
             pages.append(current)
@@ -481,7 +622,7 @@ def paginate_articles(
     # ci sta, si scala giù una notizia dalla penultima, così l'edizione
     # chiude con due pezzi invece che con uno solo.
     if len(pages) > 1 and len(pages[-1]) == 1:
-        merged = heights[-2] + _estimate_article_height(pages[-1][0]) + _H_TAIL
+        merged = heights[-2] + _estimate_article_height(pages[-1][0]) + tail_height
         if merged <= MAX_PAGE_HEIGHT:
             pages[-2].extend(pages.pop())
         elif len(pages[-2]) > 1:
@@ -502,17 +643,36 @@ def build_pages_html(
     stats: Stats | None = None,
     quote: Quote | None = None,
     edition_number: int | None = None,
+    hourly: list[int] | None = None,
+    graphics: GraphicsOptions | None = None,
 ) -> list[str]:
     """Compone il gazzettino e restituisce l'HTML di ciascuna pagina.
 
     Le pagine sono quante ne servono: una sola quando la giornata è magra,
     tre o quattro quando i topic attivi sono molti. `articles` deve arrivare
-    già ordinata per rilevanza."""
+    già ordinata per rilevanza.
+
+    `hourly` sono i 24 conteggi orari per il grafico di chiusura; senza,
+    la fascia finale resta quella dei soli numeri. `graphics` decide quali
+    elementi grafici accendere (default: quelli a rischio zero)."""
+    gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
     index_entries = index_entries or []
     index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
-    chunks = paginate_articles(articles, lead, hero, index_rows)
+    # Il contatore più alto fa da fondoscala alle barrette di peso: il
+    # confronto è fra i topic della giornata, non con una soglia fissa.
+    top_count = max((a.count for a in articles), default=0)
+
+    closing_height = _H_TAIL + (_H_CHART if gfx.hourly_chart and hourly else 0)
+    chunks = paginate_articles(
+        articles,
+        lead,
+        hero,
+        index_rows,
+        tail_height=closing_height,
+        index_extra=_H_SHARE if gfx.share_bar and index_entries else 0,
+    )
     total = len(chunks)
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
 
@@ -530,8 +690,8 @@ def build_pages_html(
                 _masthead(logo_uri, newspaper_name)
                 + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
                 f'<span class="folio">{html.escape(folio)}</span></div>'
-                + _index_html(index_entries)
-                + _lead_html(lead, hero)
+                + _index_html(index_entries, gfx)
+                + _lead_html(lead, hero, gfx)
             )
             label = "Il resto della giornata"
         else:
@@ -551,7 +711,11 @@ def build_pages_html(
                 if total == 1
                 else f"Fine dell'edizione · pagina {number} di {total}"
             )
-            tail = _quote_html(quote) + _stats_html(stats) + _footer_html(note)
+            tail = (
+                _quote_html(quote)
+                + _stats_html(stats, hourly, gfx)
+                + _footer_html(note)
+            )
         else:
             tail = (
                 '<div class="footer-continue">'
@@ -559,7 +723,11 @@ def build_pages_html(
                 f'<span class="next">Continua a pagina {number + 1} ▸</span></div>'
             )
 
-        pages.append(_wrap_page(head + _articles_html(chunk, label) + tail))
+        body = head + _articles_html(chunk, label, gfx, top_count) + tail
+        # Il filtro serve solo dove c'è la foto, cioè in prima pagina.
+        pages.append(
+            _wrap_page(body, duotone=gfx.needs_duotone_filter and hero is not None)
+        )
 
     return pages
 
@@ -573,8 +741,14 @@ async def render_html_to_png(
     Fonts: con `load` la pagina a volte viene catturata col fallback."""
     from playwright.async_api import async_playwright
 
+    # Alcuni ambienti (container di CI, sandbox) hanno già un Chromium
+    # installato a mano, con una revisione diversa da quella che Playwright
+    # si aspetta: senza questa via d'uscita l'unico modo di renderizzare
+    # sarebbe riscaricare il browser.
+    executable = os.environ.get("CHROMIUM_EXECUTABLE_PATH") or None
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(executable_path=executable)
         try:
             page = await browser.new_page(
                 viewport={"width": width, "height": 900},

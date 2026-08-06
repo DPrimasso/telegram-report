@@ -22,6 +22,11 @@ riepilogo. Due formati disponibili:
   Il giornale si divide su due pagine quando ci sono almeno 4 articoli, con
   gli articoli ripartiti in modo da bilanciare il volume di testo; sotto
   quella soglia resta una pagina sola.
+- **Grafica**: foto in bicromia, capolettera, barrette di peso accanto ai
+  contatori e grafico dell'andamento orario, tutti generati in SVG dentro
+  la pagina (nessuna libreria, nessun asset scaricato). Il criterio con cui
+  sono stati scelti — e quelli scartati, illustrazioni generate dall'IA
+  comprese — sta in [`docs/grafica.md`](docs/grafica.md).
 - **Invio**: per ora il report arriva in DM privato (Saved Messages, cioè
   messaggio a "te stesso"). In futuro, quando validato, si può spostare in un
   topic dedicato del gruppo cambiando solo configurazione (vedi sotto). Le
@@ -95,6 +100,14 @@ Puoi anche testare in locale:
 ```bash
 python main.py --date 2026-07-27                  # prima pagina (default)
 python main.py --date 2026-07-27 --format text     # formato testuale
+```
+
+Per lavorare sull'impaginazione senza chiamare Telegram né OpenAI ci sono
+due script che girano offline su dati finti:
+
+```bash
+python preview.py     # le pagine del gazzettino in preview_out/
+python catalogo.py    # campionario degli elementi grafici in catalogo.png
 ```
 
 ## Passare all'invio nel topic del gruppo

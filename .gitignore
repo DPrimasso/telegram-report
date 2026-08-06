@@ -3,3 +3,5 @@ __pycache__/
 .env
 *.session
 *.session-journal
+preview_out/
+catalogo.png

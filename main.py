@@ -15,7 +15,7 @@ from report.fetch import (
     get_group_title,
     list_topics,
 )
-from report.highlights import build_stats, index_entries, pick_quote
+from report.highlights import build_stats, hourly_counts, index_entries, pick_quote
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
 from report.photo import pick_hero_photo
 from report.report_builder import build_report
@@ -218,6 +218,7 @@ async def _run_newspaper_report(
             index_entries=index_entries(topics),
             stats=build_stats(all_messages),
             quote=quote,
+            hourly=hourly_counts(all_messages),
         )
 
         print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")
