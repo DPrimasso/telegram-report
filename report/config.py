@@ -33,6 +33,8 @@ class Config:
     group_id: int
     openai_api_key: str
     openai_model: str
+    openai_image_model: str
+    illustration_fallback: bool
     report_destination: str
     report_topic_id: int | None
     timezone: str
@@ -69,6 +71,12 @@ def load_config() -> Config:
         group_id=group_id,
         openai_api_key=_require("OPENAI_API_KEY"),
         openai_model=os.environ.get("OPENAI_MODEL") or "gpt-4o-mini",
+        openai_image_model=os.environ.get("OPENAI_IMAGE_MODEL") or "gpt-image-2",
+        # Spenta di default: aggiunge un costo e una latenza al job
+        # notturno, e l'apertura senza immagine è comunque una pagina
+        # valida. Vedi docs/grafica.md.
+        illustration_fallback=(os.environ.get("ILLUSTRATION_FALLBACK") or "").strip()
+        in {"1", "true", "True", "si", "sì", "yes"},
         report_destination=destination,
         report_topic_id=int(topic_id) if topic_id else None,
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",

@@ -89,34 +89,66 @@ completa invece di ripeterli.
   dominante aggiunge poco; in quelle equilibrate diventa una fila di
   segmenti tutti uguali.
 
-## Cosa è stato scartato (e perché)
-
-### Illustrazioni generate dall'IA
+## Illustrazione generata: com'è incorniciata
 
 È l'idea che viene per prima quando si dice "aggiungiamo grafica", ed è
-anche quella con il rapporto rischio/resa peggiore. Il problema non è la
-qualità delle immagini, che oggi è alta: è che **un'illustrazione generata
-non dice niente che il testo non dica già**, e viola quindi il principio
-alla radice. In più:
+anche quella con il rapporto rischio/resa peggiore: **un'illustrazione
+generata non dice niente che il testo non dica già**, e viola quindi il
+principio alla radice. Per questo è **spenta di default**
+(`ILLUSTRATION_FALLBACK=1` per accenderla) e sta all'ultimo posto della
+catena, dopo la foto del gruppo e la copertina YouTube — cioè entra in
+gioco solo nei casi in cui oggi l'apertura resta tipografica, che è
+comunque una pagina valida.
 
-- lo stile cambia da un giorno all'altro anche a parità di prompt, e una
-  testata che cambia registro grafico ogni giorno non sembra una testata;
-- il modello mette scritte dentro le immagini, e le scritte sbagliate
-  dentro un'immagine sono la cosa più vistosa che possa capitare in prima
-  pagina;
-- volti e simboli riconoscibili (maglie, stemmi, giocatori reali) sono
-  proprio il caso in cui l'immagine generata si nota di più, ed è anche
-  quello con i problemi di diritti;
-- ha un costo per immagine e una latenza, dentro un job notturno che oggi
-  non ha nessuna delle due.
+Se la si vuole, il modo in cui è incorniciata in `report/illustration.py`
+è quello che la rende sopportabile in una testata. Tre difese, in ordine:
 
-Se in futuro la si vuole comunque, va incorniciata così: **un solo stile
-bloccato in una costante** (per esempio linoleografia monocroma, nessun
-testo, nessun volto), **passata dallo stesso filtro duotone** delle foto
-vere così da non introdurre una seconda tavolozza, **con didascalia
-esplicita** ("illustrazione generata"), e **solo come ricaduta** quando
-non c'è né una foto del gruppo né una copertina YouTube — cioè nel caso
-in cui oggi l'apertura resta tipografica, che comunque funziona.
+1. **Uno stile solo, bloccato in una costante.** `ART_DIRECTION` non si
+   compone a runtime e non dipende dalla notizia. Una testata che cambia
+   registro grafico ogni giorno non sembra una testata, ed è esattamente
+   quello che succede lasciando scegliere lo stile al modello.
+2. **Il soggetto lo decide un passaggio separato.** Prima un modello di
+   testo riduce il titolo a un soggetto visivo semplice — un oggetto o
+   una natura morta, mai una scena con persone — poi quel soggetto entra
+   nel prompt dell'immagine. Buttare il titolo dentro il generatore
+   significa ritrovarsi scritte sbagliate, volti di giocatori veri e
+   stemmi in prima pagina, che è il caso in cui l'immagine generata si
+   nota di più ed è anche quello con i problemi di diritti.
+3. **Passa dallo stesso filtro duotone delle foto vere.** Non entra in
+   pagina una seconda tavolozza, e l'illustrazione si accorda con le
+   giornate in cui al suo posto c'è una fotografia. Una sorgente già a un
+   solo inchiostro attraversa quel passaggio senza dominanti impreviste:
+   è il motivo per cui lo stile chiesto è una linoleografia monocroma e
+   non un'illustrazione a colori.
+
+La didascalia dice sempre che è generata. Un'immagine finta senza
+etichetta dentro un riepilogo di cose vere è l'unica cosa qui dentro che
+sarebbe un problema anche fuori dalla grafica.
+
+### Provarla
+
+```bash
+python illustrazione.py                        # 3 varianti sul titolo di esempio
+python illustrazione.py --titolo "..." --n 1   # un titolo tuo, una sola immagine
+python illustrazione.py --pagina               # anche la prima pagina completa
+python illustrazione.py --qualita low          # bozze rapide e più economiche
+python illustrazione.py --finto                # prova a secco, nessuna spesa
+```
+
+Ogni variante è una chiamata a pagamento al modello di immagini; lo
+script stampa quante ne sta per fare prima di partire. Il confronto
+mostra ogni variante grezza, in bicromia morbida e in bicromia piena,
+perché un'immagine generata non si giudica da sola ma nello slot in cui
+finisce, dopo il trattamento.
+
+Sul formato: lo slot dell'apertura è un 2.57:1, quindi si chiede
+`1600x624` e non un 16:9 — con il 16:9 si perde quasi un terzo
+dell'altezza nel ritaglio, e su una composizione centrata il taglio
+mangia il soggetto. Con `gpt-image-1`, che accetta solo misure fisse, va
+impostato `OPENAI_IMAGE_SIZE=1536x1024` accettando un ritaglio più
+aggressivo.
+
+## Cosa è stato scartato (e perché)
 
 ### Foto sui pezzi secondari
 

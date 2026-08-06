@@ -16,6 +16,7 @@ from report.fetch import (
     list_topics,
 )
 from report.highlights import build_stats, hourly_counts, index_entries, pick_quote
+from report.illustration import illustration_hero
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
 from report.photo import pick_hero_photo
 from report.report_builder import build_report
@@ -206,6 +207,20 @@ async def _run_newspaper_report(
             preferred_topic=lead_topic,
             youtube_channel_id=config.youtube_channel_id,
         )
+
+        # Ultima ricaduta, spenta di default: senza né una foto del gruppo
+        # né una copertina YouTube l'apertura resta tipografica, che è
+        # comunque una pagina valida.
+        if hero is None and config.illustration_fallback:
+            print("Nessuna foto: provo con un'illustrazione generata...")
+            hero = illustration_hero(
+                openai_client,
+                tmp_dir,
+                headline=lead.headline,
+                deck=lead.deck,
+                text_model=config.openai_model,
+                image_model=config.openai_image_model,
+            )
 
         logo = Path(config.logo_path)
         pages_html = build_pages_html(
