@@ -1,19 +1,19 @@
-"""Composizione della prima pagina del gazzettino in stile "Azzurro Fluido".
+"""Composizione del gazzettino in stile "Azzurro Fluido".
 
-Sostituisce integralmente il vecchio report/newspaper.py. Differenze
-principali rispetto alla versione a quotidiano di carta:
+Scelte che reggono tutto il resto del file:
 
-- una colonna sola a 1080px invece di due colonne a 1100px: dopo la
-  ricompressione JPEG di Telegram un corpo a 17px su colonne da 500px era
-  al limite della leggibilità su telefono. Qui il corpo sta a 28-30px.
-- palette e marchio del canale (navy #0c2340 / azzurro #17a3e0) al posto
-  della carta avorio, così il report si riconosce nello scroll della chat.
-- blocchi nuovi: indice dei topic con i contatori, barra statistiche,
-  frase del giorno, foto di apertura.
-- le pagine non sono più al massimo due: le notizie si distribuiscono su
-  quante pagine servono, ognuna sotto la stessa altezza utile, perché con
-  molti topic attivi l'ultima pagina raccoglieva tutto il resto e
-  diventava una striscia illeggibile.
+- una colonna sola a 1080px: dopo la ricompressione JPEG di Telegram un
+  corpo a 17px su colonne da 500px era al limite della leggibilità su
+  telefono. Qui il corpo sta a 28-30px.
+- palette e marchio del canale (navy #0c2340 / azzurro #17a3e0), così il
+  report si riconosce nello scroll della chat.
+- **nessuna immagine** oltre al logo della testata: il peso visivo lo
+  fanno la tipografia e i dati. Il perché sta in docs/grafica.md.
+- ogni pezzo ha tre gradini — titolo, sommario, testo — e i topic minori
+  finiscono nel box "In breve" invece di avere un articolo ciascuno: con
+  tredici topic attivi, tredici pezzi uguali sono una schedina.
+- le pagine sono quante ne servono, sotto la stessa altezza utile e
+  ridistribuite perché vengano simili fra loro.
 """
 
 import base64
@@ -136,7 +136,6 @@ class GraphicsOptions:
     share_bar: bool = True      # barra delle proporzioni sotto l'indice
     number_block: bool = True   # il dato grande sotto l'indice
     brief_box: bool = True      # i topic minori raccolti in un box "In breve"
-
 
     @classmethod
     def none(cls) -> "GraphicsOptions":
@@ -462,7 +461,7 @@ def _articles_html(
     )
 
 
-def _number_html(entries: list[tuple[str, int]], stats: Stats | None) -> str:
+def _number_html(entries: list[tuple[str, int]]) -> str:
     """Il dato grande della giornata.
 
     Non è una statistica in più — quelle stanno già nella fascia navy in
@@ -472,10 +471,12 @@ def _number_html(entries: list[tuple[str, int]], stats: Stats | None) -> str:
     if not entries:
         return ""
     topic, count = entries[0]
-    share = ""
     total = sum(c for _, c in entries)
-    if total > 0 and stats is not None:
-        share = f" — <b>{round(100 * count / total)}%</b> di tutto quello che si è detto"
+    share = (
+        f" — <b>{round(100 * count / total)}%</b> di tutto quello che si è detto"
+        if total > 0
+        else ""
+    )
     return (
         '<div class="number">'
         f'<span class="big">{count}</span>'
@@ -837,7 +838,7 @@ def build_pages_html(
                 + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
                 f'<span class="folio">{html.escape(folio)}</span></div>'
                 + _index_html(index_entries, gfx)
-                + (_number_html(index_entries, stats) if gfx.number_block else "")
+                + (_number_html(index_entries) if gfx.number_block else "")
                 + _lead_html(lead, gfx)
             )
             label = "Il resto della giornata"
