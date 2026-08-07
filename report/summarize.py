@@ -257,12 +257,38 @@ HEADLINE_RULE = (
     "esclamativi, niente maiuscolo urlato."
 )
 
+DECK_RULE = (
+    "Il sommario è una frase sola che AGGIUNGE informazione al titolo "
+    "invece di riformularlo: il dettaglio, la conseguenza o la posizione "
+    "che nel titolo non ci stava. Massimo 160 caratteri, senza punto "
+    "finale."
+)
+
+# Il formato posizionale ("RIGA 1: il titolo, dalla RIGA 2 il corpo") era
+# fragile nel modo peggiore: quando il modello lo ignorava e rispondeva in
+# un blocco unico, il parser prendeva tutto il testo come titolo e l'
+# articolo usciva senza corpo, con un paragrafo intero stampato a 40px. Le
+# etichette esplicite sono molto più difficili da sbagliare, e quando
+# vengono sbagliate il parser se ne accorge (vedi _parse_labeled).
 ARTICLE_FORMAT_RULE = (
-    "Rispondi SOLO con questo formato, senza markdown:\n"
-    f"RIGA 1: il titolo (max 10 parole). {HEADLINE_RULE}\n"
-    "Da RIGA 2 in poi: il corpo dell'articolo in prosa (frasi normali, "
-    "nessun elenco puntato, nessuna numerazione). Non ripetere il titolo "
-    "nel corpo."
+    "Rispondi SOLO con queste tre righe etichettate, senza markdown e "
+    "senza aggiungere altro:\n"
+    "TITOLO: il titolo, massimo 8 parole\n"
+    "SOMMARIO: una frase che aggiunge informazione al titolo\n"
+    "TESTO: 2-3 frasi di prosa (massimo 420 caratteri), che non ripetono "
+    "il titolo né il sommario\n\n"
+    f"{HEADLINE_RULE}\n\n{DECK_RULE}"
+)
+
+LEAD_FORMAT_RULE = (
+    "Rispondi SOLO con queste tre righe etichettate, senza markdown e "
+    "senza aggiungere altro:\n"
+    "TITOLO: il titolo di apertura, massimo 9 parole\n"
+    "SOMMARIO: una frase che aggiunge informazione al titolo\n"
+    "TESTO: 2 paragrafi brevi (massimo 300 caratteri ciascuno) separati "
+    "da una riga vuota; il primo apre con il fatto principale, il secondo "
+    "aggiunge contesto o conseguenze\n\n"
+    f"{HEADLINE_RULE}\n\n{DECK_RULE}"
 )
 
 
@@ -299,13 +325,128 @@ def _avoid_repetition_rule(written: list[tuple[str, str]]) -> str:
     )
 
 
-def _split_headline_body(raw: str) -> tuple[str, str]:
-    lines = [l.strip() for l in raw.splitlines() if l.strip()]
-    if not lines:
-        return "", ""
-    headline = lines[0].lstrip("#").strip().strip('"')
-    body = " ".join(lines[1:]).strip()
-    return headline, body
+# Oltre questa lunghezza non è un titolo, è un paragrafo: il parser lo
+# spezza invece di mandarlo in pagina a caratteri cubitali.
+MAX_HEADLINE_CHARS = 90
+
+# Stessa cosa un gradino più giù. Il sommario che si prende tutto
+# l'articolo è il modo in cui il difetto del titolo si ripresenta appena
+# lo si tappa: il modello riversa il pezzo nell'etichetta successiva e in
+# pagina resta un blocco azzurro lungo dieci righe con sotto "Nessun
+# dettaglio disponibile".
+MAX_DECK_CHARS = 190
+
+_LABELS = ("TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO")
+
+
+def _clean(text: str) -> str:
+    return text.strip().lstrip("#").strip().strip('"').strip("«»").strip()
+
+
+def _parse_labeled(raw: str) -> dict[str, str]:
+    """Estrae i blocchi etichettati TITOLO/SOMMARIO/TESTO.
+
+    Le etichette possono comparire con o senza due punti, in qualsiasi
+    ordine, e il testo può proseguire su più righe: quello che conta è
+    riconoscerle. Se non ce n'è nessuna il risultato è vuoto e chi chiama
+    ricade sulla divisione a naso."""
+    found: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in raw.splitlines():
+        stripped = line.strip()
+        label = None
+        for name in _LABELS:
+            head = stripped.upper()
+            if head.startswith(f"{name}:") or head == name:
+                label = name
+                stripped = stripped[len(name):].lstrip(":").strip()
+                break
+        if label:
+            current = "SOMMARIO" if label == "OCCHIELLO" else label
+            found.setdefault(current, [])
+            if stripped:
+                found[current].append(stripped)
+        elif current is not None:
+            # Riga vuota dentro TESTO: separa i paragrafi, va conservata.
+            found[current].append(stripped)
+    return {k: "\n".join(v).strip() for k, v in found.items()}
+
+
+def _split_sentence_at(text: str, limit: int) -> tuple[str, str]:
+    """Taglia alla fine di frase più lontana che sta entro `limit`.
+
+    È la rete di sicurezza quando il modello consegna un blocco unico.
+    Si preferisce la frase intera più lunga possibile: tagliare alla
+    prima disponibile produceva titoli mozzi tipo «Il Napoli valuta»
+    quando il testo cominciava con una frase brevissima."""
+    best = 0
+    for end in (". ", "! ", "? ", "; "):
+        index = 0
+        while True:
+            index = text.find(end, index)
+            if index < 0 or index > limit:
+                break
+            best = max(best, index + len(end))
+            index += len(end)
+    if best:
+        return text[:best].strip().rstrip(".;"), text[best:].strip()
+    if len(text) <= limit:
+        return text, ""
+    cut = text.rfind(" ", 0, limit)
+    cut = cut if cut > 0 else limit
+    return text[:cut].strip().rstrip(",;:"), text[cut:].strip()
+
+
+def _split_sentence(text: str) -> tuple[str, str]:
+    return _split_sentence_at(text, MAX_HEADLINE_CHARS)
+
+
+def _enforce_lengths(headline: str, deck: str, body: str) -> tuple[str, str, str]:
+    """Garantisce che titolo e sommario siano tali.
+
+    È l'invariante che il layout dà per scontata: un h3 a 40px con dentro
+    un paragrafo non è un difetto di stile, è una pagina rotta, e un
+    sommario di dieci righe con sotto un corpo vuoto lo è altrettanto.
+    Qualunque cosa faccia il modello, quello che esce di qui sono un
+    titolo corto, un sommario di una frase e tutto il resto nel corpo.
+
+    L'eccedenza scala sempre verso il basso — dal titolo al sommario, dal
+    sommario al corpo — perché è l'unica direzione che non perde testo."""
+    if len(headline) > MAX_HEADLINE_CHARS:
+        headline, overflow = _split_sentence(headline)
+        if overflow:
+            # Quello che avanza dal titolo apre il sommario se è libero,
+            # altrimenti si accoda a quello che c'era già.
+            deck = f"{overflow} {deck}".strip() if deck else overflow
+
+    if len(deck) > MAX_DECK_CHARS:
+        deck, overflow = _split_sentence_at(deck, MAX_DECK_CHARS)
+        if overflow:
+            body = f"{overflow} {body}".strip()
+
+    return headline, deck, body
+
+
+def _split_article(raw: str) -> tuple[str, str, str]:
+    """(titolo, sommario, corpo) da una risposta del modello."""
+    parts = _parse_labeled(raw)
+    headline = _clean(parts.get("TITOLO", ""))
+    deck = _clean(parts.get("SOMMARIO", ""))
+    body = " ".join(
+        line.strip() for line in parts.get("TESTO", "").splitlines() if line.strip()
+    ).strip()
+
+    if not headline:
+        # Nessuna etichetta riconosciuta: si ricade sulla vecchia regola
+        # (prima riga = titolo) e poi si applica comunque il vincolo di
+        # lunghezza, che è ciò che mancava prima.
+        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        if not lines:
+            return "", "", ""
+        headline = _clean(lines[0])
+        body = body or " ".join(lines[1:]).strip()
+
+    return _enforce_lengths(headline, deck, body)
 
 
 def write_topic_article(
@@ -314,14 +455,14 @@ def write_topic_article(
     topic_title: str,
     messages: list[SimpleMessage],
     written_so_far: list[tuple[str, str]] | None = None,
-) -> tuple[str, str]:
-    """Genera (titolo, corpo) in stile cronaca giornalistica per un topic.
+) -> tuple[str, str, str]:
+    """Genera (titolo, sommario, corpo) in stile cronaca per un topic.
     Per topic molto attivi (oltre la soglia di chunking) riusa il riassunto
     già condensato da summarize_topic come fonte, invece di rifare da zero
     la logica di map-reduce. `written_so_far` contiene i pezzi già scritti
     per la stessa pagina, usati per evitare attacchi e titoli ripetuti."""
     if not messages:
-        return "", ""
+        return "", "", ""
 
     chunks = _chunk_messages(messages, MAX_TRANSCRIPT_CHARS)
     if len(chunks) == 1:
@@ -339,10 +480,9 @@ def write_topic_article(
         f'Sei un cronista di quotidiano e stai scrivendo il pezzo della '
         f'sezione "{topic_title}" per la prima pagina di oggi. Di seguito '
         f"trovi {source_label}.\n"
-        "Scrivi 1-2 frasi (massimo 320 caratteri in totale), che si aprano "
-        "con il fatto più "
-        "concreto e significativo e si regga da solo, senza presupporre che "
-        "il lettore sappia da dove arriva la notizia.\n\n"
+        "Il pezzo si apre con il fatto più concreto e significativo e deve "
+        "reggersi da solo, senza presupporre che il lettore sappia da dove "
+        "arriva la notizia.\n\n"
         f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
         + (f"{avoid_rule}\n\n" if avoid_rule else "")
         + f"{ARTICLE_FORMAT_RULE}\n\n"
@@ -353,22 +493,41 @@ def write_topic_article(
     # resta nell'indice col suo contatore, senza un articolo che ripete
     # quello che il lettore ha appena letto.
     if raw.strip().upper().startswith(DUPLICATE_MARKER):
-        return "", ""
-    return _split_headline_body(raw)
+        return "", "", ""
+    return _split_article(raw)
 
 
 def _split_lead(raw: str) -> tuple[str, str, list[str]]:
-    blocks = [b.strip() for b in raw.split("\n\n") if b.strip()]
-    if not blocks:
-        return "", "", []
-    first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()]
-    if not first_lines:
-        return "", "", []
-    headline = first_lines[0].lstrip("#").strip().strip('"')
-    deck = first_lines[1] if len(first_lines) > 1 else ""
-    paragraphs = [" ".join(l.strip() for l in b.splitlines() if l.strip()) for b in blocks[1:]]
-    if not paragraphs and len(first_lines) > 2:
-        paragraphs = [" ".join(first_lines[2:])]
+    """(titolo, occhiello, paragrafi) per l'apertura.
+
+    Stessa logica degli articoli, con in più la divisione del corpo in
+    paragrafi sulle righe vuote."""
+    parts = _parse_labeled(raw)
+    headline = _clean(parts.get("TITOLO", ""))
+    deck = _clean(parts.get("SOMMARIO", ""))
+    text = parts.get("TESTO", "")
+
+    if not headline:
+        # Nessuna etichetta: si ricade sul vecchio formato posizionale,
+        # prima riga titolo e seconda occhiello.
+        blocks = [b.strip() for b in raw.split("\n\n") if b.strip()]
+        if not blocks:
+            return "", "", []
+        first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()]
+        if not first_lines:
+            return "", "", []
+        headline = _clean(first_lines[0])
+        deck = deck or (first_lines[1] if len(first_lines) > 1 else "")
+        rest = blocks[1:]
+        if not rest and len(first_lines) > 2:
+            rest = [" ".join(first_lines[2:])]
+        text = "\n\n".join(rest)
+
+    headline, deck, text = _enforce_lengths(headline, deck, text)
+    paragraphs = [
+        " ".join(l.strip() for l in block.splitlines() if l.strip())
+        for block in text.split("\n\n")
+    ]
     return headline, deck, [p for p in paragraphs if p]
 
 
@@ -416,17 +575,11 @@ def write_lead_story(
         "Sei il caporedattore e stai scrivendo l'articolo di apertura della "
         f"prima pagina di oggi. Di seguito trovi {source_label}.\n"
         "Individua il fatto più rilevante o il filo che attraversa più "
-        "sezioni della giornata e scrivi:\n"
-        "RIGA 1: il titolo di apertura (max 10 parole), incisivo ma non "
-        "sensazionalistico.\n"
-        "RIGA 2: un occhiello di una frase, che aggiunga informazione invece "
-        "di riformulare il titolo.\n"
-        "RIGHE successive: 2 paragrafi brevi (massimo 300 caratteri "
-        "ciascuno) separati da una riga vuota. "
-        "Il primo apre con il fatto principale, gli altri aggiungono "
-        "contesto o conseguenze.\n\n"
-        f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n{HEADLINE_RULE}\n\n"
+        "sezioni della giornata. Il titolo sia incisivo ma non "
+        "sensazionalistico.\n\n"
+        f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
         + (f"{angle_rule}\n\n" if angle_rule else "")
+        + f"{LEAD_FORMAT_RULE}\n\n"
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)

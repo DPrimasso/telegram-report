@@ -19,9 +19,15 @@ riepilogo. Due formati disponibili:
 - **Testi**: OpenAI API (modello configurabile, default `gpt-4o-mini`).
 - **Pagine**: template HTML/CSS in stile giornale, trasformato in immagini
   PNG con [Playwright](https://playwright.dev/python/) (Chromium headless).
-  Il giornale si divide su due pagine quando ci sono almeno 4 articoli, con
-  gli articoli ripartiti in modo da bilanciare il volume di testo; sotto
-  quella soglia resta una pagina sola.
+  Le pagine sono quante ne servono, con gli articoli ridistribuiti perché
+  vengano tutte di altezza simile.
+- **Grafica**: nessuna immagine (l'unica in pagina è il logo della
+  testata). Il peso visivo lo fanno la tipografia e i dati — dato grande,
+  capolettera, barrette di peso, box «In breve», grafico dell'andamento
+  orario — generati in SVG dentro la pagina, senza librerie né asset
+  scaricati. Il criterio con cui sono stati scelti, e perché le foto del
+  gruppo sono state provate e poi tolte, sta in
+  [`docs/grafica.md`](docs/grafica.md).
 - **Invio**: per ora il report arriva in DM privato (Saved Messages, cioè
   messaggio a "te stesso"). In futuro, quando validato, si può spostare in un
   topic dedicato del gruppo cambiando solo configurazione (vedi sotto). Le
@@ -95,6 +101,14 @@ Puoi anche testare in locale:
 ```bash
 python main.py --date 2026-07-27                  # prima pagina (default)
 python main.py --date 2026-07-27 --format text     # formato testuale
+```
+
+Per lavorare sull'impaginazione senza chiamare Telegram né OpenAI ci sono
+due script che girano offline su dati finti:
+
+```bash
+python preview.py     # le pagine del gazzettino in preview_out/
+python catalogo.py    # campionario degli elementi grafici in catalogo.png
 ```
 
 ## Passare all'invio nel topic del gruppo

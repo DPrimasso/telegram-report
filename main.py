@@ -15,9 +15,8 @@ from report.fetch import (
     get_group_title,
     list_topics,
 )
-from report.highlights import build_stats, index_entries, pick_quote
+from report.highlights import build_stats, hourly_counts, index_entries, pick_quote
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
-from report.photo import pick_hero_photo
 from report.report_builder import build_report
 from report.send import send_photo_report, send_report
 from report.summarize import (
@@ -158,7 +157,7 @@ async def _run_newspaper_report(
         if not topic.messages:
             continue
         print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
-        headline, body = write_topic_article(
+        headline, deck, body = write_topic_article(
             openai_client,
             config.openai_model,
             topic.title,
@@ -169,7 +168,13 @@ async def _run_newspaper_report(
             print(f"  '{topic.title}': stesso fatto di un pezzo già in pagina, non lo ripeto.")
             continue
         articles.append(
-            Article(topic=topic.title, headline=headline, body=body, count=len(topic.messages))
+            Article(
+                topic=topic.title,
+                headline=headline,
+                deck=deck,
+                body=body,
+                count=len(topic.messages),
+            )
         )
 
     print("Scrivo l'articolo di apertura...")
@@ -196,17 +201,6 @@ async def _run_newspaper_report(
     newspaper_name = config.newspaper_name or await get_group_title(client, config.group_id)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        print("Cerco la foto di apertura...")
-        hero = await pick_hero_photo(
-            client,
-            config.group_id,
-            target_date,
-            config.timezone,
-            tmp_dir,
-            preferred_topic=lead_topic,
-            youtube_channel_id=config.youtube_channel_id,
-        )
-
         logo = Path(config.logo_path)
         pages_html = build_pages_html(
             newspaper_name,
@@ -214,10 +208,10 @@ async def _run_newspaper_report(
             lead,
             articles,
             logo_path=logo if logo.exists() else None,
-            hero=hero,
             index_entries=index_entries(topics),
             stats=build_stats(all_messages),
             quote=quote,
+            hourly=hourly_counts(all_messages),
         )
 
         print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")

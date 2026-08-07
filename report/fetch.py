@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from datetime import timezone as _dt_timezone
 from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient
@@ -13,6 +14,13 @@ GENERAL_TOPIC_ID = 1
 @dataclass
 class SimpleMessage:
     author: str
+    # Sempre nel fuso configurato (REPORT_TIMEZONE), mai in UTC.
+    # Telethon consegna `message.date` in UTC: tenerlo così faceva sbagliare
+    # ogni ora mostrata nel gazzettino — il grafico del ritmo, l'ora di
+    # punta, l'orario della frase del giorno — e anche gli orari che
+    # finiscono nel transcript dato al modello. La conversione si fa una
+    # volta sola qui, perché è il punto in cui il fuso è noto: farla a
+    # valle significherebbe passarlo a tutti quelli che leggono un'ora.
     timestamp: datetime
     text: str
 
@@ -161,6 +169,23 @@ async def _fetch_topic_titles(client: TelegramClient, group) -> dict[int, str]:
     return titles
 
 
+def _local(moment: datetime, tz: ZoneInfo) -> datetime:
+    """Porta l'istante nel fuso del report.
+
+    Telethon consegna datetime consapevoli in UTC. Il ramo sul naive non è
+    teorico quanto sembra: `astimezone` su un datetime senza fuso assume
+    l'ora locale della macchina, che in una GitHub Action è UTC e in
+    locale no — cioè lo stesso identico gruppo darebbe due grafici diversi
+    a seconda di dove gira il job.
+
+    (`_dt_timezone` è l'alias di `datetime.timezone`: il nome nudo è già
+    preso dal parametro `timezone` di fetch_day_messages, che è la
+    stringa del fuso.)"""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=_dt_timezone.utc)
+    return moment.astimezone(tz)
+
+
 async def fetch_day_messages(
     client: TelegramClient,
     group_id: int,
@@ -216,13 +241,15 @@ async def fetch_day_messages(
             reply = message.reply_to
             reply_info = reply.to_dict() if reply is not None else None
             print(
-                f"[DEBUG] -> General | msg_id={message.id} data={message.date} "
+                f"[DEBUG] -> General | msg_id={message.id} data={_local(message.date, tz)} "
                 f"autore={author!r} reply_to={reply_info} "
                 f"testo={text[:80]!r}"
             )
 
         buckets.setdefault(topic_id, []).append(
-            SimpleMessage(author=author, timestamp=message.date, text=text)
+            SimpleMessage(
+                author=author, timestamp=_local(message.date, tz), text=text
+            )
         )
 
     if reattributed or skipped_scribe:

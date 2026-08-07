@@ -33,6 +33,18 @@ def build_stats(messages_with_topic: list[tuple[str, SimpleMessage]]) -> Stats |
     )
 
 
+def hourly_counts(messages_with_topic: list[tuple[str, SimpleMessage]]) -> list[int]:
+    """Messaggi per ora del giorno, dalle 00 alle 23.
+
+    Alimenta il grafico di chiusura del gazzettino. Sta qui e non in
+    build_stats perché è una serie e non una misura: le due cose finiscono
+    nella stessa fascia della pagina ma hanno forme diverse."""
+    counts = [0] * 24
+    for _, m in messages_with_topic:
+        counts[m.timestamp.hour] += 1
+    return counts
+
+
 def index_entries(topics) -> list[tuple[str, int]]:
     """Voci dell'indice: topic con almeno un messaggio, dal più attivo."""
     entries = [(t.title, len(t.messages)) for t in topics if t.messages]
