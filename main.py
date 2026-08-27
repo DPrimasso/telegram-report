@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from openai import OpenAI
 
+from report import llm
 from report.config import Config, load_config
 from report.fetch import (
     SimpleMessage,
@@ -255,6 +256,7 @@ async def run(
         return
 
     openai_client = OpenAI(api_key=config.openai_api_key)
+    llm.configure(config.openai_reasoning_effort)
 
     if target_date is None:
         # Senza --date si riassume il giorno precedente nel fuso orario

@@ -91,6 +91,15 @@ personalizzare i default:
   `gpt-5.6-luna`). Cambiarlo qui basta: non serve toccare il codice. Sui
   modelli di ragionamento (famiglia `gpt-5`, serie `o*`) la temperatura non
   è regolabile e viene omessa dalle chiamate — vedi `report/llm.py`.
+- `OPENAI_REASONING_EFFORT` (`none`, `low`, `medium`, `high`, `xhigh`,
+  `max`; default `low`). Quanto far ragionare il modello prima di
+  rispondere. I token di ragionamento si pagano come output e allungano il
+  job — che scrive un articolo per topic, uno dopo l'altro — mentre il
+  lavoro qui è accorciare e riformulare del testo: `low` costa e aspetta
+  molto meno di `medium`, che è il default dell'API. Vale la pena alzarlo
+  solo se deludono i due punti in cui serve giudizio, cioè l'articolo di
+  apertura e il riconoscimento dei pezzi doppioni. Ignorato dai modelli che
+  non ragionano.
 
 ### 5. Primo test manuale
 

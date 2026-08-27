@@ -33,6 +33,7 @@ class Config:
     group_id: int
     openai_api_key: str
     openai_model: str
+    openai_reasoning_effort: str
     report_destination: str
     report_topic_id: int | None
     timezone: str
@@ -69,6 +70,12 @@ def load_config() -> Config:
         group_id=group_id,
         openai_api_key=_require("OPENAI_API_KEY"),
         openai_model=os.environ.get("OPENAI_MODEL") or "gpt-5.6-luna",
+        # I modelli di ragionamento partono da "medium" se non si dice
+        # nulla, e i token di ragionamento si pagano come output. Qui il
+        # lavoro è accorciare e riformulare del testo, non risolvere
+        # problemi: "low" costa e aspetta molto meno a parità di resa.
+        # Ignorato dai modelli che non ragionano (gpt-4o, gpt-4.1).
+        openai_reasoning_effort=os.environ.get("OPENAI_REASONING_EFFORT") or "low",
         report_destination=destination,
         report_topic_id=int(topic_id) if topic_id else None,
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",

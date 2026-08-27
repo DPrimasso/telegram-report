@@ -3,58 +3,95 @@
 Qui sta la sola cosa che cambia da un modello all'altro e che il resto del
 report non deve sapere: quali parametri il modello di turno accetta. I
 modelli di ragionamento (la famiglia gpt-5, le serie o*) rifiutano con un
-400 qualunque `temperature` diverso dal default, mentre gpt-4o e gpt-4.1 la
-accettano. Chi chiama continua quindi a dichiarare la temperatura che
-vorrebbe — resta l'intenzione giusta se un domani si torna a un modello che
-la regola — e qui si decide se ha senso spedirla davvero.
+400 qualunque `temperature` diverso dal default e in cambio accettano
+`reasoning_effort`; gpt-4o e gpt-4.1 fanno l'opposto. Chi chiama continua
+quindi a dichiarare la temperatura che vorrebbe — resta l'intenzione giusta
+se un domani si torna a un modello che la regola — e qui si decide che cosa
+ha senso spedire davvero.
 """
 
 from openai import BadRequestError
 
-# Prefissi dei modelli che accettano solo la temperatura di default. Il
-# confronto è per prefisso perché i nomi portano suffissi di ogni tipo
-# (gpt-5.6-luna, o4-mini, ...). Sbagliare per eccesso qui non fa danni: si
-# rinuncia a una regolazione, non si rompe la chiamata.
-_FIXED_TEMPERATURE_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+# Prefissi dei modelli di ragionamento. Il confronto è per prefisso perché i
+# nomi portano suffissi di ogni tipo (gpt-5.6-luna, o4-mini, ...); per quelli
+# che sfuggono all'elenco resta la rete di sicurezza in complete().
+_REASONING_PREFIXES = ("gpt-5", "o1", "o3", "o4")
 
-# Modelli che hanno rifiutato la temperatura pur non comparendo nell'elenco
-# qui sopra: un elenco di nomi invecchia, un 400 no. Vedi complete().
-_rejected_temperature: set[str] = set()
+# Parametri facoltativi: il report funziona anche senza, quindi davanti a un
+# rifiuto si tolgono invece di far fallire la giornata.
+_OPTIONAL_PARAMS = ("temperature", "reasoning_effort")
+
+# Parametri che un dato modello ha rifiutato: un elenco di nomi invecchia,
+# un 400 no. Vedi complete().
+_rejected: dict[str, set[str]] = {}
+
+# Quanto far ragionare i modelli che lo permettono. È una proprietà della
+# corsa e non della singola chiamata: passarlo per parametro vorrebbe dire
+# aggiungerlo alla firma di ogni funzione di summarize.py, nessuna delle
+# quali ha motivo di scegliere un valore diverso. Lo imposta main.py
+# all'avvio, leggendolo dalla configurazione.
+_reasoning_effort: str | None = None
 
 
-def accepts_temperature(model: str) -> bool:
-    name = model.strip().lower()
-    return name not in _rejected_temperature and not name.startswith(
-        _FIXED_TEMPERATURE_PREFIXES
-    )
+def configure(reasoning_effort: str | None) -> None:
+    global _reasoning_effort
+    _reasoning_effort = (reasoning_effort or "").strip() or None
 
 
-def _create(client, model: str, prompt: str, temperature: float | None):
-    extra = {} if temperature is None else {"temperature": temperature}
+def _key(model: str) -> str:
+    return model.strip().lower()
+
+
+def is_reasoning_model(model: str) -> bool:
+    return _key(model).startswith(_REASONING_PREFIXES)
+
+
+def _accepts(model: str, param: str) -> bool:
+    if param in _rejected.get(_key(model), ()):
+        return False
+    reasoning = is_reasoning_model(model)
+    # La temperatura è l'unica cosa che i due tipi di modello si contendono:
+    # o si regola quella, o si regola quanto ragionano.
+    return reasoning if param == "reasoning_effort" else not reasoning
+
+
+def _create(client, model: str, prompt: str, params: dict):
     return client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
-        **extra,
+        **params,
     )
 
 
-def complete(
-    client, model: str, prompt: str, temperature: float | None = None
-) -> str:
+def _offending_param(error: BadRequestError, sent: dict) -> str | None:
+    """Il parametro, fra quelli facoltativi appena spediti, di cui l'API si
+    lamenta. None se il 400 parla d'altro (un modello inesistente, per
+    dire) e va quindi lasciato risalire."""
+    text = str(error).lower()
+    return next((p for p in _OPTIONAL_PARAMS if p in sent and p in text), None)
+
+
+def complete(client, model: str, prompt: str, temperature: float | None = None) -> str:
     """Manda un prompt al modello e restituisce il testo della risposta."""
-    with_temperature = temperature is not None and accepts_temperature(model)
-    try:
-        response = _create(
-            client, model, prompt, temperature if with_temperature else None
-        )
-    except BadRequestError as error:
-        # Rete di sicurezza per i modelli usciti dopo questo codice: se il
-        # rifiuto riguarda proprio la temperatura, la si toglie e si riprova
-        # una volta sola. Il modello finisce fra quelli che non la vogliono,
-        # perché di chiamate il report ne fa una per topic e non ha senso
-        # sbagliare tutte allo stesso modo.
-        if not with_temperature or "temperature" not in str(error).lower():
-            raise
-        _rejected_temperature.add(model.strip().lower())
-        response = _create(client, model, prompt, None)
+    params: dict[str, object] = {}
+    if temperature is not None and _accepts(model, "temperature"):
+        params["temperature"] = temperature
+    if _reasoning_effort and _accepts(model, "reasoning_effort"):
+        params["reasoning_effort"] = _reasoning_effort
+
+    # Rete di sicurezza per i modelli usciti dopo questo codice: se il
+    # rifiuto riguarda un parametro facoltativo lo si toglie e si riprova,
+    # ricordandoselo per le chiamate successive (di chiamate il report ne fa
+    # una per topic, non ha senso sbagliarle tutte allo stesso modo).
+    while True:
+        try:
+            response = _create(client, model, prompt, params)
+            break
+        except BadRequestError as error:
+            param = _offending_param(error, params)
+            if param is None:
+                raise
+            _rejected.setdefault(_key(model), set()).add(param)
+            del params[param]
+
     return (response.choices[0].message.content or "").strip()
