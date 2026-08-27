@@ -1,5 +1,6 @@
 from openai import OpenAI
 
+from report import llm
 from report.fetch import SimpleMessage
 
 # Soglia approssimativa (in caratteri) oltre la quale si passa a un
@@ -103,6 +104,9 @@ def _chunk_messages(
 # I riassunti a punti vogliono aderenza massima alla fonte; la prosa del
 # giornale con temperatura così bassa diventa invece piatta e ripetitiva,
 # perché il modello ricade sempre sulle stesse costruzioni di frase.
+# Sui modelli di ragionamento la distinzione decade — non accettano la
+# temperatura — e a tenere in riga i pezzi restano le regole del prompt:
+# vedi report/llm.py.
 FACTUAL_TEMPERATURE = 0.1
 PROSE_TEMPERATURE = 0.5
 
@@ -110,12 +114,7 @@ PROSE_TEMPERATURE = 0.5
 def _call_openai(
     client: OpenAI, model: str, prompt: str, temperature: float = FACTUAL_TEMPERATURE
 ) -> str:
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature,
-    )
-    return response.choices[0].message.content.strip()
+    return llm.complete(client, model, prompt, temperature)
 
 
 def summarize_topic(

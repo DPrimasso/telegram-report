@@ -9,6 +9,7 @@ finisce una frase vera del gruppo e non una parafrasi.
 
 from collections import Counter
 
+from report import llm
 from report.fetch import SimpleMessage
 from report.newspaper import Quote, Stats
 
@@ -89,12 +90,9 @@ def pick_quote(
     transcript = "\n".join(
         f"[{m.timestamp:%H:%M}] ({topic}) {m.author}: {m.text}" for topic, m in usable
     )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": f"{_QUOTE_PROMPT}\n\n{transcript}"}],
-        temperature=0.2,
+    raw = llm.complete(
+        client, model, f"{_QUOTE_PROMPT}\n\n{transcript}", temperature=0.2
     )
-    raw = (response.choices[0].message.content or "").strip()
     if not raw or raw.upper().startswith("NESSUNA"):
         return None
 

@@ -68,7 +68,7 @@ def load_config() -> Config:
         session=_require("TELEGRAM_SESSION"),
         group_id=group_id,
         openai_api_key=_require("OPENAI_API_KEY"),
-        openai_model=os.environ.get("OPENAI_MODEL") or "gpt-4o-mini",
+        openai_model=os.environ.get("OPENAI_MODEL") or "gpt-5.6-luna",
         report_destination=destination,
         report_topic_id=int(topic_id) if topic_id else None,
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",

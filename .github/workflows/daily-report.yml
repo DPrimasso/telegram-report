@@ -50,6 +50,7 @@ jobs:
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
           TELEGRAM_GROUP_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
           REPORT_DESTINATION: ${{ vars.REPORT_DESTINATION }}
           REPORT_TOPIC_ID: ${{ vars.REPORT_TOPIC_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
