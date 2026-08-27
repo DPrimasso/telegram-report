@@ -4,7 +4,7 @@ on:
   schedule:
     # 01:00 UTC = 03:00 ora italiana con ora legale (02:00 con ora solare).
     # Il report riepiloga sempre il giorno precedente.
-    - cron: "00 01 * * *"
+    - cron: "17 01 * * *"
   workflow_dispatch:
     inputs:
       date:
