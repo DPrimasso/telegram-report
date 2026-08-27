@@ -59,6 +59,7 @@ jobs:
           # la prova somiglia al report vero.
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
           NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
 
           # Gli input passano da env e non vengono interpolati dentro lo
           # script: cosi' quello che scrivi nel campo resta un dato e non

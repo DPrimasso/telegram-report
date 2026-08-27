@@ -87,6 +87,10 @@ personalizzare i default:
 - `REPORT_TIMEZONE` (default `Europe/Rome`)
 - `NEWSPAPER_NAME` (nome della testata in prima pagina; default: nome del
   gruppo Telegram, recuperato automaticamente)
+- `OPENAI_MODEL` (modello usato per riassunti e articoli; default
+  `gpt-5.6-luna`). Cambiarlo qui basta: non serve toccare il codice. Sui
+  modelli di ragionamento (famiglia `gpt-5`, serie `o*`) la temperatura non
+  è regolabile e viene omessa dalle chiamate — vedi `report/llm.py`.
 
 ### 5. Primo test manuale
 
