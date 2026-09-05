@@ -18,6 +18,7 @@ from report.fetch import (
 from report.highlights import build_stats, hourly_counts, index_entries, pick_quote
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
 from report.report_builder import build_report
+from report.sections import load_section_map
 from report.send import send_photo_report, send_report
 from report.summarize import (
     summarize_overall,
@@ -146,13 +147,16 @@ async def _run_newspaper_report(
         print("Fatto.")
         return
 
+    section_map = load_section_map()
+
     articles: list[Article] = []
     # Si scrive dal topic più attivo al meno attivo, e l'ordine conta: chi
     # ha discusso di più un argomento se lo tiene, mentre i topic che lo
     # hanno solo sfiorato lo riconoscono come già raccontato e si fermano
     # (vedi _avoid_repetition_rule). Scrivendo in ordine di topic_id la
     # notizia sarebbe finita a chi ne ha parlato meno. La lista esce quindi
-    # già ordinata per rilevanza, come build_pages_html si aspetta.
+    # già ordinata per volume: l'ordine con cui i pezzi si LEGGONO lo
+    # decide poi arrange_sections, che è un'altra cosa.
     for topic in sorted(topics, key=lambda t: len(t.messages), reverse=True):
         if not topic.messages:
             continue
@@ -174,29 +178,35 @@ async def _run_newspaper_report(
                 deck=deck,
                 body=body,
                 count=len(topic.messages),
+                section=section_map.section_of(topic.title),
+                family=section_map.family_of(topic.title),
             )
         )
 
     print("Scrivo l'articolo di apertura...")
-    # L'occhiello dell'apertura lo sceglie chi scrive il pezzo, fra i topic
-    # davvero attivi oggi: prima lo decideva il codice prendendo il topic
-    # più attivo, che è un'altra cosa — la notizia di apertura poteva
-    # arrivare da un'altra sezione, e l'occhiello annunciava un argomento
-    # diverso da quello del titolo sotto.
-    active_topics = [
-        t.title
-        for t in sorted(topics, key=lambda t: len(t.messages), reverse=True)
-        if t.messages
-    ]
-    lead_headline, lead_deck, lead_paragraphs, lead_topic = write_lead_story(
+    # L'occhiello dell'apertura lo sceglie chi scrive il pezzo, fra le
+    # sezioni davvero attive oggi: prima lo decideva il codice prendendo
+    # il topic più attivo, che è un'altra cosa — la notizia di apertura
+    # poteva arrivare da un'altra parte, e l'occhiello annunciava un
+    # argomento diverso da quello del titolo sotto. Sono le sezioni e non
+    # i topic perché è il vocabolario che il lettore trova nelle testate
+    # più in basso: l'apertura deve nominare le stesse cose.
+    weight_by_section: dict[str, int] = {}
+    for topic in topics:
+        if topic.messages:
+            name = section_map.section_of(topic.title)
+            weight_by_section[name] = weight_by_section.get(name, 0) + len(topic.messages)
+    active_sections = sorted(weight_by_section, key=weight_by_section.get, reverse=True)
+
+    lead_headline, lead_deck, lead_paragraphs, lead_section = write_lead_story(
         openai_client,
         config.openai_model,
         all_messages,
         page_headlines=[a.headline for a in articles],
-        sections=active_topics,
+        sections=active_sections,
     )
     lead = Lead(
-        kicker=lead_topic,
+        kicker=lead_section,
         headline=lead_headline,
         deck=lead_deck,
         paragraphs=lead_paragraphs,

@@ -145,15 +145,57 @@ Le contromisure sono tre, dalla più grossa alla più piccola:
   sommario ricopia il titolo, la riga azzurra non dice niente e vale meno
   dello spazio che occupa: si scarta.
 
+### Le sezioni
+
+Con ventinove topic, una pagina ordinata per volume è un elenco: il
+lettore non sa dove finisce un argomento e ne comincia un altro, e otto
+leghe di fantacalcio possono prendersi tutti gli articoli della giornata.
+Le sezioni (`report/sections.py`) sono l'unità con cui il gazzettino si
+legge, che non è quella con cui il gruppo scrive.
+
+La domanda vera non era se raggruppare, ma **se nominare i gruppi**.
+Dividere e basta non paga: il tag azzurro del topic dice già a quale
+argomento appartiene un pezzo, quindi uno stacco muto aggiunge una riga
+scura e nessuna informazione. La testata di sezione invece non costa
+spazio nuovo — prende il posto dell'etichetta generica «Il resto della
+giornata», che occupava un rigo per non dire niente.
+
+Tre regole, tutte nate guardando le giornate vere:
+
+- **una sezione si guadagna, non si prenota.** Compare solo se ha
+  qualcosa da metterci; il resto scende in «In breve» con l'etichetta
+  della propria sezione. Con un menù fisso, «Sport» sarebbe comparsa
+  vuota nelle giornate in cui nessuno ne parla, e il Napoli si sarebbe
+  preso una testata sopra un trafiletto da due messaggi.
+- **l'ordine è quello della giornata.** Le sezioni si ordinano per
+  messaggi, e il peso di una sezione comprende le voci finite in breve:
+  altrimenti una sezione può mostrare in testata un numero più grande di
+  quella che la precede, che è il modo più sicuro di far sembrare
+  casuale un ordine che casuale non è.
+- **le famiglie non competono.** Le otto leghe sono otto topic con la
+  stessa identica forma: otto articoli uguali non sono un giornale, sono
+  una schedina. Una famiglia prende un blocco solo, compatto e
+  intitolato, dentro la sua sezione, e i suoi topic non concorrono mai
+  agli articoli pieni.
+
+Una sezione a cavallo di due pagine ripete la testata con «(segue)»: far
+ricominciare il lettore senza dirgli dove si trova è peggio che spendere
+un rigo. Nel conto dell'impaginazione la testata la paga il primo pezzo
+della sua sezione (`_item_heights`), così le sezioni entrano
+nell'altezza stimata senza che chi distribuisce le notizie debba sapere
+che cosa sia una sezione.
+
 Stessa storia un gradino più su, nell'occhiello dell'apertura. Diceva
 `Apertura · <topic più attivo>`, deciso dal codice — ma il pezzo di
 apertura non è per forza quello del topic più attivo, e l'occhiello
 finiva per annunciare una sezione che con il titolo sotto non c'entrava.
 Ora la sezione la dichiara chi scrive il pezzo (riga `SEZIONE:`),
-scegliendola **fra i topic davvero attivi quel giorno**; il codice la
-riporta a uno di quei titoli e, se il fatto ne attraversa più d'una o non
+scegliendola **fra le sezioni davvero attive quel giorno**; il codice la
+riporta a una di quelle e, se il fatto ne attraversa più d'una o non
 combacia con nessuna, in pagina resta il solo «Apertura», che è più onesto
-di una sezione presa a caso.
+di una sezione presa a caso. Sono le sezioni e non i topic perché è il
+vocabolario che il lettore ritrova nelle testate più in basso: l'apertura
+deve nominare le stesse cose del resto della pagina.
 
 ### Gli orari sono nel fuso del report, non in UTC
 

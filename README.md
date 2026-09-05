@@ -21,6 +21,14 @@ riepilogo. Due formati disponibili:
   PNG con [Playwright](https://playwright.dev/python/) (Chromium headless).
   Le pagine sono quante ne servono, con gli articoli ridistribuiti perché
   vengano tutte di altezza simile.
+- **Sezioni**: le notizie non sono ordinate per volume ma raggruppate per
+  argomento (Napoli, Calcio, FantaCalcio, Sport, Canale, Altro), con una
+  testata per sezione. Una sezione compare solo se ha qualcosa da metterci,
+  le sezioni si ordinano per messaggi della giornata, e i gruppi di topic
+  con la stessa forma — le otto leghe di fantacalcio — prendono un blocco
+  compatto invece di otto articoli uguali. La mappa topic → sezione si
+  cambia da `REPORT_SECTIONS` senza toccare il codice; il perché sta in
+  [`docs/grafica.md`](docs/grafica.md).
 - **Grafica**: nessuna immagine (l'unica in pagina è il logo della
   testata). Il peso visivo lo fanno la tipografia e i dati — dato grande,
   capolettera, barrette di peso, box «In breve», grafico dell'andamento

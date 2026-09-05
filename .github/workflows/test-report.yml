@@ -60,6 +60,8 @@ jobs:
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
           NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          REPORT_SECTIONS: ${{ vars.REPORT_SECTIONS }}
+          REPORT_SECTION_FAMILIES: ${{ vars.REPORT_SECTION_FAMILIES }}
 
           # Gli input passano da env e non vengono interpolati dentro lo
           # script: cosi' quello che scrivi nel campo resta un dato e non
