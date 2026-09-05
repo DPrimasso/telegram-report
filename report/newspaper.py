@@ -81,7 +81,11 @@ END_MARK = '&#160;<span class="end-mark"></span>'
 
 @dataclass
 class Lead:
-    kicker: str          # topic di provenienza dell'apertura
+    # Sezione da cui arriva la notizia di apertura, dichiarata da chi
+    # scrive il pezzo. Vuota quando il fatto ne attraversa più d'una: in
+    # pagina resta il solo "Apertura", che è meglio di una sezione che non
+    # c'entra con il titolo che le sta sotto.
+    kicker: str
     headline: str
     deck: str
     paragraphs: list[str] = field(default_factory=list)
@@ -98,6 +102,38 @@ class Article:
     # di testo — che è quello che rende una pagina un elenco invece di un
     # giornale.
     deck: str = ""
+    # Sezione tematica e famiglia del topic (vedi report/sections.py). La
+    # sezione decide dove il pezzo va in pagina, la famiglia se il pezzo
+    # concorre agli articoli pieni o finisce nel blocco compatto dei suoi
+    # simili.
+    section: str = ""
+    family: str = ""
+
+
+@dataclass
+class FamilyBlock:
+    """Un gruppo di topic della stessa forma, impaginati insieme.
+
+    Espone `headline`, `count` e `topic` perché la paginazione lo tratti
+    come un pezzo qualsiasi: il blocco occupa spazio in colonna come un
+    articolo, e non c'è motivo di insegnare due tipi diversi a chi
+    distribuisce le notizie sulle pagine."""
+
+    label: str
+    section: str
+    items: list[Article] = field(default_factory=list)
+
+    @property
+    def headline(self) -> str:
+        return self.label
+
+    @property
+    def topic(self) -> str:
+        return self.label
+
+    @property
+    def count(self) -> int:
+        return sum(i.count for i in self.items)
 
 
 @dataclass
@@ -132,7 +168,7 @@ class GraphicsOptions:
     end_mark: bool = True       # quadratino di fine articolo
     hourly_chart: bool = True   # andamento orario nella fascia di chiusura
     weight_bars: bool = True    # barretta di peso accanto al contatore messaggi
-    topic_glyphs: bool = True   # pittogramma nei tag e nell'indice
+    topic_glyphs: bool = True   # pittogramma nei tag dei pezzi e in breve
     share_bar: bool = True      # barra delle proporzioni sotto l'indice
     number_block: bool = True   # il dato grande sotto l'indice
     brief_box: bool = True      # i topic minori raccolti in un box "In breve"
@@ -205,9 +241,13 @@ p {{ margin: 0; }}
 .index {{ padding: 22px 56px 24px 56px; background: #fff; border-bottom: 2px solid {NAVY}; }}
 .index .section-label {{ display: block; margin-bottom: 14px; }}
 .index-chips {{ display: flex; flex-wrap: wrap; gap: 10px; }}
+/* Le chip dell'indice sono le sezioni dell'edizione, non i topic: sono
+   in maiuscoletto spaziato come le testate di sezione più in basso,
+   perché sono la stessa cosa vista da due distanze. */
 .chip {{
-  display: inline-flex; align-items: center; gap: 8px;
-  border: 2px solid {NAVY}; padding: 7px 12px; font-size: 17px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 10px;
+  border: 2px solid {NAVY}; padding: 7px 13px; font-size: 17px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase;
 }}
 .chip b {{ color: {AZZURRO_DEEP}; }}
 .chip .glyph {{ color: {AZZURRO_DEEP}; flex: none; }}
@@ -249,6 +289,45 @@ p {{ margin: 0; }}
 
 .articles {{ background: {GROUND}; padding: 0 56px; }}
 .articles > .section-label {{ display: block; padding: 24px 0 4px 0; }}
+
+/* Testata di sezione. Il regolo azzurro a 6px è lo stesso stacco che la
+   pagina usa già sotto la testata e sopra "In breve": la sezione non
+   introduce un linguaggio nuovo, riusa quello che c'è. Il nome a 30px si
+   infila fra il tag del pezzo (15px) e il titolo (40px), così la
+   gerarchia resta quella di prima con un gradino in più.
+   Prende il posto dell'etichetta generica "Il resto della giornata", che
+   occupava spazio senza dire niente: stesso ingombro, un'informazione. */
+.band {{ padding-top: 28px; }}
+.band:first-child {{ padding-top: 20px; }}
+.band-rule {{ height: 6px; background: {AZZURRO}; }}
+.band-row {{
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 20px; padding: 14px 0 10px 0;
+}}
+.band-row h2 {{
+  font-size: 30px; letter-spacing: 0.06em; text-transform: uppercase; color: {NAVY};
+}}
+.band-meta {{
+  font-size: 16px; font-weight: 700; color: #5a5a5a;
+  letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap;
+}}
+.band + .article, .band + .family {{ border-top: none; padding-top: 4px; }}
+
+/* Blocco di famiglia: otto leghe di fantacalcio sono otto topic con la
+   stessa forma, e otto articoli uguali non sono un giornale. Una forma
+   ripetuta sola dice le stesse cose in un quinto dello spazio. */
+.family {{ border-top: 2px solid {NAVY}; padding: 22px 0 26px 0; }}
+.family > .section-label {{ display: block; margin-bottom: 14px; }}
+.family-grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }}
+.family-item {{ border-top: 2px solid rgba(12, 35, 64, 0.22); padding: 12px 0; }}
+.family-item .head {{
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 5px; font-size: 14px; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+.family-item .head .n {{ color: #8a8a8a; }}
+.family-item p {{ font-size: 24px; line-height: 1.22; font-weight: 700; letter-spacing: -0.015em; }}
+
 .article {{ border-top: 2px solid {NAVY}; padding: 26px 0; }}
 .article:last-child {{ padding-bottom: 30px; }}
 .article-head {{
@@ -302,6 +381,9 @@ p {{ margin: 0; }}
   text-transform: uppercase; color: {AZZURRO_DEEP};
 }}
 .brief-item .head .n {{ color: #8a8a8a; }}
+/* La sezione davanti al topic: è ciò che tiene "In breve" agganciato al
+   resto della pagina invece di farne un elenco a parte. */
+.brief-item .head .sez {{ color: {NAVY}; }}
 .brief-item p {{ font-size: 25px; line-height: 1.22; font-weight: 700; letter-spacing: -0.015em; }}
 
 .quote {{ background: {AZZURRO}; color: {NAVY}; padding: 34px 56px; }}
@@ -388,11 +470,16 @@ def _masthead(logo_uri: str | None, newspaper_name: str) -> str:
 def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
     if not entries:
         return ""
+    # Niente pittogramma sulle chip: le sezioni sono sei, e i segni
+    # disponibili ne distinguerebbero due o tre — le altre prenderebbero
+    # tutte lo stesso ripiego. Un simbolo ripetuto su metà delle voci non
+    # dice niente che il testo non dica già, che è la sola regola con cui
+    # in questo giornale un elemento grafico si tiene (vedi
+    # report/graphics.py). Sui tag dei pezzi, dove i topic sono
+    # ventinove, i pittogrammi restano.
     chips = "".join(
-        f'<span class="chip">'
-        f"{topic_glyph_svg(topic, size=18) if gfx.topic_glyphs else ''}"
-        f"{html.escape(topic)} <b>{count}</b></span>"
-        for topic, count in entries
+        f'<span class="chip">{html.escape(name)} <b>{count}</b></span>'
+        for name, count in entries
     )
     share = share_bar_svg(entries) if gfx.share_bar else ""
     return (
@@ -424,14 +511,194 @@ def _lead_html(lead: Lead, gfx: GraphicsOptions) -> str:
     )
 
 
-def _articles_html(
-    articles: list[Article], label: str, gfx: GraphicsOptions, top_count: int = 0
+def arrange_sections(
+    articles: list[Article],
+    *,
+    max_full: int = MAX_FULL_ARTICLES,
+    min_family: int = 2,
+    brief_box: bool = True,
+) -> tuple[list, list[Article]]:
+    """Ordina le notizie per sezione e separa quelle che vanno "In breve".
+
+    `articles` arriva ordinata per volume, che è l'ordine con cui i pezzi
+    vengono scritti. Qui diventa l'ordine con cui si leggono, che non è lo
+    stesso: prima si tolgono di mezzo le famiglie (che non concorrono agli
+    articoli pieni), poi si taglia ai primi `max_full` per volume — come
+    si faceva già — e solo alla fine si raggruppa per sezione.
+
+    Restituisce (elementi in pagina, voci di "In breve"). Il primo è una
+    lista mista di Article e FamilyBlock, nell'ordine definitivo."""
+    # Senza il box "In breve" non c'è dove mandare i topic minori, e i
+    # blocchi di famiglia sono un modo di riassumerli: si torna al
+    # gazzettino di prima, un articolo pieno per topic, con le sole
+    # sezioni a dare l'ordine.
+    if not brief_box:
+        by_section = _group_by_section(articles, [])
+        return _flatten(by_section, {}), []
+
+    families: dict[tuple[str, str], list[Article]] = {}
+    candidates: list[Article] = []
+    for a in articles:
+        if a.family:
+            families.setdefault((a.family, a.section), []).append(a)
+        else:
+            candidates.append(a)
+
+    full = candidates[:max_full]
+    leftover: list[Article] = list(candidates[max_full:])
+
+    blocks: list[FamilyBlock] = []
+    for (label, section), items in families.items():
+        # Una famiglia con un topic solo attivo non è una famiglia: il
+        # blocco sarebbe una riga sotto un titolo, cioè un trafiletto con
+        # una cornice intorno. Meglio in breve, insieme agli altri.
+        if len(items) >= min_family:
+            blocks.append(FamilyBlock(label=label, section=section, items=items))
+        else:
+            leftover.extend(items)
+
+    by_section = _group_by_section(full, blocks)
+    leftover.sort(key=lambda a: a.count, reverse=True)
+
+    # Il peso di una sezione è tutto quello che le appartiene, comprese le
+    # voci finite in breve: altrimenti una sezione può mostrare in testata
+    # un numero più grande di quella che la precede, che è il modo più
+    # sicuro di far sembrare l'ordine casuale.
+    weights: dict[str, int] = {}
+    for name, items in by_section.items():
+        weights[name] = sum(i.count for i in items)
+    for a in leftover:
+        if a.section in weights:
+            weights[a.section] += a.count
+    return _flatten(by_section, weights), leftover
+
+
+def _group_by_section(
+    items: list, blocks: list["FamilyBlock"]
+) -> dict[str, list]:
+    grouped: dict[str, list] = {}
+    for item in items:
+        grouped.setdefault(item.section, []).append(item)
+    # Il blocco di famiglia chiude la sua sezione: prima i pezzi scritti,
+    # poi il riepilogo dei simili.
+    for block in blocks:
+        grouped.setdefault(block.section, []).append(block)
+    return grouped
+
+
+def _flatten(by_section: dict[str, list], weights: dict[str, int]) -> list:
+    ordered = sorted(
+        by_section,
+        key=lambda name: weights.get(name) or sum(i.count for i in by_section[name]),
+        reverse=True,
+    )
+    return [item for name in ordered for item in by_section[name]]
+
+
+def _section_stats(items: list, brief: list[Article]) -> dict[str, tuple[int, int]]:
+    """Per ogni sezione: quanti topic e quanti messaggi, contando tutto
+    quello che finisce in pagina — articoli, blocchi e voci in breve.
+
+    Sono i numeri scritti nella testata di sezione, e devono descrivere la
+    sezione com'è stampata: un topic il cui pezzo è stato scartato come
+    doppione non compare in pagina e non va contato qui."""
+    stats: dict[str, list[int]] = {}
+
+    def add(section: str, topics: int, messages: int) -> None:
+        row = stats.setdefault(section or "", [0, 0])
+        row[0] += topics
+        row[1] += messages
+
+    for item in items:
+        if isinstance(item, FamilyBlock):
+            add(item.section, len(item.items), item.count)
+        elif item.headline:
+            add(item.section, 1, item.count)
+    for a in brief:
+        if a.headline:
+            add(a.section, 1, a.count)
+    return {name: (row[0], row[1]) for name, row in stats.items()}
+
+
+def _band_html(
+    section: str,
+    stats: dict[str, tuple[int, int]],
+    total_messages: int,
+    continued: bool = False,
 ) -> str:
+    topics, messages = stats.get(section, (0, 0))
+    parts = [f"{topics} topic", f"{messages} messaggi"]
+    if total_messages > 0:
+        parts.append(f"{round(100 * messages / total_messages)}%")
+    meta = " · ".join(parts)
+    name = html.escape(section) + (" (segue)" if continued else "")
+    return (
+        f'<div class="band"><div class="band-rule"></div>'
+        f'<div class="band-row"><h2>{name}</h2>'
+        f'<span class="band-meta">{html.escape(meta)}</span></div></div>'
+    )
+
+
+def _family_html(block: FamilyBlock) -> str:
+    items = [i for i in block.items if i.headline]
+    if not items:
+        return ""
+    unit = "voce" if len(items) == 1 else "voci"
+    label = f"{block.label} · {len(items)} {unit}, {block.count} messaggi"
+    rows = "".join(
+        f'<div class="family-item"><div class="head">'
+        f"<span>{html.escape(i.topic)}</span>"
+        f'<span class="n">{i.count}</span></div>'
+        f"<p>{html.escape(i.headline)}</p></div>"
+        for i in items
+    )
+    return (
+        f'<div class="family"><span class="section-label">{html.escape(label)}</span>'
+        f'<div class="family-grid">{rows}</div></div>'
+    )
+
+
+def _articles_html(
+    articles: list,
+    label: str,
+    gfx: GraphicsOptions,
+    top_count: int = 0,
+    *,
+    stats: dict[str, tuple[int, int]] | None = None,
+    total_messages: int = 0,
+    continues: str = "",
+) -> str:
+    """Le notizie di una pagina.
+
+    Con le sezioni attive (`stats` valorizzato) l'etichetta generica
+    lascia il posto alle testate di sezione, che dicono la stessa cosa e
+    in più dicono quale. Una sezione spezzata fra due pagine ripete la
+    testata con "(segue)": è più onesto che far ricominciare il lettore
+    senza sapere dove si trova."""
     if not articles:
         return ""
+    sectioned = stats is not None
+    # None e non `continues`: la prima testata di una pagina va emessa
+    # comunque, anche quando la sezione è la stessa con cui finiva la
+    # pagina prima — è proprio il caso in cui il lettore ha più bisogno
+    # di sapere dove si trova, ed è lì che compare "(segue)".
+    current: str | None = None
     blocks = []
     for a in articles:
         if not a.headline:
+            continue
+        if sectioned and a.section != current:
+            blocks.append(
+                _band_html(
+                    a.section,
+                    stats,
+                    total_messages,
+                    continued=current is None and a.section == continues,
+                )
+            )
+            current = a.section
+        if isinstance(a, FamilyBlock):
+            blocks.append(_family_html(a))
             continue
         unit = "messaggio" if a.count == 1 else "messaggi"
         glyph = topic_glyph_svg(a.topic, size=17) if gfx.topic_glyphs else ""
@@ -454,11 +721,14 @@ def _articles_html(
         )
     if not blocks:
         return ""
-    return (
-        f'<div class="articles"><span class="section-label">{html.escape(label)}</span>'
-        + "".join(blocks)
-        + "</div>"
+    # Con le sezioni la testata generica sparisce: direbbe "Il resto della
+    # giornata" sopra una riga che dice già "FANTACALCIO".
+    heading = (
+        ""
+        if sectioned
+        else f'<span class="section-label">{html.escape(label)}</span>'
     )
+    return f'<div class="articles">{heading}' + "".join(blocks) + "</div>"
 
 
 def _number_html(entries: list[tuple[str, int]]) -> str:
@@ -470,7 +740,10 @@ def _number_html(entries: list[tuple[str, int]]) -> str:
     perché quello spazio lo riempie di informazione."""
     if not entries:
         return ""
-    topic, count = entries[0]
+    # entries sono le sezioni: il dato grande dice quanto ha pesato la
+    # più grossa, che è un'affermazione sulla giornata più forte di
+    # quanto abbia pesato il singolo topic più chiacchierato.
+    name, count = entries[0]
     total = sum(c for _, c in entries)
     share = (
         f" — <b>{round(100 * count / total)}%</b> di tutto quello che si è detto"
@@ -480,7 +753,7 @@ def _number_html(entries: list[tuple[str, int]]) -> str:
     return (
         '<div class="number">'
         f'<span class="big">{count}</span>'
-        f'<span class="said">messaggi su <b>{html.escape(topic)}</b>{share}</span>'
+        f'<span class="said">messaggi su <b>{html.escape(name)}</b>{share}</span>'
         "</div>"
     )
 
@@ -490,20 +763,30 @@ def _brief_html(articles: list[Article], gfx: GraphicsOptions) -> str:
     if not articles:
         return ""
     items = []
+    sectioned = False
     for a in articles:
         if not a.headline:
             continue
         glyph = topic_glyph_svg(a.topic, size=15) if gfx.topic_glyphs else ""
+        # La sezione davanti al topic: senza, "In breve" è un elenco
+        # staccato dal resto della pagina, e il lettore non sa se quella
+        # riga appartiene a una sezione che ha già letto o a una che non
+        # è mai comparsa.
+        section = (
+            f'<span class="sez">{html.escape(a.section)}</span>' if a.section else ""
+        )
+        sectioned = sectioned or bool(a.section)
         items.append(
             '<div class="brief-item"><div class="head">'
-            f"{glyph}<span>{html.escape(a.topic)}</span>"
+            f"{glyph}{section}<span>{html.escape(a.topic)}</span>"
             f'<span class="n">{a.count}</span></div>'
             f"<p>{html.escape(a.headline)}</p></div>"
         )
     if not items:
         return ""
+    label = "In breve · quello che non ha fatto sezione" if sectioned else "In breve"
     return (
-        '<div class="brief"><span class="section-label">In breve</span>'
+        f'<div class="brief"><span class="section-label">{html.escape(label)}</span>'
         f'<div class="brief-grid">{"".join(items)}</div></div>'
     )
 
@@ -577,6 +860,9 @@ _H_NUMBER = 145         # blocco del dato grande
 _H_BRIEF_HEAD = 70      # titolo del box "In breve"
 _H_BRIEF_ROW = 108      # una riga del box (due voci affiancate)
 _H_SHARE = 48           # barra delle proporzioni sotto l'indice
+_H_BAND = 78            # testata di sezione: regolo, nome e contatori
+_H_FAMILY_HEAD = 84     # titolo del blocco di famiglia + regolo + padding
+_H_FAMILY_ROW = 86      # una riga del blocco (due voci affiancate)
 
 # Frase del giorno e statistiche stanno sempre in ultima pagina: chi
 # impagina deve tenerne lo spazio da parte.
@@ -592,7 +878,16 @@ def _estimate_lead_height(lead: Lead) -> int:
     return h
 
 
-def _estimate_article_height(a: Article) -> int:
+def _estimate_article_height(a) -> int:
+    """L'altezza stimata di un elemento in colonna, articolo o blocco.
+
+    Il blocco di famiglia occupa spazio come un pezzo, quindi entra nella
+    stessa stima: chi distribuisce le notizie sulle pagine non deve
+    conoscere due tipi diversi."""
+    if isinstance(a, FamilyBlock):
+        rows = -(-len([i for i in a.items if i.headline]) // 2)
+        return _H_FAMILY_HEAD + _H_FAMILY_ROW * rows
+
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
     h += _text_height(a.deck, chars_per_line=62, line_height=33) + (12 if a.deck else 0)
@@ -607,14 +902,34 @@ def _text_height(text: str, chars_per_line: int, line_height: int) -> int:
     return lines * line_height
 
 
+def _item_heights(items: list) -> dict[int, int]:
+    """Altezza di ogni elemento, testata di sezione compresa.
+
+    La testata la paga il primo pezzo della sua sezione: è l'unico modo
+    di far entrare le sezioni nel conto senza insegnare a chi impagina
+    che cosa sia una sezione. La stima resta approssimata per eccesso ai
+    salti di pagina — dove la testata si ripete con "(segue)" — ma il
+    tetto d'altezza ha già il margine per assorbirlo."""
+    heights: dict[int, int] = {}
+    previous: str | None = None
+    for item in items:
+        height = _estimate_article_height(item)
+        section = getattr(item, "section", "")
+        if section != previous:
+            height += _H_BAND
+            previous = section
+        heights[id(item)] = height
+    return heights
+
+
 def paginate_articles(
-    articles: list[Article],
+    articles: list,
     lead: Lead,
     index_rows: int,
     *,
     tail_height: int = _H_TAIL,
     index_extra: int = 0,
-) -> list[list[Article]]:
+) -> list[list]:
     """Distribuisce le notizie su quante pagine servono e restituisce una
     lista per pagina; la prima sta sotto l'apertura.
 
@@ -629,6 +944,7 @@ def paginate_articles(
     allunga la chiusura di circa 200px, e ignorarlo faceva sfondare
     l'ultima pagina proprio nel caso in cui era più piena."""
     usable = [a for a in articles if a.headline]
+    heights = _item_heights(usable)
     first_base = (
         _H_CHROME
         + index_rows * _H_INDEX_ROW
@@ -644,7 +960,7 @@ def paginate_articles(
     if len(usable) < MIN_ARTICLES_FOR_SPLIT:
         single = (
             first_base
-            + sum(_estimate_article_height(a) for a in usable)
+            + sum(heights[id(a)] for a in usable)
             + tail_height
         )
         if single <= MAX_PAGE_HEIGHT or len(usable) < 2:
@@ -655,7 +971,7 @@ def paginate_articles(
     for a in usable:
         if len(first) >= MAX_ARTICLES_FIRST_PAGE:
             break
-        nxt = height + _estimate_article_height(a)
+        nxt = height + heights[id(a)]
         # La prima notizia resta in prima pagina comunque: una prima con la
         # sola apertura lascerebbe vuoto lo spazio sotto il taglio.
         if first and nxt > MAX_PAGE_HEIGHT:
@@ -664,7 +980,7 @@ def paginate_articles(
         first.append(a)
 
     pages = [first]
-    heights = [height]
+    page_heights = [height]
 
     rest = usable[len(first):]
     current: list[Article] = []
@@ -674,16 +990,16 @@ def paginate_articles(
         # sistemiamo l'ultima notizia vanno contate, o è proprio la coda a
         # far sfondare la pagina finale.
         reserve = tail_height if index == len(rest) - 1 else 0
-        h = _estimate_article_height(a)
+        h = heights[id(a)]
         if current and height + h + reserve > MAX_PAGE_HEIGHT:
             pages.append(current)
-            heights.append(height)
+            page_heights.append(height)
             current, height = [], _H_CONT_CHROME
         current.append(a)
         height += h
     if current:
         pages.append(current)
-        heights.append(height)
+        page_heights.append(height)
 
     # Un'ultima pagina con un solo trafiletto in mezzo al bianco si evita in
     # due modi. Riaccorparla nella precedente vale solo se ci sta davvero:
@@ -691,18 +1007,21 @@ def paginate_articles(
     # ci sta, si scala giù una notizia dalla penultima, così l'edizione
     # chiude con due pezzi invece che con uno solo.
     if len(pages) > 1 and len(pages[-1]) == 1:
-        merged = heights[-2] + _estimate_article_height(pages[-1][0]) + tail_height
+        merged = page_heights[-2] + heights[id(pages[-1][0])] + tail_height
         if merged <= MAX_PAGE_HEIGHT:
             pages[-2].extend(pages.pop())
         elif len(pages[-2]) > 1:
             pages[-1].insert(0, pages[-2].pop())
 
-    return _balance_pages(pages, first_base, tail_height)
+    return _balance_pages(pages, first_base, tail_height, heights)
 
 
 def _balance_pages(
-    pages: list[list[Article]], first_base: int, tail_height: int
-) -> list[list[Article]]:
+    pages: list[list],
+    first_base: int,
+    tail_height: int,
+    heights: dict[int, int],
+) -> list[list]:
     """Ridistribuisce le notizie perché le pagine vengano simili fra loro.
 
     Il riempimento avido decide bene *quante* pagine servono e male *come*
@@ -719,7 +1038,6 @@ def _balance_pages(
         return pages
 
     flat = [a for page in pages for a in page]
-    heights = {id(a): _estimate_article_height(a) for a in flat}
     fixed = first_base + _H_CONT_CHROME * (total_pages - 1) + tail_height
     target = (fixed + sum(heights.values())) / total_pages
 
@@ -787,16 +1105,21 @@ def build_pages_html(
     index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
     # I topic minori escono dalla colonna e diventano righe del box "In
-    # breve": è la separazione che rende visibile la gerarchia.
+    # breve": è la separazione che rende visibile la gerarchia. Le
+    # sezioni si aggiungono sopra a quella separazione senza cambiarla —
+    # decidono l'ordine e le testate, non chi è grande e chi è piccolo.
     usable = [a for a in articles if a.headline]
-    brief: list[Article] = []
-    if gfx.brief_box and len(usable) > MAX_FULL_ARTICLES:
-        brief = usable[MAX_FULL_ARTICLES:]
-        articles = usable[:MAX_FULL_ARTICLES]
+    laid_out, brief = arrange_sections(usable, brief_box=gfx.brief_box)
+    sectioned = any(getattr(i, "section", "") for i in laid_out)
+    articles = laid_out
+    stats_by_section = _section_stats(laid_out, brief) if sectioned else None
+    total_messages = sum(a.count for a in usable)
 
     # Il contatore più alto fa da fondoscala alle barrette di peso: il
     # confronto è fra i topic della giornata, non con una soglia fissa.
-    top_count = max((a.count for a in articles), default=0)
+    top_count = max(
+        (a.count for a in articles if not isinstance(a, FamilyBlock)), default=0
+    )
 
     closing_height = (
         _H_TAIL
@@ -872,7 +1195,24 @@ def build_pages_html(
                 f'<span class="next">Continua a pagina {number + 1} ▸</span></div>'
             )
 
-        body = head + _articles_html(chunk, label, gfx, top_count) + tail
+        # Una sezione può finire a cavallo di due pagine: la testata si
+        # ripete in cima alla successiva con "(segue)".
+        previous = chunks[number - 2][-1] if number > 1 and chunks[number - 2] else None
+        continues = getattr(previous, "section", "") if previous is not None else ""
+
+        body = (
+            head
+            + _articles_html(
+                chunk,
+                label,
+                gfx,
+                top_count,
+                stats=stats_by_section,
+                total_messages=total_messages,
+                continues=continues,
+            )
+            + tail
+        )
         pages.append(_wrap_page(body))
 
     return pages

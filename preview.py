@@ -30,7 +30,7 @@ from report.newspaper import (
 SAMPLE_DATE = date(2026, 8, 5)
 
 SAMPLE_LEAD = Lead(
-    kicker="Mercato",
+    kicker="Calcio",
     headline="Il centrocampista arriva in prestito, la firma attesa entro giovedì",
     deck=(
         "Visite mediche fissate per mercoledì mattina, il club valuta anche "
@@ -51,104 +51,139 @@ SAMPLE_LEAD = Lead(
 
 SAMPLE_ARTICLES = [
     Article(
-        topic="Partita",
-        headline="L'amichevole finisce in parità, ma la difesa convince",
-        deck=(
-            "Il rigore sbagliato in coda riapre la discussione sui tiratori designati"
-        ),
+        topic="Mantraskarso",
+        headline="Il modificatore di difesa resta, l'asta slitta a sabato",
+        deck="Tre leghe su quattro hanno già confermato la data, manca l'accordo sui crediti",
         body=(
-            "Due tempi molto diversi: nel primo la squadra ha tenuto il pallino "
-            "senza mai affondare, nel secondo è arrivato il gol su calcio "
-            "piazzato. In coda al match il rigore sbagliato ha riaperto la "
-            "discussione sui tiratori designati.",
-        )[0],
+            "La discussione si è chiusa sul mantenere il modificatore anche "
+            "quest'anno. Sull'asta la data di sabato pomeriggio mette "
+            "d'accordo quasi tutti."
+        ),
+        count=132,
+        section="FantaCalcio",
+    ),
+    Article(
+        topic="Le Altre Squadre",
+        headline="La rincorsa della seconda in classifica si ferma a Bergamo",
+        deck="Il pareggio riapre il discorso sul terzo posto a due giornate dalla sosta",
+        body=(
+            "Il risultato di Bergamo ha tenuto banco per tutta la sera. Sul "
+            "terzo posto le posizioni restano distanti."
+        ),
+        count=113,
+        section="Calcio",
+    ),
+    Article(
+        topic="Spam Off Topic",
+        headline="La classifica dei panini trova finalmente un vincitore",
+        deck="Tre settimane di ballottaggio si chiudono con una preferenza netta",
+        body=(
+            "Dopo tre settimane di voti sparsi il ballottaggio si è chiuso "
+            "senza ricorsi. Il verbale resta agli atti del gruppo."
+        ),
+        count=113,
+        section="Altro",
+    ),
+    Article(
+        topic="Match Day",
+        headline="Il gol al novantesimo ribalta una partita già archiviata",
+        deck="Sul secondo giallo le opinioni restano distanti anche a fine serata",
+        body=(
+            "Il pareggio era stato dato per buono da quasi tutti fino "
+            "all'ultimo assalto. Sull'episodio del secondo giallo si è "
+            "discusso oltre la mezzanotte."
+        ),
         count=87,
+        section="Napoli",
     ),
     Article(
-        topic="Tattica",
-        headline="Il tridente largo divide: due modi di leggere la stessa mossa",
-        deck=(
-            "L'esterno destro resta isolato per tutto il primo tempo, e il gruppo si divide"
-        ),
+        topic="FantaSkarso",
+        headline="I listini aggiornati sono online, i crediti restano cento",
+        deck="Nessuna modifica ai ruoli rispetto alla scorsa stagione",
         body=(
-            "Chi ha visto la partita da fuori area sostiene che l'ampiezza abbia "
-            "liberato lo spazio centrale; chi guardava i movimenti senza palla "
-            "nota invece che l'esterno destro è rimasto isolato per tutto il "
-            "primo tempo. La discussione si è chiusa senza una posizione unica."
+            "Il file aggiornato è stato condiviso in serata. Sui crediti "
+            "nessuno ha chiesto di cambiare il tetto."
         ),
-        count=54,
+        count=51,
+        section="FantaCalcio",
     ),
+    # Le otto leghe: stessa forma, stessa famiglia. Non concorrono agli
+    # articoli pieni e finiscono nel blocco compatto della loro sezione.
+    Article(topic="Serie Flu’", headline="Il recupero della quinta giornata va in scena mercoledì", body="", count=78, section="FantaCalcio", family="Le Serie"),
+    Article(topic="Serie TvB", headline="Lo scambio in cima alla classifica passa senza veti", body="", count=64, section="FantaCalcio", family="Le Serie"),
+    Article(topic="Serie Eh", headline="Il mercato di riparazione chiude domenica a mezzanotte", body="", count=52, section="FantaCalcio", family="Le Serie"),
+    Article(topic="Seri eCcí", headline="Due squadre ancora senza portiere di riserva", body="", count=26, section="FantaCalcio", family="Le Serie"),
+    Article(topic="Serie X", headline="Il regolamento sulle panchine lunghe resta invariato", body="", count=21, section="FantaCalcio", family="Le Serie"),
     Article(
-        topic="Canale YouTube",
+        topic="Editoriali Bellini",
         headline="Il video sulle statistiche difensive supera le ventimila visualizzazioni",
-        deck=(
-            "Il montaggio sui dati difensivi raccoglie più commenti di ogni altro video del mese"
-        ),
-        body=(
-            "Pubblicato domenica sera, il montaggio sui dati difensivi della "
-            "scorsa stagione ha raccolto più commenti di qualsiasi altro video "
-            "del mese. Nel gruppo si è già proposto un seguito sui portieri."
-        ),
+        body="",
         count=31,
+        section="Canale",
     ),
     Article(
-        topic="Biglietti",
-        headline="Prevendita aperta da giovedì, il settore ospiti resta il nodo",
-        deck=(
-            "Fasi di vendita da giovedì per gli abbonati, sabato per tutti gli altri"
-        ),
-        body=(
-            "Le fasi di vendita partono giovedì alle dieci per gli abbonati e "
-            "sabato per tutti gli altri. Sul settore ospiti non c'è ancora "
-            "comunicazione ufficiale."
-        ),
-        count=22,
+        topic="Ko-Fi (SUPPORTO CANALE)",
+        headline="Raccolta del mese sopra l'obiettivo con dieci giorni di anticipo",
+        body="",
+        count=17,
+        section="Canale",
     ),
     Article(
-        topic="Fantacalcio",
-        headline="Le aste si concentrano nel weekend, i listini sono già online",
-        deck=(
-            "Tre leghe fissano l'asta per sabato, il modificatore di difesa resta attivo"
-        ),
-        body=(
-            "Tre leghe hanno fissato l'asta per sabato pomeriggio. I crediti "
-            "restano cento, con la solita discussione sul modificatore di "
-            "difesa che quest'anno resta attivo."
-        ),
-        count=18,
+        topic="Altri Sport",
+        headline="La finale di basket di domenica sposta l'orario del live",
+        body="",
+        count=9,
+        section="Sport",
     ),
     Article(
-        topic="Off topic",
-        headline="La classifica dei panini del sabato trova finalmente un vincitore",
-        deck=(
-            "Tre settimane di ballottaggio si chiudono con una preferenza netta"
-        ),
-        body=(
-            "Dopo tre settimane di voti sparsi, il ballottaggio si è chiuso con "
-            "una preferenza netta. Il verbale resta agli atti del gruppo."
-        ),
-        count=12,
+        topic="CalcioMercato",
+        headline="Nessuna trattativa chiusa nella giornata di ieri",
+        body="",
+        count=6,
+        section="Calcio",
     ),
 ]
 
+# L'indice del gazzettino: le sezioni attive, dalla più attiva. È la
+# mappa dell'edizione, e nomina le stesse cose che si trovano nelle
+# testate di sezione più in basso.
 SAMPLE_INDEX = [
-    ("Mercato", 112),
-    ("Partita", 87),
-    ("Tattica", 54),
-    ("Canale YouTube", 31),
-    ("Biglietti", 22),
-    ("Fantacalcio", 18),
-    ("Off topic", 12),
+    ("FantaCalcio", 424),
+    ("Calcio", 119),
+    ("Altro", 113),
+    ("Napoli", 87),
+    ("Canale", 48),
+    ("Sport", 9),
+]
+
+# I topic, che in pagina compaiono nei tag dei pezzi e in "In breve".
+# Servono anche a catalogo.py, che mostra pittogrammi e barrette: quelli
+# distinguono i topic, non le sezioni.
+SAMPLE_TOPICS = [
+    ("Mantraskarso", 132),
+    ("Le Altre Squadre", 113),
+    ("Spam Off Topic", 113),
+    ("Match Day", 87),
+    ("Serie Flu\u2019", 78),
+    ("Serie TvB", 64),
+    ("Serie Eh", 52),
+    ("FantaSkarso", 51),
+    ("Editoriali Bellini", 31),
+    ("Seri eCc\u00ed", 26),
+    ("Serie X", 21),
+    ("Ko-Fi (SUPPORTO CANALE)", 17),
+    ("Altri Sport", 9),
+    ("CalcioMercato", 6),
 ]
 
 SAMPLE_STATS = Stats(
-    messages=336, participants=41, active_topics=7, peak_hour="22:00"
+    messages=800, participants=41, active_topics=14, peak_hour="22:00"
 )
 
 SAMPLE_QUOTE = Quote(
     text="Se lo prendiamo davvero, giovedì mi metto la maglia anche per andare a lavoro",
     author="Ciro",
-    topic="Mercato",
+    topic="Mantraskarso",
     time="23:41",
 )
 

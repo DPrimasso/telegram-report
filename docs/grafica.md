@@ -115,6 +115,114 @@ dettaglio disponibile». Un h3 con dentro un paragrafo
 non è un difetto di stile: è una pagina rotta, e il layout non può essere
 l'unico posto in cui ce ne accorgiamo.
 
+### I tre gradini devono parlare della stessa cosa
+
+Sistemato il formato, è venuto fuori il difetto sotto: i tre gradini
+c'erano tutti, ma raccontavano tre fatti diversi — il titolo una cosa, il
+sommario un'altra, il testo un'altra ancora. Leggere un pezzo così è
+peggio che leggerne uno spoglio, perché ogni riga smentisce quella sopra.
+
+La causa era nelle istruzioni, che si respingevano a vicenda: il sommario
+doveva «AGGIUNGERE informazione al titolo invece di riformularlo», il
+testo «non ripetere il titolo né il sommario». Nessuna regola diceva che
+le tre righe parlano dello **stesso** fatto: il modello, per obbedire e
+non ripetersi, cambiava argomento a ogni riga — che è l'unico modo di non
+ripetersi che gli restava. Non ripetersi e restare sul pezzo sono due cose
+diverse, e vanno chieste entrambe.
+
+Le contromisure sono tre, dalla più grossa alla più piccola:
+
+- `COHERENCE_RULE`: **un pezzo racconta un solo fatto**. Il sommario lo
+  sviluppa, il testo ne dà i dettagli (chi, quando, cosa è stato deciso),
+  e quello che nel materiale non riguarda quel fatto resta fuori. Meglio
+  un pezzo corto che uno che tocca tre argomenti.
+- La riga `FATTO:`, prima del titolo: il modello dichiara di che cosa sta
+  per scrivere **prima** di scriverlo, e le tre righe che seguono hanno un
+  riferimento comune a cui tornare. Non finisce in pagina — è una riga di
+  lavoro, costa un rigo di output e si butta via — ma è ciò che impedisce
+  al titolo e al testo di partire ognuno per conto suo.
+- `_drop_echo_deck`: l'eco è l'altra faccia della stessa medaglia. Se il
+  sommario ricopia il titolo, la riga azzurra non dice niente e vale meno
+  dello spazio che occupa: si scarta.
+
+### Le sezioni
+
+Con ventinove topic, una pagina ordinata per volume è un elenco: il
+lettore non sa dove finisce un argomento e ne comincia un altro, e otto
+leghe di fantacalcio possono prendersi tutti gli articoli della giornata.
+Le sezioni (`report/sections.py`) sono l'unità con cui il gazzettino si
+legge, che non è quella con cui il gruppo scrive.
+
+La domanda vera non era se raggruppare, ma **se nominare i gruppi**.
+Dividere e basta non paga: il tag azzurro del topic dice già a quale
+argomento appartiene un pezzo, quindi uno stacco muto aggiunge una riga
+scura e nessuna informazione. La testata di sezione invece non costa
+spazio nuovo — prende il posto dell'etichetta generica «Il resto della
+giornata», che occupava un rigo per non dire niente.
+
+Tre regole, tutte nate guardando le giornate vere:
+
+- **una sezione si guadagna, non si prenota.** Compare solo se ha
+  qualcosa da metterci; il resto scende in «In breve» con l'etichetta
+  della propria sezione. Con un menù fisso, «Sport» sarebbe comparsa
+  vuota nelle giornate in cui nessuno ne parla, e il Napoli si sarebbe
+  preso una testata sopra un trafiletto da due messaggi.
+- **l'ordine è quello della giornata.** Le sezioni si ordinano per
+  messaggi, e il peso di una sezione comprende le voci finite in breve:
+  altrimenti una sezione può mostrare in testata un numero più grande di
+  quella che la precede, che è il modo più sicuro di far sembrare
+  casuale un ordine che casuale non è.
+- **le famiglie non competono.** Le otto leghe sono otto topic con la
+  stessa identica forma: otto articoli uguali non sono un giornale, sono
+  una schedina. Una famiglia prende un blocco solo, compatto e
+  intitolato, dentro la sua sezione, e i suoi topic non concorrono mai
+  agli articoli pieni.
+
+**L'indice segue le sezioni.** Appena le sezioni sono comparse nel
+corpo del giornale, la pagina ha cominciato a parlare due lingue: in
+cima «IN QUESTA EDIZIONE» elencava quattordici chip di topic, e appena
+sotto il lettore trovava sei nomi di sezione che in quell'elenco non
+c'erano mai stati. L'indice non era più l'indice di quel giornale, era
+l'indice di com'era prima. In più era diventato ridondante: ogni topic
+che finisce in pagina porta già nome e contatore nel tag dell'articolo,
+nella riga del blocco di famiglia o nella voce di «In breve».
+
+Ora le chip sono le sezioni (`section_entries`), in maiuscoletto
+spaziato come le testate più in basso, perché sono la stessa cosa vista
+da due distanze. Di conseguenza la barra delle proporzioni divide la
+giornata in sei segmenti invece di quattordici — leggibile invece di
+decorativa — e il dato grande dice «424 messaggi su FantaCalcio, il 53%
+di tutto quello che si è detto», che sulla giornata è un'affermazione
+più forte di quanta ne facesse il singolo topic più chiacchierato. La
+prima pagina ci **guadagna** circa 140px, che è raro per una modifica
+che aggiunge informazione.
+
+Sulle chip di sezione non c'è pittogramma. I segni disponibili ne
+distinguerebbero due o tre — Canale, Calcio — e le altre prenderebbero
+tutte lo stesso ripiego: un simbolo ripetuto su metà delle voci non dice
+niente che il testo non dica già, che è la sola regola con cui qui un
+elemento grafico si tiene. Sui tag dei pezzi, dove i topic sono
+ventinove, i pittogrammi restano.
+
+Una sezione a cavallo di due pagine ripete la testata con «(segue)»: far
+ricominciare il lettore senza dirgli dove si trova è peggio che spendere
+un rigo. Nel conto dell'impaginazione la testata la paga il primo pezzo
+della sua sezione (`_item_heights`), così le sezioni entrano
+nell'altezza stimata senza che chi distribuisce le notizie debba sapere
+che cosa sia una sezione.
+
+Stessa storia un gradino più su, nell'occhiello dell'apertura. Diceva
+`Apertura · <topic più attivo>`, deciso dal codice — ma il pezzo di
+apertura non è per forza quello del topic più attivo, e l'occhiello
+finiva per annunciare una sezione che con il titolo sotto non c'entrava.
+Ora la sezione la dichiara chi scrive il pezzo (riga `SEZIONE:`),
+scegliendola **fra le sezioni davvero attive quel giorno**; il codice la
+riporta a una di quelle e, se il fatto ne attraversa più d'una o non
+combacia con nessuna, in pagina resta il solo «Apertura», che è più onesto
+di una sezione presa a caso. Sono le sezioni e non i topic perché è il
+vocabolario che il lettore ritrova nelle testate più in basso: l'apertura
+deve nominare le stesse cose del resto della pagina.
+
 ### Gli orari sono nel fuso del report, non in UTC
 
 Il grafico del ritmo della giornata è stato per un po' **ruotato di due

@@ -15,7 +15,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from preview import SAMPLE_HOURS, SAMPLE_INDEX
+from preview import SAMPLE_HOURS, SAMPLE_INDEX, SAMPLE_TOPICS
 from report.graphics import (
     _GLYPHS,
     hourly_chart_svg,
@@ -140,8 +140,8 @@ def build_html() -> str:
 
     rows = "".join(
         f'<div class="row"><span class="name">{topic}</span>'
-        f"{weight_bar_svg(count, SAMPLE_INDEX[0][1])}<span>{count} messaggi</span></div>"
-        for topic, count in SAMPLE_INDEX[:4]
+        f"{weight_bar_svg(count, SAMPLE_TOPICS[0][1])}<span>{count} messaggi</span></div>"
+        for topic, count in SAMPLE_TOPICS[:4]
     )
     items.append(_item(
         "Barretta di peso",
@@ -170,8 +170,8 @@ def build_html() -> str:
         "Barra delle proporzioni",
         "opzionale",
         "forse",
-        "Dice quanto ha pesato ogni topic sulla giornata. È corretta e leggibile, ma "
-        "l'indice a chip qui sopra dice già i numeri: nelle giornate con un topic "
+        "Dice quanto ha pesato ogni sezione sulla giornata. È corretta e leggibile, ma "
+        "l'indice a chip qui sopra dice già i numeri: nelle giornate con una sezione "
         "dominante aggiunge poco, in quelle equilibrate diventa una fila di segmenti "
         "tutti uguali. Da tenere spenta di default e accendere se piace.",
         f'<div class="demo">{share_bar_svg(SAMPLE_INDEX, width=920)}</div>',
@@ -179,7 +179,7 @@ def build_html() -> str:
 
     cells = "".join(
         f'<span class="glyph-cell">{topic_glyph_svg(topic, size=20)}{topic}</span>'
-        for topic, _ in SAMPLE_INDEX
+        for topic, _ in SAMPLE_TOPICS
     )
     extra = "".join(
         f'<span class="glyph-cell">'

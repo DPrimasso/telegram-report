@@ -55,6 +55,10 @@ jobs:
           REPORT_TOPIC_ID: ${{ vars.REPORT_TOPIC_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
           NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
+          # Mappa topic -> sezione. Vuote = i valori di report/sections.py:
+          # servono solo per correggere una sezione senza toccare il codice.
+          REPORT_SECTIONS: ${{ vars.REPORT_SECTIONS }}
+          REPORT_SECTION_FAMILIES: ${{ vars.REPORT_SECTION_FAMILIES }}
         run: |
           if [ "${{ github.event.inputs.list_topics }}" = "true" ]; then
             python main.py --list-topics
