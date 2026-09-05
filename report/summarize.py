@@ -245,22 +245,44 @@ STYLE_RULE = (
     "frasi brevi e concrete a periodi lunghi e astratti."
 )
 
+# La regola che tiene insieme il pezzo. Senza, le istruzioni delle tre
+# parti si respingono a vicenda — il sommario "aggiunge" al titolo, il
+# testo "non ripete" nessuno dei due — e il modello, per non ripetersi,
+# cambia argomento a ogni riga: titolo su un fatto, sommario su un altro,
+# corpo su un terzo. Non ripetersi e restare sullo stesso fatto sono cose
+# diverse, e vanno dette entrambe, in quest'ordine.
+COHERENCE_RULE = (
+    "Il pezzo racconta UN SOLO fatto, dall'inizio alla fine. Prima scegli "
+    "qual è — il più concreto e significativo del materiale — poi scrivi "
+    "titolo, sommario e testo tutti su quello. Il sommario non introduce un "
+    "secondo argomento: sviluppa il fatto del titolo. Il testo non ne "
+    "introduce un terzo: racconta lo stesso fatto con i dettagli che nelle "
+    "due righe sopra non ci stavano (chi, quando, che cosa è stato deciso, "
+    "che cosa resta aperto). Se nel titolo compare un nome, una cifra o "
+    "un'ora, sommario e testo devono restare su quella stessa storia, e chi "
+    "legge solo il titolo non deve trovare un pezzo che parla d'altro. "
+    "Tutto ciò che nel materiale non riguarda quel fatto resta fuori: è "
+    "meglio un pezzo corto e coerente che uno che tocca tre argomenti."
+)
+
 HEADLINE_RULE = (
     "Il titolo deve essere in stile testata: sintetico e concreto, senza "
     "punto finale, senza virgolette, senza markdown e senza la formula "
     "'Argomento: spiegazione'. Deve dire che cosa è successo, non "
-    "annunciare di che cosa si parla. Massimo 8 parole: preferisci un verbo "
-    "forte a un aggettivo, e il dettaglio concreto (un nome, un numero, "
-    "un'ora) al giudizio generico. Il tono è quello di un tifoso che "
-    "racconta ad altri tifosi: diretto e caldo, mai sguaiato — niente punti "
-    "esclamativi, niente maiuscolo urlato."
+    "annunciare di che cosa si parla, e deve nominare il fatto principale "
+    "del pezzo, non un dettaglio di contorno. Massimo 8 parole: preferisci "
+    "un verbo forte a un aggettivo, e il dettaglio concreto (un nome, un "
+    "numero, un'ora) al giudizio generico. Il tono è quello di un tifoso "
+    "che racconta ad altri tifosi: diretto e caldo, mai sguaiato — niente "
+    "punti esclamativi, niente maiuscolo urlato."
 )
 
 DECK_RULE = (
-    "Il sommario è una frase sola che AGGIUNGE informazione al titolo "
-    "invece di riformularlo: il dettaglio, la conseguenza o la posizione "
-    "che nel titolo non ci stava. Massimo 160 caratteri, senza punto "
-    "finale."
+    "Il sommario è una frase sola sullo STESSO fatto del titolo: ne dà il "
+    "dettaglio, la conseguenza o la posizione che nel titolo non ci "
+    "stavano. Non riformula il titolo con altre parole e non cambia "
+    "argomento: deve poter essere letto di seguito al titolo come la sua "
+    "continuazione naturale. Massimo 160 caratteri, senza punto finale."
 )
 
 # Il formato posizionale ("RIGA 1: il titolo, dalla RIGA 2 il corpo") era
@@ -269,26 +291,61 @@ DECK_RULE = (
 # articolo usciva senza corpo, con un paragrafo intero stampato a 40px. Le
 # etichette esplicite sono molto più difficili da sbagliare, e quando
 # vengono sbagliate il parser se ne accorge (vedi _parse_labeled).
+# La riga FATTO non finisce in pagina: serve a far dichiarare al modello
+# l'argomento del pezzo PRIMA di scrivere il titolo, così le tre righe che
+# seguono hanno un riferimento comune a cui tornare invece di inseguire
+# ciascuna un fatto diverso. Costa una riga di output e si butta via.
 ARTICLE_FORMAT_RULE = (
-    "Rispondi SOLO con queste tre righe etichettate, senza markdown e "
+    "Rispondi SOLO con queste quattro righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
-    "TITOLO: il titolo, massimo 8 parole\n"
-    "SOMMARIO: una frase che aggiunge informazione al titolo\n"
-    "TESTO: 2-3 frasi di prosa (massimo 420 caratteri), che non ripetono "
-    "il titolo né il sommario\n\n"
+    "FATTO: in una riga, il singolo fatto che il pezzo racconta (riga di "
+    "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
+    "scrivere)\n"
+    "TITOLO: il titolo di quel fatto, massimo 8 parole\n"
+    "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
+    "TESTO: 2-3 frasi di prosa (massimo 420 caratteri) sullo stesso fatto, "
+    "che ne aggiungono i dettagli senza ricopiare le parole del titolo o "
+    "del sommario\n\n"
     f"{HEADLINE_RULE}\n\n{DECK_RULE}"
 )
 
 LEAD_FORMAT_RULE = (
-    "Rispondi SOLO con queste tre righe etichettate, senza markdown e "
+    "Rispondi SOLO con queste cinque righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
-    "TITOLO: il titolo di apertura, massimo 9 parole\n"
-    "SOMMARIO: una frase che aggiunge informazione al titolo\n"
+    "FATTO: in una riga, il singolo fatto che apre l'edizione (riga di "
+    "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
+    "scrivere)\n"
+    "SEZIONE: {sections}\n"
+    "TITOLO: il titolo di quel fatto, massimo 9 parole\n"
+    "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
     "TESTO: 2 paragrafi brevi (massimo 300 caratteri ciascuno) separati "
-    "da una riga vuota; il primo apre con il fatto principale, il secondo "
-    "aggiunge contesto o conseguenze\n\n"
+    "da una riga vuota, entrambi su quel fatto; il primo lo racconta, il "
+    "secondo aggiunge contesto o conseguenze\n\n"
     f"{HEADLINE_RULE}\n\n{DECK_RULE}"
 )
+
+# Risposta attesa nella riga SEZIONE quando l'apertura non appartiene a una
+# sezione sola. In pagina l'occhiello resta il solo "Apertura", che è più
+# onesto di una sezione presa a caso.
+CROSS_SECTION_MARKER = "TRASVERSALE"
+
+
+def _lead_section_line(sections: list[str]) -> str:
+    """Testo della riga SEZIONE, con l'elenco delle sezioni davvero esistenti.
+
+    Il modello non può inventarsi una sezione: o ne sceglie una di quelle
+    aperte oggi, o dichiara che il fatto le attraversa."""
+    if not sections:
+        return (
+            f"scrivi {CROSS_SECTION_MARKER} (oggi non ci sono sezioni fra "
+            "cui scegliere)"
+        )
+    listed = "; ".join(sections)
+    return (
+        "la sezione da cui viene il fatto qui sopra, copiata identica da "
+        f"questo elenco: {listed}. Se il fatto attraversa più sezioni, "
+        f"scrivi {CROSS_SECTION_MARKER}"
+    )
 
 
 DUPLICATE_MARKER = "DUPLICATO"
@@ -335,7 +392,11 @@ MAX_HEADLINE_CHARS = 90
 # dettaglio disponibile".
 MAX_DECK_CHARS = 190
 
-_LABELS = ("TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO")
+# FATTO e SEZIONE sono righe di servizio: FATTO non arriva mai in pagina,
+# SEZIONE diventa l'occhiello dell'apertura. Vanno comunque riconosciute
+# come etichette, altrimenti il parser le accoderebbe al blocco precedente
+# e il testo di lavoro finirebbe stampato dentro il pezzo.
+_LABELS = ("FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO")
 
 
 def _clean(text: str) -> str:
@@ -414,16 +475,60 @@ def _enforce_lengths(headline: str, deck: str, body: str) -> tuple[str, str, str
     if len(headline) > MAX_HEADLINE_CHARS:
         headline, overflow = _split_sentence(headline)
         if overflow:
-            # Quello che avanza dal titolo apre il sommario se è libero,
-            # altrimenti si accoda a quello che c'era già.
-            deck = f"{overflow} {deck}".strip() if deck else overflow
+            # Quello che avanza dal titolo apre il sommario se è libero.
+            # Se un sommario c'è già, l'avanzo scende invece nel corpo:
+            # incollarglielo davanti faceva un sommario di due frasi
+            # slegate, che è il difetto che si sta correggendo.
+            if deck:
+                body = f"{overflow} {body}".strip()
+            else:
+                deck = overflow
 
     if len(deck) > MAX_DECK_CHARS:
         deck, overflow = _split_sentence_at(deck, MAX_DECK_CHARS)
         if overflow:
             body = f"{overflow} {body}".strip()
 
-    return headline, deck, body
+    return headline, _drop_echo_deck(headline, deck), body
+
+
+def _normalized(text: str) -> str:
+    return " ".join(
+        "".join(c for c in text.lower() if c.isalnum() or c.isspace()).split()
+    )
+
+
+def _drop_echo_deck(headline: str, deck: str) -> str:
+    """Scarta il sommario che è il titolo detto due volte.
+
+    È l'altra faccia dell'incoerenza: se il sommario ricopia il titolo, la
+    riga azzurra sotto il titolo non aggiunge niente e vale meno dello
+    spazio che occupa. Meglio nessun sommario che un'eco."""
+    if not deck or not headline:
+        return deck
+    head, body = _normalized(headline), _normalized(deck)
+    if not head or not body:
+        return deck
+    return "" if head == body or head in body or body in head else deck
+
+
+def _unlabeled_lines(raw: str) -> list[str]:
+    """Righe della risposta senza quelle di servizio già interpretate.
+
+    Serve solo alla ricaduta «prima riga = titolo»: se il modello etichetta
+    FATTO e poi prosegue in prosa, senza questo filtro il titolo diventava
+    la riga di lavoro, cioè esattamente la frase che non deve andare in
+    pagina."""
+    kept = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        head = stripped.upper()
+        if any(head.startswith(f"{name}:") or head == name for name in _LABELS):
+            continue
+        kept.append(stripped)
+    return kept
 
 
 def _split_article(raw: str) -> tuple[str, str, str]:
@@ -439,7 +544,7 @@ def _split_article(raw: str) -> tuple[str, str, str]:
         # Nessuna etichetta riconosciuta: si ricade sulla vecchia regola
         # (prima riga = titolo) e poi si applica comunque il vincolo di
         # lunghezza, che è ciò che mancava prima.
-        lines = [l.strip() for l in raw.splitlines() if l.strip()]
+        lines = _unlabeled_lines(raw)
         if not lines:
             return "", "", ""
         headline = _clean(lines[0])
@@ -482,7 +587,7 @@ def write_topic_article(
         "Il pezzo si apre con il fatto più concreto e significativo e deve "
         "reggersi da solo, senza presupporre che il lettore sappia da dove "
         "arriva la notizia.\n\n"
-        f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
+        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
         + (f"{avoid_rule}\n\n" if avoid_rule else "")
         + f"{ARTICLE_FORMAT_RULE}\n\n"
         + source_text
@@ -496,25 +601,25 @@ def write_topic_article(
     return _split_article(raw)
 
 
-def _split_lead(raw: str) -> tuple[str, str, list[str]]:
-    """(titolo, occhiello, paragrafi) per l'apertura.
+def _split_lead(raw: str) -> tuple[str, str, list[str], str]:
+    """(titolo, sommario, paragrafi, sezione) per l'apertura.
 
     Stessa logica degli articoli, con in più la divisione del corpo in
-    paragrafi sulle righe vuote."""
+    paragrafi sulle righe vuote e la sezione dichiarata dal modello, che
+    diventa l'occhiello."""
     parts = _parse_labeled(raw)
     headline = _clean(parts.get("TITOLO", ""))
     deck = _clean(parts.get("SOMMARIO", ""))
+    section = _clean(parts.get("SEZIONE", ""))
     text = parts.get("TESTO", "")
 
     if not headline:
         # Nessuna etichetta: si ricade sul vecchio formato posizionale,
-        # prima riga titolo e seconda occhiello.
-        blocks = [b.strip() for b in raw.split("\n\n") if b.strip()]
-        if not blocks:
-            return "", "", []
-        first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()]
+        # prima riga titolo e seconda sommario.
+        blocks = [b for b in "\n".join(_unlabeled_lines(raw)).split("\n\n") if b.strip()]
+        first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()] if blocks else []
         if not first_lines:
-            return "", "", []
+            return "", "", [], section
         headline = _clean(first_lines[0])
         deck = deck or (first_lines[1] if len(first_lines) > 1 else "")
         rest = blocks[1:]
@@ -527,7 +632,31 @@ def _split_lead(raw: str) -> tuple[str, str, list[str]]:
         " ".join(l.strip() for l in block.splitlines() if l.strip())
         for block in text.split("\n\n")
     ]
-    return headline, deck, [p for p in paragraphs if p]
+    return headline, deck, [p for p in paragraphs if p], section
+
+
+def _match_section(declared: str, sections: list[str]) -> str:
+    """La sezione dichiarata dal modello, ricondotta a una di quelle vere.
+
+    L'occhiello dell'apertura deve nominare la sezione da cui la notizia
+    arriva davvero: una sezione inventata o approssimata è di nuovo
+    un'etichetta che dice una cosa diversa dal titolo che ha sotto. Quando
+    non c'è corrispondenza si torna alla stringa vuota, e in pagina resta
+    il solo "Apertura"."""
+    name = declared.strip().strip(".").strip()
+    if not name or name.upper() == CROSS_SECTION_MARKER:
+        return ""
+    lowered = name.casefold()
+    for section in sections:
+        if section.casefold() == lowered:
+            return section
+    for section in sections:
+        # Il modello a volte accorcia ("Mercato estivo" → "Mercato") o
+        # allunga il nome della sezione: basta che una contenga l'altra.
+        other = section.casefold()
+        if other and (other in lowered or lowered in other):
+            return section
+    return ""
 
 
 def write_lead_story(
@@ -535,15 +664,20 @@ def write_lead_story(
     model: str,
     messages_with_topic: list[tuple[str, SimpleMessage]],
     page_headlines: list[str] | None = None,
-) -> tuple[str, str, list[str]]:
-    """Genera (titolo, occhiello, paragrafi) per l'articolo di apertura,
-    basato sui temi più rilevanti/trasversali della giornata. Per giornate
-    molto attive riusa summarize_overall come fonte condensata invece di
-    rifare da zero il map-reduce sui messaggi grezzi. `page_headlines` sono
-    i titoli degli articoli già in pagina: servono a dare all'apertura un
-    taglio diverso invece di ripetere un pezzo che il lettore ha già sotto."""
+    sections: list[str] | None = None,
+) -> tuple[str, str, list[str], str]:
+    """Genera (titolo, sommario, paragrafi, sezione) per l'articolo di
+    apertura, basato sui temi più rilevanti/trasversali della giornata. Per
+    giornate molto attive riusa summarize_overall come fonte condensata
+    invece di rifare da zero il map-reduce sui messaggi grezzi.
+    `page_headlines` sono i titoli degli articoli già in pagina: servono a
+    dare all'apertura un taglio diverso invece di ripetere un pezzo che il
+    lettore ha già sotto. `sections` sono i topic attivi oggi, fra cui il
+    modello sceglie quello da cui l'apertura arriva: è l'occhiello, e
+    finché lo decideva il codice (il topic più attivo) poteva annunciare
+    una sezione che con la notizia non c'entrava."""
     if not messages_with_topic:
-        return "", "", []
+        return "", "", [], ""
 
     ordered = sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
     all_messages = [m for _, m in ordered]
@@ -570,16 +704,20 @@ def write_lead_story(
         else ""
     )
 
+    section_list = [s for s in (sections or []) if s]
+    format_rule = LEAD_FORMAT_RULE.format(sections=_lead_section_line(section_list))
+
     prompt = (
         "Sei il caporedattore e stai scrivendo l'articolo di apertura della "
         f"prima pagina di oggi. Di seguito trovi {source_label}.\n"
         "Individua il fatto più rilevante o il filo che attraversa più "
         "sezioni della giornata. Il titolo sia incisivo ma non "
         "sensazionalistico.\n\n"
-        f"{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
+        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
         + (f"{angle_rule}\n\n" if angle_rule else "")
-        + f"{LEAD_FORMAT_RULE}\n\n"
+        + f"{format_rule}\n\n"
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
-    return _split_lead(raw)
+    headline, deck, paragraphs, declared = _split_lead(raw)
+    return headline, deck, paragraphs, _match_section(declared, section_list)

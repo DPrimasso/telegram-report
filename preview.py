@@ -54,7 +54,8 @@ SAMPLE_ARTICLES = [
         topic="Partita",
         headline="L'amichevole finisce in parità, ma la difesa convince",
         deck=(
-            "Il rigore sbagliato in coda riapre la discussione sui tiratori designati"
+            "Nessun gol subito su azione, il pari arriva da un calcio piazzato "
+            "nella ripresa"
         ),
         body=(
             "Due tempi molto diversi: nel primo la squadra ha tenuto il pallino "

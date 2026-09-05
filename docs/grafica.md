@@ -115,6 +115,46 @@ dettaglio disponibile». Un h3 con dentro un paragrafo
 non è un difetto di stile: è una pagina rotta, e il layout non può essere
 l'unico posto in cui ce ne accorgiamo.
 
+### I tre gradini devono parlare della stessa cosa
+
+Sistemato il formato, è venuto fuori il difetto sotto: i tre gradini
+c'erano tutti, ma raccontavano tre fatti diversi — il titolo una cosa, il
+sommario un'altra, il testo un'altra ancora. Leggere un pezzo così è
+peggio che leggerne uno spoglio, perché ogni riga smentisce quella sopra.
+
+La causa era nelle istruzioni, che si respingevano a vicenda: il sommario
+doveva «AGGIUNGERE informazione al titolo invece di riformularlo», il
+testo «non ripetere il titolo né il sommario». Nessuna regola diceva che
+le tre righe parlano dello **stesso** fatto: il modello, per obbedire e
+non ripetersi, cambiava argomento a ogni riga — che è l'unico modo di non
+ripetersi che gli restava. Non ripetersi e restare sul pezzo sono due cose
+diverse, e vanno chieste entrambe.
+
+Le contromisure sono tre, dalla più grossa alla più piccola:
+
+- `COHERENCE_RULE`: **un pezzo racconta un solo fatto**. Il sommario lo
+  sviluppa, il testo ne dà i dettagli (chi, quando, cosa è stato deciso),
+  e quello che nel materiale non riguarda quel fatto resta fuori. Meglio
+  un pezzo corto che uno che tocca tre argomenti.
+- La riga `FATTO:`, prima del titolo: il modello dichiara di che cosa sta
+  per scrivere **prima** di scriverlo, e le tre righe che seguono hanno un
+  riferimento comune a cui tornare. Non finisce in pagina — è una riga di
+  lavoro, costa un rigo di output e si butta via — ma è ciò che impedisce
+  al titolo e al testo di partire ognuno per conto suo.
+- `_drop_echo_deck`: l'eco è l'altra faccia della stessa medaglia. Se il
+  sommario ricopia il titolo, la riga azzurra non dice niente e vale meno
+  dello spazio che occupa: si scarta.
+
+Stessa storia un gradino più su, nell'occhiello dell'apertura. Diceva
+`Apertura · <topic più attivo>`, deciso dal codice — ma il pezzo di
+apertura non è per forza quello del topic più attivo, e l'occhiello
+finiva per annunciare una sezione che con il titolo sotto non c'entrava.
+Ora la sezione la dichiara chi scrive il pezzo (riga `SEZIONE:`),
+scegliendola **fra i topic davvero attivi quel giorno**; il codice la
+riporta a uno di quei titoli e, se il fatto ne attraversa più d'una o non
+combacia con nessuna, in pagina resta il solo «Apertura», che è più onesto
+di una sezione presa a caso.
+
 ### Gli orari sono nel fuso del report, non in UTC
 
 Il grafico del ritmo della giornata è stato per un po' **ruotato di due

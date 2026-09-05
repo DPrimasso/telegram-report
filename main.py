@@ -178,15 +178,23 @@ async def _run_newspaper_report(
         )
 
     print("Scrivo l'articolo di apertura...")
-    lead_headline, lead_deck, lead_paragraphs = write_lead_story(
+    # L'occhiello dell'apertura lo sceglie chi scrive il pezzo, fra i topic
+    # davvero attivi oggi: prima lo decideva il codice prendendo il topic
+    # più attivo, che è un'altra cosa — la notizia di apertura poteva
+    # arrivare da un'altra sezione, e l'occhiello annunciava un argomento
+    # diverso da quello del titolo sotto.
+    active_topics = [
+        t.title
+        for t in sorted(topics, key=lambda t: len(t.messages), reverse=True)
+        if t.messages
+    ]
+    lead_headline, lead_deck, lead_paragraphs, lead_topic = write_lead_story(
         openai_client,
         config.openai_model,
         all_messages,
         page_headlines=[a.headline for a in articles],
+        sections=active_topics,
     )
-    # L'apertura non è un topic: il kicker prende il topic più attivo, che è
-    # quello da cui la giornata è stata trascinata.
-    lead_topic = articles[0].topic if articles else ""
     lead = Lead(
         kicker=lead_topic,
         headline=lead_headline,

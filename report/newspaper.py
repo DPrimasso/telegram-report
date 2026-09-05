@@ -81,7 +81,11 @@ END_MARK = '&#160;<span class="end-mark"></span>'
 
 @dataclass
 class Lead:
-    kicker: str          # topic di provenienza dell'apertura
+    # Sezione da cui arriva la notizia di apertura, dichiarata da chi
+    # scrive il pezzo. Vuota quando il fatto ne attraversa più d'una: in
+    # pagina resta il solo "Apertura", che è meglio di una sezione che non
+    # c'entra con il titolo che le sta sotto.
+    kicker: str
     headline: str
     deck: str
     paragraphs: list[str] = field(default_factory=list)
