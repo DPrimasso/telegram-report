@@ -15,7 +15,12 @@ from report.fetch import (
     get_group_title,
     list_topics,
 )
-from report.highlights import build_stats, hourly_counts, index_entries, pick_quote
+from report.highlights import (
+    build_stats,
+    hourly_counts,
+    pick_quote,
+    section_entries,
+)
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
 from report.report_builder import build_report
 from report.sections import load_section_map
@@ -191,19 +196,14 @@ async def _run_newspaper_report(
     # argomento diverso da quello del titolo sotto. Sono le sezioni e non
     # i topic perché è il vocabolario che il lettore trova nelle testate
     # più in basso: l'apertura deve nominare le stesse cose.
-    weight_by_section: dict[str, int] = {}
-    for topic in topics:
-        if topic.messages:
-            name = section_map.section_of(topic.title)
-            weight_by_section[name] = weight_by_section.get(name, 0) + len(topic.messages)
-    active_sections = sorted(weight_by_section, key=weight_by_section.get, reverse=True)
+    sections = section_entries(topics, section_map)
 
     lead_headline, lead_deck, lead_paragraphs, lead_section = write_lead_story(
         openai_client,
         config.openai_model,
         all_messages,
         page_headlines=[a.headline for a in articles],
-        sections=active_sections,
+        sections=[name for name, _ in sections],
     )
     lead = Lead(
         kicker=lead_section,
@@ -226,7 +226,7 @@ async def _run_newspaper_report(
             lead,
             articles,
             logo_path=logo if logo.exists() else None,
-            index_entries=index_entries(topics),
+            index_entries=sections,
             stats=build_stats(all_messages),
             quote=quote,
             hourly=hourly_counts(all_messages),

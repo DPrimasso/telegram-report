@@ -28,7 +28,9 @@ riepilogo. Due formati disponibili:
   con la stessa forma — le otto leghe di fantacalcio — prendono un blocco
   compatto invece di otto articoli uguali. La mappa topic → sezione si
   cambia da `REPORT_SECTIONS` senza toccare il codice; il perché sta in
-  [`docs/grafica.md`](docs/grafica.md).
+  [`docs/grafica.md`](docs/grafica.md). Anche l'indice in cima alla prima
+  pagina elenca le sezioni e non i topic: è la mappa dell'edizione, e
+  nomina le stesse cose che si trovano nelle testate più in basso.
 - **Grafica**: nessuna immagine (l'unica in pagina è il logo della
   testata). Il peso visivo lo fanno la tipografia e i dati — dato grande,
   capolettera, barrette di peso, box «In breve», grafico dell'andamento
@@ -99,6 +101,16 @@ personalizzare i default:
   `gpt-5.6-luna`). Cambiarlo qui basta: non serve toccare il codice. Sui
   modelli di ragionamento (famiglia `gpt-5`, serie `o*`) la temperatura non
   è regolabile e viene omessa dalle chiamate — vedi `report/llm.py`.
+- `REPORT_SECTIONS` (a quale sezione appartiene ogni topic; default: la
+  mappa di `report/sections.py`). Sintassi
+  `Napoli=SSC Napoli,Match Day;Calcio=Le Altre Squadre`: il punto e
+  virgola separa le sezioni, l'uguale il nome dai suoi topic, la virgola i
+  topic fra loro. Un topic non elencato finisce in «Altro», quindi aprirne
+  uno nuovo nel gruppo non rompe niente. L'ordine scritto qui non è
+  l'ordine in pagina: le sezioni si ordinano da sole, per messaggi.
+- `REPORT_SECTION_FAMILIES` (gruppi di topic con la stessa forma, che
+  vanno impaginati in un blocco compatto invece che come articoli
+  separati; default: le otto leghe di fantacalcio). Stessa sintassi.
 
 ### 5. Primo test manuale
 

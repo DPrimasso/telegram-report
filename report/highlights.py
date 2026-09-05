@@ -47,9 +47,29 @@ def hourly_counts(messages_with_topic: list[tuple[str, SimpleMessage]]) -> list[
 
 
 def index_entries(topics) -> list[tuple[str, int]]:
-    """Voci dell'indice: topic con almeno un messaggio, dal più attivo."""
+    """Topic con almeno un messaggio, dal più attivo."""
     entries = [(t.title, len(t.messages)) for t in topics if t.messages]
     entries.sort(key=lambda e: e[1], reverse=True)
+    return entries
+
+
+def section_entries(topics, section_map) -> list[tuple[str, int]]:
+    """Voci dell'indice: le sezioni attive, dalla più attiva.
+
+    L'indice è la mappa dell'edizione, e una mappa deve nominare le
+    stesse cose che si trovano nel territorio: da quando la pagina è
+    organizzata in sezioni, un indice di topic elencava quattordici voci
+    che nel corpo del giornale non comparivano mai come tali. In più i
+    topic il loro nome e il loro contatore ce l'hanno già — nel tag
+    dell'articolo, nella riga del blocco di famiglia, nella voce di "In
+    breve" — quindi ripeterli in cima era anche una ridondanza."""
+    totals: dict[str, int] = {}
+    for topic in topics:
+        if not topic.messages:
+            continue
+        name = section_map.section_of(topic.title)
+        totals[name] = totals.get(name, 0) + len(topic.messages)
+    entries = sorted(totals.items(), key=lambda e: e[1], reverse=True)
     return entries
 
 

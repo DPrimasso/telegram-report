@@ -168,7 +168,7 @@ class GraphicsOptions:
     end_mark: bool = True       # quadratino di fine articolo
     hourly_chart: bool = True   # andamento orario nella fascia di chiusura
     weight_bars: bool = True    # barretta di peso accanto al contatore messaggi
-    topic_glyphs: bool = True   # pittogramma nei tag e nell'indice
+    topic_glyphs: bool = True   # pittogramma nei tag dei pezzi e in breve
     share_bar: bool = True      # barra delle proporzioni sotto l'indice
     number_block: bool = True   # il dato grande sotto l'indice
     brief_box: bool = True      # i topic minori raccolti in un box "In breve"
@@ -241,9 +241,13 @@ p {{ margin: 0; }}
 .index {{ padding: 22px 56px 24px 56px; background: #fff; border-bottom: 2px solid {NAVY}; }}
 .index .section-label {{ display: block; margin-bottom: 14px; }}
 .index-chips {{ display: flex; flex-wrap: wrap; gap: 10px; }}
+/* Le chip dell'indice sono le sezioni dell'edizione, non i topic: sono
+   in maiuscoletto spaziato come le testate di sezione più in basso,
+   perché sono la stessa cosa vista da due distanze. */
 .chip {{
-  display: inline-flex; align-items: center; gap: 8px;
-  border: 2px solid {NAVY}; padding: 7px 12px; font-size: 17px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 10px;
+  border: 2px solid {NAVY}; padding: 7px 13px; font-size: 17px; font-weight: 800;
+  letter-spacing: 0.08em; text-transform: uppercase;
 }}
 .chip b {{ color: {AZZURRO_DEEP}; }}
 .chip .glyph {{ color: {AZZURRO_DEEP}; flex: none; }}
@@ -466,11 +470,16 @@ def _masthead(logo_uri: str | None, newspaper_name: str) -> str:
 def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
     if not entries:
         return ""
+    # Niente pittogramma sulle chip: le sezioni sono sei, e i segni
+    # disponibili ne distinguerebbero due o tre — le altre prenderebbero
+    # tutte lo stesso ripiego. Un simbolo ripetuto su metà delle voci non
+    # dice niente che il testo non dica già, che è la sola regola con cui
+    # in questo giornale un elemento grafico si tiene (vedi
+    # report/graphics.py). Sui tag dei pezzi, dove i topic sono
+    # ventinove, i pittogrammi restano.
     chips = "".join(
-        f'<span class="chip">'
-        f"{topic_glyph_svg(topic, size=18) if gfx.topic_glyphs else ''}"
-        f"{html.escape(topic)} <b>{count}</b></span>"
-        for topic, count in entries
+        f'<span class="chip">{html.escape(name)} <b>{count}</b></span>'
+        for name, count in entries
     )
     share = share_bar_svg(entries) if gfx.share_bar else ""
     return (
@@ -731,7 +740,10 @@ def _number_html(entries: list[tuple[str, int]]) -> str:
     perché quello spazio lo riempie di informazione."""
     if not entries:
         return ""
-    topic, count = entries[0]
+    # entries sono le sezioni: il dato grande dice quanto ha pesato la
+    # più grossa, che è un'affermazione sulla giornata più forte di
+    # quanto abbia pesato il singolo topic più chiacchierato.
+    name, count = entries[0]
     total = sum(c for _, c in entries)
     share = (
         f" — <b>{round(100 * count / total)}%</b> di tutto quello che si è detto"
@@ -741,7 +753,7 @@ def _number_html(entries: list[tuple[str, int]]) -> str:
     return (
         '<div class="number">'
         f'<span class="big">{count}</span>'
-        f'<span class="said">messaggi su <b>{html.escape(topic)}</b>{share}</span>'
+        f'<span class="said">messaggi su <b>{html.escape(name)}</b>{share}</span>'
         "</div>"
     )
 

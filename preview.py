@@ -144,17 +144,32 @@ SAMPLE_ARTICLES = [
     ),
 ]
 
+# L'indice del gazzettino: le sezioni attive, dalla più attiva. È la
+# mappa dell'edizione, e nomina le stesse cose che si trovano nelle
+# testate di sezione più in basso.
 SAMPLE_INDEX = [
+    ("FantaCalcio", 424),
+    ("Calcio", 119),
+    ("Altro", 113),
+    ("Napoli", 87),
+    ("Canale", 48),
+    ("Sport", 9),
+]
+
+# I topic, che in pagina compaiono nei tag dei pezzi e in "In breve".
+# Servono anche a catalogo.py, che mostra pittogrammi e barrette: quelli
+# distinguono i topic, non le sezioni.
+SAMPLE_TOPICS = [
     ("Mantraskarso", 132),
     ("Le Altre Squadre", 113),
     ("Spam Off Topic", 113),
     ("Match Day", 87),
-    ("Serie Flu’", 78),
+    ("Serie Flu\u2019", 78),
     ("Serie TvB", 64),
     ("Serie Eh", 52),
     ("FantaSkarso", 51),
     ("Editoriali Bellini", 31),
-    ("Seri eCcí", 26),
+    ("Seri eCc\u00ed", 26),
     ("Serie X", 21),
     ("Ko-Fi (SUPPORTO CANALE)", 17),
     ("Altri Sport", 9),

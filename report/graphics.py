@@ -11,7 +11,11 @@ La regola di stile che tiene insieme il file è una sola: **un elemento
 grafico deve dire qualcosa che il testo non dice**. Il grafico delle ore
 racconta il ritmo della giornata, la barretta accanto al contatore dice
 quanto pesa quel topic rispetto agli altri, il pittogramma distingue i
-topic a colpo d'occhio nell'indice. Il capolettera e il quadratino di
+topic a colpo d'occhio nel tag di un pezzo. Nell'indice, che dal
+passaggio alle sezioni elenca sei voci e non ventinove, i pittogrammi
+non ci sono: i segni disponibili ne distinguerebbero due o tre e le
+altre prenderebbero tutte lo stesso ripiego, cioe' un simbolo ripetuto
+che non dice niente. Il capolettera e il quadratino di
 fine articolo sono le uniche due eccezioni ammesse, e sono convenzioni
 tipografiche vecchie di secoli, non decorazione.
 

@@ -178,6 +178,32 @@ Tre regole, tutte nate guardando le giornate vere:
   intitolato, dentro la sua sezione, e i suoi topic non concorrono mai
   agli articoli pieni.
 
+**L'indice segue le sezioni.** Appena le sezioni sono comparse nel
+corpo del giornale, la pagina ha cominciato a parlare due lingue: in
+cima «IN QUESTA EDIZIONE» elencava quattordici chip di topic, e appena
+sotto il lettore trovava sei nomi di sezione che in quell'elenco non
+c'erano mai stati. L'indice non era più l'indice di quel giornale, era
+l'indice di com'era prima. In più era diventato ridondante: ogni topic
+che finisce in pagina porta già nome e contatore nel tag dell'articolo,
+nella riga del blocco di famiglia o nella voce di «In breve».
+
+Ora le chip sono le sezioni (`section_entries`), in maiuscoletto
+spaziato come le testate più in basso, perché sono la stessa cosa vista
+da due distanze. Di conseguenza la barra delle proporzioni divide la
+giornata in sei segmenti invece di quattordici — leggibile invece di
+decorativa — e il dato grande dice «424 messaggi su FantaCalcio, il 53%
+di tutto quello che si è detto», che sulla giornata è un'affermazione
+più forte di quanta ne facesse il singolo topic più chiacchierato. La
+prima pagina ci **guadagna** circa 140px, che è raro per una modifica
+che aggiunge informazione.
+
+Sulle chip di sezione non c'è pittogramma. I segni disponibili ne
+distinguerebbero due o tre — Canale, Calcio — e le altre prenderebbero
+tutte lo stesso ripiego: un simbolo ripetuto su metà delle voci non dice
+niente che il testo non dica già, che è la sola regola con cui qui un
+elemento grafico si tiene. Sui tag dei pezzi, dove i topic sono
+ventinove, i pittogrammi restano.
+
 Una sezione a cavallo di due pagine ripete la testata con «(segue)»: far
 ricominciare il lettore senza dirgli dove si trova è peggio che spendere
 un rigo. Nel conto dell'impaginazione la testata la paga il primo pezzo
