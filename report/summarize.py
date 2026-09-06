@@ -59,10 +59,16 @@ IDENTIFICAZIONE_RULE = (
     "Vale allo stesso modo per i numeri: le cifre, le date, gli orari e i "
     "risultati vanno scritti, non riassunti in 'una cifra importante' o "
     "'nei prossimi giorni'.\n"
-    "Se invece un nome nei messaggi non c'è davvero, non inventarlo e non "
-    "nasconderlo: dillo ('il nome non è stato fatto', 'la squadra non è "
-    "stata nominata'). È un'informazione anche quella, ed è diversa dal "
-    "restare sul vago."
+    # Qui c'era la coda sbagliata: "se un nome non c'è, dillo". Il modello
+    # ha ubbidito alla lettera e ogni pezzo è diventato in parte l'elenco
+    # di quello che non sapeva — "la data e il luogo non sono indicati",
+    # "il materiale non precisa". Un giornale non fa l'inventario dei
+    # propri buchi: scrive quello che sa e tace il resto. Il lettore non
+    # si accorge di una data mancante; si accorge benissimo di un pezzo
+    # che gli spiega di non avere la data.
+    "Se invece un nome nei messaggi non c'è, non inventarlo e non "
+    "segnalarne l'assenza: scrivi la frase senza, o non scriverla. Un "
+    "dettaglio che manca si omette in silenzio."
 )
 
 # Le cinque domande del giornalismo. Non sono una formula da manuale: sono
@@ -70,8 +76,9 @@ IDENTIFICAZIONE_RULE = (
 # chi e dove, quasi sempre.
 CINQUE_W_RULE = (
     "L'attacco deve rispondere a: chi, che cosa, quando, dove e — se i "
-    "messaggi lo dicono — perché. Se una di queste risposte manca perché "
-    "nei messaggi non c'è, il pezzo lo dichiara invece di girarci intorno."
+    "messaggi lo dicono — perché. Quello a cui i messaggi non rispondono "
+    "si lascia fuori senza dirlo: un attacco che nomina le proprie "
+    "lacune le rende la notizia."
 )
 
 # Il testo viene inviato a Telegram in modalità HTML: il markdown (**, #,
@@ -96,7 +103,12 @@ NO_META_RULE = (
     "Telegram', 'nel gruppo', 'nel topic', 'nella chat', 'dai messaggi "
     "emerge', 'i partecipanti hanno discusso'. Riporta direttamente il "
     "fatto, la proposta o la posizione, citando le persone per nome quando "
-    "i messaggi lo rendono esplicito."
+    "i messaggi lo rendono esplicito.\n"
+    "Non parlare MAI della tua fonte né di quello che non contiene: "
+    "niente 'il materiale', 'il materiale disponibile', 'non è indicato', "
+    "'non sono specificati', 'non è precisato', 'non risulta'. Un giornale "
+    "non dichiara quello che non ha potuto sapere: scrive quello che sa. "
+    "Se un dettaglio manca, la frase che lo conteneva non si scrive."
 )
 
 
@@ -712,6 +724,79 @@ def _segnala_se_generico(etichetta: str, headline: str, body: str) -> None:
         )
 
 
+# Le frasi che parlano della fonte invece che del fatto. Il prompt ora le
+# vieta, ma un divieto nel prompt è una richiesta: questo è il filtro che
+# le toglie comunque, ed è l'unica cosa che le tiene fuori dalla pagina in
+# modo affidabile.
+#
+# La forma è sempre la stessa: una negazione impersonale attaccata a un
+# verbo di registrazione ("non è indicato", "non sono specificati"), o la
+# parola "materiale" usata per dire "quello che ho letto". Nessuna delle
+# due appartiene al vocabolario di un giornale.
+_META_ASSENZA = re.compile(
+    r"(?:"
+    # "non è indicato", "non sono stati precisati", "non è stata riportata"
+    r"non\s+(?:è|e'|sono)\s+(?:stat[oaie]\s+)?"
+    r"(?:indicat|specificat|precisat|riportat|dichiarat|chiarit)"
+    # "il materiale non specifica", "il materiale registra soltanto".
+    # "materiale" da solo non basta: esiste anche il materiale rotabile
+    # della curva, e un filtro che lo scarta è un filtro che si mette a
+    # riscrivere le notizie.
+    r"|(?:il|nel|dal|sul)\s+materiale(?:\s+disponibile)?\s+"
+    r"(?:non\b|registra|indica|riporta|precisa|specifica|contiene|dice|segnala)"
+    r"|materiale\s+disponibile\s*[.,;]"
+    # "non viene indicato", "non vengono specificate"
+    r"|non\s+(?:viene|vengono)\s+(?:indicat|specificat|precisat)"
+    r")",
+    re.IGNORECASE,
+)
+
+# Taglio in frasi: il punto seguito da spazio. Grossolano — non conosce le
+# abbreviazioni — ma qui basta, perché le frasi da togliere finiscono
+# sempre con un punto vero.
+_FINE_FRASE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _togli_meta(testo: str) -> tuple[str, int]:
+    """Toglie le frasi che dichiarano quello che la fonte non dice.
+
+    Restituisce il testo ripulito e quante frasi sono cadute. Lavora per
+    frasi intere e non per sostituzione: "La data non è indicata" senza la
+    negazione diventerebbe una frase falsa, che è peggio.
+
+    Se di un capoverso non resta niente, il capoverso sparisce; se non
+    resta niente di niente si tiene il testo originale, perché un pezzo
+    con una frase di troppo è comunque meglio di un pezzo vuoto."""
+    if not testo:
+        return testo, 0
+    tolte = 0
+    capoversi = []
+    for blocco in re.split(r"\n\s*\n", testo):
+        tenute = []
+        for frase in _FINE_FRASE.split(blocco):
+            if frase.strip() and _META_ASSENZA.search(frase):
+                tolte += 1
+                continue
+            tenute.append(frase)
+        unito = " ".join(f.strip() for f in tenute if f.strip())
+        if unito:
+            capoversi.append(unito)
+    pulito = "\n\n".join(capoversi)
+    if not pulito:
+        return testo, 0
+    return pulito, tolte
+
+
+def _chiudi_virgolette(testo: str) -> str:
+    """Chiude un caporale rimasto aperto.
+
+    Un titolo come «Luca: «Il Napoli ha già perso due big match» esce dal
+    modello senza la chiusura una volta ogni tanto, e in pagina si vede."""
+    if testo.count("«") == testo.count("»") + 1 and not testo.endswith("»"):
+        return testo + "»"
+    return testo
+
+
 def _paragraphs_of(testo: str) -> str:
     """I capoversi del corpo, tenuti separati.
 
@@ -742,7 +827,16 @@ def _split_article(raw: str) -> tuple[str, str, str, str]:
         headline = _clean(lines[0])
         body = body or " ".join(lines[1:]).strip()
 
-    return (*_enforce_lengths(headline, deck, body), citazione)
+    headline, deck, body = _enforce_lengths(headline, deck, body)
+    headline = _chiudi_virgolette(headline)
+    # Il sommario è una frase sola: se è tutta "materiale", sparisce — un
+    # sommario è facoltativo, uno che parla della fonte no.
+    deck_pulito, _ = _togli_meta(deck)
+    deck = "" if not deck_pulito or _META_ASSENZA.search(deck) else deck
+    body, tolte = _togli_meta(body)
+    if tolte:
+        print(f"  tolte {tolte} frasi che parlavano di quello che i messaggi non dicono.")
+    return headline, deck, body, citazione
 
 
 def write_topic_article(
@@ -828,6 +922,12 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
         text = "\n\n".join(rest)
 
     headline, deck, text = _enforce_lengths(headline, deck, text)
+    headline = _chiudi_virgolette(headline)
+    if _META_ASSENZA.search(deck):
+        deck = ""
+    text, tolte = _togli_meta(text)
+    if tolte:
+        print(f"  apertura: tolte {tolte} frasi sulla fonte.")
     paragraphs = [
         " ".join(l.strip() for l in block.splitlines() if l.strip())
         for block in text.split("\n\n")
