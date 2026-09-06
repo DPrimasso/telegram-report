@@ -457,9 +457,12 @@ VIGNETTA_FORMAT_RULE = (
     "devono parlare del fatto dell'apertura e di nient'altro: una battuta "
     "bellissima su un altro argomento è la risposta sbagliata, perché in "
     "pagina finisce sotto questo titolo.\n"
-    "Copiale ESATTAMENTE come sono scritte: non riscriverle, non "
-    "correggere gli errori, non accorciarle. Una battuta che non compare "
-    "identica in una di quelle frasi viene scartata.\n"
+    "Ogni battuta è UNA SOLA riga di quell'elenco, copiata dal primo "
+    "all'ultimo carattere. Non unire due frasi in una, non ripetere un "
+    "pezzo due volte, non correggere gli errori, non accorciare. Una "
+    "battuta che non compare identica in una di quelle righe viene "
+    "scartata, e nella prova sul campo è successo proprio perché il "
+    "modello ne aveva fuse due.\n"
     "Due battute se c'è uno scambio vero fra due persone diverse, una "
     "sola se la frase migliore è rimasta senza risposta. Se sul fatto "
     "dell'apertura non c'è niente di riportabile, scrivi NESSUNA come "
@@ -613,14 +616,19 @@ _MIN_QUOTE_CHARS = 25
 _MAX_QUOTE_CHARS = 130
 
 
-# Sotto questa lunghezza un messaggio non porta fatti: porta tono. Su una
-# giornata di partita sono la maggioranza — "dai", "gol", "ma vaffa" — e
-# per scrivere novecento caratteri di cronaca ne leggiamo tremila.
+# Sotto questa lunghezza un messaggio non porta fatti: porta tono.
 #
-# Zero vuol dire spento: si accende solo quando l'istogramma della
-# giornata vera dice dove sta il confine. Tagliare a occhio qui vuol dire
-# perdere un fatto senza accorgersene.
-SOGLIA_RUMORE = 0
+# Il numero viene dall'istogramma del 5 settembre, non dal buon senso:
+#   0-10: 12%   10-20: 30%   20-40: 28%   40-80: 19%   80-160: 7%   160+: 4%
+#
+# Tagliare a venti prenderebbe il 42% dei messaggi, ed è troppo: a undici
+# caratteri ci sta "esce Lucca", che è un fatto. A dieci ci stanno "ahah",
+# "dai", "gol" e le emoji, e nient'altro. Quel 12% si può buttare senza
+# guardarlo.
+#
+# Il grosso del risparmio comunque non lo fa la soglia, lo fa il tetto:
+# la soglia serve a rendere più denso il campione che il tetto sceglie.
+SOGLIA_RUMORE = 10
 
 # Oltre questo numero di messaggi un topic non si legge tutto: si
 # campiona. Il tetto è alto di proposito — serve a fermare le giornate
@@ -647,7 +655,9 @@ def istogramma_lunghezze(messaggi) -> str:
     return "  lunghezze dei messaggi — " + ", ".join(pezzi)
 
 
-def campione_per_articolo(messaggi, soglia: int = 0, tetto: int = 0):
+def campione_per_articolo(
+    messaggi, soglia: int | None = None, tetto: int | None = None
+):
     """I messaggi da cui si scrive un articolo, tolto il rumore.
 
     Due filtri, in quest'ordine. Il primo toglie i messaggi troppo corti
@@ -655,12 +665,15 @@ def campione_per_articolo(messaggi, soglia: int = 0, tetto: int = 0):
     campiona a passo fisso lungo la giornata invece di prendere i primi:
     un articolo che perde la fine della partita è un articolo sbagliato,
     non un articolo corto, e i messaggi arrivano in ordine di tempo."""
-    soglia = soglia or SOGLIA_RUMORE
-    tetto = tetto or MAX_MESSAGGI_PER_ARTICOLO
+    # None vuol dire "usa il valore predefinito", zero vuol dire "spento":
+    # con `soglia or SOGLIA_RUMORE` le due cose si confondevano e il
+    # filtro non si poteva più disattivare per una prova.
+    soglia = SOGLIA_RUMORE if soglia is None else soglia
+    tetto = MAX_MESSAGGI_PER_ARTICOLO if tetto is None else tetto
     tenuti = [m for m in messaggi if len(m.text) >= soglia] if soglia else list(messaggi)
     if not tenuti:
         return list(messaggi)
-    if len(tenuti) <= tetto:
+    if not tetto or len(tenuti) <= tetto:
         return tenuti
     passo = len(tenuti) / tetto
     campione = [tenuti[int(i * passo)] for i in range(tetto)]
