@@ -31,6 +31,47 @@ GROUNDING_RULE = _GROUNDING_CORE + (
 GROUNDING_PROSE_RULE = _GROUNDING_CORE + (
     " Se il materiale è scarso, scrivi un pezzo più corto, anche di una sola "
     "frase, invece di allungarlo con contesto che nei messaggi non c'è."
+    # La seconda metà della regola, che mancava. "Non inventare nomi" letta
+    # da sola è un'istruzione a evitare i nomi, e infatti il modello
+    # scriveva "il centrocampista", "il club", "un esubero" anche quando
+    # nei messaggi il nome c'era scritto. Le due cose sono opposte: non
+    # aggiungerne di nuovi, e usare tutti quelli che ci sono.
+    " Questo però NON vuol dire scrivere vago: i nomi, le cifre e le date "
+    "che nei messaggi ci sono vanno usati tutti, e per esteso. Sostituire "
+    "un nome presente nel materiale con un'etichetta generica non è "
+    "prudenza, è un'informazione buttata via."
+)
+
+# La regola che il pezzo dell'esempio violava dall'inizio alla fine: un
+# articolo su un trasferimento che non diceva mai chi si trasferiva, da
+# dove e verso dove. Il lettore non era nel gruppo — è il punto di tutto
+# il gazzettino — quindi non ha nessun modo di riempire i vuoti da sé, e
+# un pezzo di etichette generiche gli lascia la sensazione di aver letto
+# senza aver capito.
+IDENTIFICAZIONE_RULE = (
+    "Nomina le cose. Alla prima volta che compaiono, una persona, una "
+    "squadra, una lega, una competizione o un torneo si chiamano con il "
+    "loro nome, quello scritto nei messaggi; dalla seconda in poi puoi "
+    "usare la formula breve ('il centrocampista', 'il club', 'la lega'). "
+    "Un pezzo che per tutta la sua lunghezza parla di 'un giocatore', 'una "
+    "squadra' o 'un esubero' non si capisce: chi legge non era nel gruppo "
+    "e non ha modo di sapere di chi si sta parlando.\n"
+    "Vale allo stesso modo per i numeri: le cifre, le date, gli orari e i "
+    "risultati vanno scritti, non riassunti in 'una cifra importante' o "
+    "'nei prossimi giorni'.\n"
+    "Se invece un nome nei messaggi non c'è davvero, non inventarlo e non "
+    "nasconderlo: dillo ('il nome non è stato fatto', 'la squadra non è "
+    "stata nominata'). È un'informazione anche quella, ed è diversa dal "
+    "restare sul vago."
+)
+
+# Le cinque domande del giornalismo. Non sono una formula da manuale: sono
+# esattamente le cose che mancavano quando un pezzo risultava incompleto —
+# chi e dove, quasi sempre.
+CINQUE_W_RULE = (
+    "L'attacco deve rispondere a: chi, che cosa, quando, dove e — se i "
+    "messaggi lo dicono — perché. Se una di queste risposte manca perché "
+    "nei messaggi non c'è, il pezzo lo dichiara invece di girarci intorno."
 )
 
 # Il testo viene inviato a Telegram in modalità HTML: il markdown (**, #,
@@ -142,7 +183,8 @@ def summarize_topic(
             "prese, dubbi sollevati); altrimenti limitati a descrivere "
             "l'argomento senza inventare dettagli mancanti. Italiano, tono "
             f"neutro e informativo. Sintetizza, non ripetere i messaggi "
-            f"parola per parola.\n\n{GROUNDING_RULE}\n\n{NO_META_RULE}\n\n{FORMAT_RULE}\n\n"
+            f"parola per parola.\n\n{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n"
+            f"{NO_META_RULE}\n\n{FORMAT_RULE}\n\n"
             f"Messaggi:\n" + transcript
         )
         return _call_openai(client, model, prompt)
@@ -154,7 +196,8 @@ def summarize_topic(
             f'Riassumi in punti elenco (massimo 3-4 punti) i temi discussi '
             f'in questa porzione di conversazione del topic "{topic_title}", '
             f'aggiungendo contesto solo se esplicitamente presente nei '
-            f'messaggi.\n\n{GROUNDING_RULE}\n\n{NO_META_RULE}\n\n{FORMAT_RULE}\n\n{transcript}'
+            f'messaggi.\n\n{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n'
+            f'{NO_META_RULE}\n\n{FORMAT_RULE}\n\n{transcript}'
         )
         partial_summaries.append(_call_openai(client, model, prompt))
 
@@ -164,7 +207,9 @@ def summarize_topic(
         f'oggi nel topic "{topic_title}". Unificali in un unico riepilogo '
         f"(massimo {budget} punti elenco), eliminando le ripetizioni.\n\n"
         f"{GROUNDING_RULE} Non aggiungere nulla che non sia già presente nei "
-        f"riassunti parziali sotto.\n\n{NO_META_RULE}\n\n{FORMAT_RULE}\n\n" + combined
+        f"riassunti parziali sotto. I nomi propri, le cifre e le date "
+        f"presenti nei riassunti parziali vanno riportati tutti.\n\n"
+        f"{NO_META_RULE}\n\n{FORMAT_RULE}\n\n" + combined
     )
     return _call_openai(client, model, final_prompt)
 
@@ -202,7 +247,8 @@ def summarize_overall(
             "Di seguito trovi TUTTI i messaggi scambiati oggi nel gruppo, di "
             "tutti i topic insieme, in ordine cronologico (tra parentesi il "
             f"topic di provenienza).\n{highlight_rule}\n\n"
-            f"{GROUNDING_RULE}\n\n{NO_META_RULE}\n\n{FORMAT_RULE}\n\nMessaggi:\n" + transcript
+            f"{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n"
+            f"{NO_META_RULE}\n\n{FORMAT_RULE}\n\nMessaggi:\n" + transcript
         )
         return _call_openai(client, model, prompt)
 
@@ -282,7 +328,8 @@ ATTACCO_RULE = (
     "il terreno — comincia dal fatto, con il verbo principale nella prima "
     "riga, e si regge da solo anche staccato dal resto del pezzo. Riprende "
     "il fatto del titolo e lo dice per intero: ridire il fatto va bene, "
-    "ricopiare la frase del titolo no."
+    "ricopiare la frase del titolo no.\n"
+    + CINQUE_W_RULE
 )
 
 # La piramide rovesciata: la forma con cui si scrive un pezzo di cronaca da
@@ -639,6 +686,32 @@ def _unlabeled_lines(raw: str) -> list[str]:
     return kept
 
 
+# Un pezzo che non nomina niente. Il controllo è grossolano di proposito —
+# non sa che cosa sia un nome proprio, sa solo che una maiuscola in mezzo a
+# una frase o una cifra sono l'unica traccia che un pezzo contenga qualcosa
+# di specifico. Non blocca niente: stampa una riga nel log della giornata,
+# perché il difetto è invisibile finché non si legge il giornale, e a
+# quel punto è stato già spedito.
+_MAIUSCOLA_INTERNA = re.compile(r"(?<![.!?]\s)(?<!^)(?<!\n)\b[A-ZÀÈÉÌÒÙ][a-zà-ù]{2,}")
+_CIFRA = re.compile(r"\d")
+
+
+def _senza_riferimenti(testo: str) -> bool:
+    """Vero se nel pezzo non compare nessun nome proprio né nessuna cifra."""
+    if not testo:
+        return False
+    return not _MAIUSCOLA_INTERNA.search(testo) and not _CIFRA.search(testo)
+
+
+def _segnala_se_generico(etichetta: str, headline: str, body: str) -> None:
+    if _senza_riferimenti(f"{headline} {body}"):
+        print(
+            f"  {etichetta}: il pezzo non nomina nessuno e non porta una "
+            "cifra — o i messaggi non dicevano niente di specifico, o è "
+            "uscito generico."
+        )
+
+
 def _paragraphs_of(testo: str) -> str:
     """I capoversi del corpo, tenuti separati.
 
@@ -701,12 +774,14 @@ def write_topic_article(
     avoid_rule = _avoid_repetition_rule(written_so_far or [])
     prompt = (
         f'Sei un cronista di quotidiano e stai scrivendo il pezzo della '
-        f'sezione "{topic_title}" per la prima pagina di oggi. Di seguito '
+        f'sezione "{topic_title}" per le pagine interne di oggi. Di seguito '
         f"trovi {source_label}.\n"
-        "Il pezzo si apre con il fatto più concreto e significativo e deve "
-        "reggersi da solo, senza presupporre che il lettore sappia da dove "
-        "arriva la notizia.\n\n"
-        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
+        "Il pezzo si apre con il fatto più concreto e significativo. Chi lo "
+        "legge NON era nella conversazione da cui la notizia arriva e non "
+        "sa niente di quello che è successo: deve capire tutto dal pezzo, "
+        "senza dover indovinare di chi o di che cosa si sta parlando.\n\n"
+        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n"
+        f"{IDENTIFICAZIONE_RULE}\n\n{STYLE_RULE}\n\n"
         + (f"{avoid_rule}\n\n" if avoid_rule else "")
         + f"{ARTICLE_FORMAT_RULE}\n\n"
         + source_text
@@ -718,6 +793,7 @@ def write_topic_article(
     if raw.strip().upper().startswith(DUPLICATE_MARKER):
         return "", "", "", None
     headline, deck, body, citazione = _split_article(raw)
+    _segnala_se_generico(topic_title, headline, body)
     # La verifica gira sui messaggi veri del topic anche quando il pezzo è
     # stato scritto dal riassunto condensato: è la fonte, e il riassunto
     # non lo è.
@@ -839,14 +915,18 @@ def write_lead_story(
         f"prima pagina di oggi. Di seguito trovi {source_label}.\n"
         "Individua il fatto più rilevante o il filo che attraversa più "
         "sezioni della giornata. Il titolo sia incisivo ma non "
-        "sensazionalistico.\n\n"
-        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n{STYLE_RULE}\n\n"
+        "sensazionalistico.\n"
+        "Chi legge NON era nella conversazione da cui la notizia arriva: "
+        "l'apertura deve spiegargli il fatto per intero, nomi compresi.\n\n"
+        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n"
+        f"{IDENTIFICAZIONE_RULE}\n\n{STYLE_RULE}\n\n"
         + (f"{angle_rule}\n\n" if angle_rule else "")
         + f"{format_rule}\n\n"
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
     headline, deck, paragraphs, declared, citazione = _split_lead(raw)
+    _segnala_se_generico("apertura", headline, " ".join(paragraphs))
     return (
         headline,
         deck,
