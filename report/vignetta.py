@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from report import llm
+from report.summarize import campione_citabile
 from report.newspaper import Balloon, Vignetta
 
 if TYPE_CHECKING:
@@ -175,16 +176,24 @@ def _prompt(toni: list[str], tema: str) -> str:
 _MINIMI_PER_SEZIONE = 12
 
 
+# Quante frasi al massimo finiscono nel prompt della vignetta. Era la
+# chiamata col rapporto peggiore di tutto il sistema: novantamila token in
+# ingresso, su una giornata di partita, per riceverne ventinove. Il filtro
+# di sezione da solo non basta, perché quando l'apertura è del Napoli la
+# sezione dell'apertura È la sezione grossa.
+_MAX_CANDIDATI = 400
+
+
 def _candidati(
     messages_with_topic: list[tuple[str, "SimpleMessage"]],
 ) -> list[tuple[str, "SimpleMessage"]]:
-    return [
-        (topic, m)
-        for topic, m in sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
-        if _MIN_BATTUTA <= len(m.text) <= _MAX_BATTUTA
-        and "http" not in m.text
-        and not m.text.startswith("[")
-    ]
+    """Le frasi che possono diventare una battuta, in ordine di tempo."""
+    return campione_citabile(
+        messages_with_topic,
+        tetto=len(messages_with_topic),  # nessun tetto qui: lo mette dopo
+        minimo=_MIN_BATTUTA,
+        massimo=_MAX_BATTUTA,
+    )
 
 
 def _della_sezione(candidati, topic_sezione) -> list:
@@ -257,7 +266,12 @@ def pick_vignetta(
     if not messages_with_topic or not tema:
         return None
 
-    usable = _della_sezione(_candidati(messages_with_topic), topic_sezione)
+    ristretti = _della_sezione(_candidati(messages_with_topic), topic_sezione)
+    # Il tetto va per ultimo: prima si sceglie il recinto giusto (la
+    # sezione dell'apertura), poi si sfoltisce dentro quel recinto.
+    usable = campione_citabile(
+        ristretti, _MAX_CANDIDATI, minimo=_MIN_BATTUTA, massimo=_MAX_BATTUTA
+    )
     if not usable:
         return None
 

@@ -21,13 +21,20 @@ from report.highlights import (
     pick_quote,
     section_entries,
 )
-from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
+from report.newspaper import (
+    Article,
+    Lead,
+    build_pages_html,
+    render_html_to_png,
+    topics_needing_body,
+)
 from report.vignetta import Biblioteca, pick_vignetta
 from report.report_builder import build_report
 from report.sections import load_section_map
 from report.send import send_photo_report, send_report
 from report.summarize import (
     summarize_overall,
+    write_brief_headlines,
     summarize_topic,
     write_lead_story,
     write_topic_article,
@@ -155,7 +162,36 @@ async def _run_newspaper_report(
 
     section_map = load_section_map()
 
+    attivi = [t for t in topics if t.messages]
+
+    # Chi merita un pezzo per esteso si decide PRIMA di scriverlo. In
+    # pagina i pezzi pieni sono cinque più i blocchi di famiglia, e tutto
+    # il resto esce come una riga di titolo: scrivere quattordici articoli
+    # interi per pubblicarne cinque significava pagare nove volte
+    # milleottocento token di regole per mostrare otto parole.
+    con_corpo = topics_needing_body(
+        [
+            (t.title, len(t.messages), section_map.family_of(t.title))
+            for t in attivi
+        ]
+    )
+
     articles: list[Article] = []
+
+    def aggiungi(titolo: str, headline: str, deck: str, body: str, quote, n: int) -> None:
+        articles.append(
+            Article(
+                topic=titolo,
+                headline=headline,
+                deck=deck,
+                body=body,
+                count=n,
+                section=section_map.section_of(titolo),
+                family=section_map.family_of(titolo),
+                quote=quote,
+            )
+        )
+
     # Si scrive dal topic più attivo al meno attivo, e l'ordine conta: chi
     # ha discusso di più un argomento se lo tiene, mentre i topic che lo
     # hanno solo sfiorato lo riconoscono come già raccontato e si fermano
@@ -163,8 +199,9 @@ async def _run_newspaper_report(
     # notizia sarebbe finita a chi ne ha parlato meno. La lista esce quindi
     # già ordinata per volume: l'ordine con cui i pezzi si LEGGONO lo
     # decide poi arrange_sections, che è un'altra cosa.
-    for topic in sorted(topics, key=lambda t: len(t.messages), reverse=True):
-        if not topic.messages:
+    ordinati = sorted(attivi, key=lambda t: len(t.messages), reverse=True)
+    for topic in ordinati:
+        if topic.title not in con_corpo:
             continue
         print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
         headline, deck, body, virgolettato = write_topic_article(
@@ -177,18 +214,22 @@ async def _run_newspaper_report(
         if not headline:
             print(f"  '{topic.title}': stesso fatto di un pezzo già in pagina, non lo ripeto.")
             continue
-        articles.append(
-            Article(
-                topic=topic.title,
-                headline=headline,
-                deck=deck,
-                body=body,
-                count=len(topic.messages),
-                section=section_map.section_of(topic.title),
-                family=section_map.family_of(topic.title),
-                quote=virgolettato,
-            )
+        aggiungi(topic.title, headline, deck, body, virgolettato, len(topic.messages))
+
+    # I topic minori, tutti insieme in una chiamata sola.
+    minori = [t for t in ordinati if t.title not in con_corpo]
+    if minori:
+        print(f"Scrivo i titoli delle brevi ({len(minori)} temi) in una chiamata...")
+        titoli = write_brief_headlines(
+            openai_client,
+            config.openai_model,
+            [(t.title, t.messages) for t in minori],
+            written_so_far=[(a.headline, a.body) for a in articles],
         )
+        for topic in minori:
+            headline = titoli.get(topic.title)
+            if headline:
+                aggiungi(topic.title, headline, "", "", None, len(topic.messages))
 
     print("Scrivo l'articolo di apertura...")
     # L'occhiello dell'apertura lo sceglie chi scrive il pezzo, fra le
@@ -212,6 +253,12 @@ async def _run_newspaper_report(
         all_messages,
         page_headlines=[a.headline for a in articles],
         sections=[name for name, _ in sections],
+        # L'apertura legge i pezzi delle pagine interne invece di
+        # rileggersi la giornata: sono gli stessi fatti, già scelti e già
+        # scritti, e costano un ventesimo.
+        articoli=[
+            (a.topic, a.headline, a.deck, a.body, a.count) for a in articles
+        ],
     )
     lead = Lead(
         kicker=lead_section,

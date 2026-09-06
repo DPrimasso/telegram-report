@@ -1002,6 +1002,36 @@ def _dentro_html(righe: list[tuple[str, str, int]]) -> str:
     )
 
 
+def topics_needing_body(
+    entries: list[tuple[str, int, str]],
+    *,
+    max_full: int = MAX_FULL_ARTICLES,
+    margin: int = 2,
+) -> set[str]:
+    """Quali topic avranno un articolo per esteso, deciso PRIMA di scriverlo.
+
+    arrange_sections taglia a `max_full` pezzi pieni e manda tutto il resto
+    fra le voci in breve e i blocchi di famiglia, dove in pagina esce
+    soltanto il titolo. Ma quel taglio arriva a valle: fino a ieri si
+    scrivevano quattordici articoli interi per pubblicarne cinque, e gli
+    altri nove venivano pagati per intero per mostrare una riga.
+
+    Qui la stessa regola si applica prima, perché non dipende da niente
+    che non si sappia già: il volume dei messaggi e la famiglia. I topic
+    di famiglia non concorrono mai — vanno nel loro blocco compatto — e i
+    restanti si ordinano per volume.
+
+    `margin` tiene qualche pezzo di scorta oltre il taglio: un articolo
+    può uscire come DUPLICATO e sparire dalla pagina, promuovendo il
+    successivo, che a quel punto un corpo deve averlo.
+
+    `entries` sono (titolo, messaggi, famiglia) in qualunque ordine."""
+    candidati = sorted(
+        (t for t in entries if not t[2]), key=lambda t: t[1], reverse=True
+    )
+    return {titolo for titolo, _, _ in candidati[: max_full + margin]}
+
+
 def arrange_sections(
     articles: list[Article],
     *,

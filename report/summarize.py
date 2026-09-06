@@ -1,9 +1,18 @@
+from __future__ import annotations
+
 import re
+from typing import TYPE_CHECKING
 
 from openai import OpenAI
 
 from report import llm
-from report.fetch import SimpleMessage
+
+if TYPE_CHECKING:
+    # Solo per le annotazioni. report.fetch tira dentro Telethon, e da
+    # quando la vignetta importa campione_citabile da qui, importarlo
+    # davvero impediva a preview.py e a biblioteca.py di partire dove
+    # Telegram non serve.
+    from report.fetch import SimpleMessage
 
 # Soglia approssimativa (in caratteri) oltre la quale si passa a un
 # riassunto map-reduce invece di un'unica chiamata.
@@ -421,6 +430,18 @@ ARTICLE_FORMAT_RULE = (
     f"\n\n{QUOTE_RULE}"
 )
 
+# Il blocco che non cambia mai fra una chiamata e l'altra. Sta tutto
+# insieme e va messo IN TESTA a ogni prompt di prosa, prima di qualunque
+# parte variabile: sono 1.800 token identici ripetuti a ogni articolo, e
+# quando sono un prefisso comune la cache dei prompt può fatturarli a
+# tariffa ridotta invece che pieni quattordici volte. Se restano in mezzo
+# al prompt, dopo il nome del topic, il prefisso condiviso è lungo zero.
+REGOLE_DI_PROSA = (
+    f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n"
+    f"{IDENTIFICAZIONE_RULE}\n\n{STYLE_RULE}"
+)
+
+
 LEAD_FORMAT_RULE = (
     "Rispondi SOLO con queste sei righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
@@ -474,6 +495,20 @@ def _lead_section_line(sections: list[str]) -> str:
 DUPLICATE_MARKER = "DUPLICATO"
 
 
+def _prima_frase(testo: str, massimo: int = 200) -> str:
+    """L'attacco di un pezzo: la prima frase, o quello che ci sta.
+
+    Serve solo a far vedere agli altri articoli come questo comincia, per
+    non farlo ricalcare."""
+    testo = " ".join(testo.split())
+    if not testo:
+        return ""
+    taglio = _FINE_FRASE.split(testo, maxsplit=1)[0]
+    if len(taglio) <= massimo:
+        return taglio
+    return taglio[:massimo].rsplit(" ", 1)[0] + "…"
+
+
 def _avoid_repetition_rule(written: list[tuple[str, str]]) -> str:
     """Ogni articolo viene generato da una chiamata separata, che di per sé
     non sa nulla degli altri pezzi della pagina.
@@ -489,7 +524,17 @@ def _avoid_repetition_rule(written: list[tuple[str, str]]) -> str:
     if not pieces:
         return ""
 
-    already = "\n".join(f"- {h}: {b}" for h, b in pieces)
+    # Del pezzo già scritto bastano il titolo e l'attacco. Il titolo dice
+    # qual è il fatto, ed è su quello che si riconosce un doppione;
+    # l'attacco è la sola frase che serve non ricalcare, perché è quella
+    # che il modello sta per scrivere. Il resto del corpo non aggiunge
+    # niente a nessuna delle due decisioni e costava, con i corpi da 900
+    # caratteri, trentamila token cumulativi per edizione: quasi un quarto
+    # dell'ingresso di una giornata normale, speso per rileggere quello
+    # che avevamo appena scritto.
+    already = "\n".join(
+        f"- {h}: {_prima_frase(b)}" if b else f"- {h}" for h, b in pieces
+    )
     return (
         "Questo pezzo comparirà accanto ad altri nella stessa pagina. "
         f"Pezzi già scritti per l'edizione di oggi:\n{already}\n"
@@ -524,8 +569,50 @@ _LABELS = ("FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO", "CITA
 # Le stesse soglie della frase del giorno: sotto, una citazione non dice
 # niente ("vero", "esatto"); sopra, non è più un virgolettato ma un
 # paragrafo fra virgolette.
+# Quante frasi grezze accompagnano i pezzi nel prompt dell'apertura: le
+# bastano per scegliere un virgolettato vero senza rileggere la giornata.
+_CITABILI_PER_APERTURA = 200
+
 _MIN_QUOTE_CHARS = 25
 _MAX_QUOTE_CHARS = 130
+
+
+def campione_citabile(
+    messages_with_topic,
+    tetto: int,
+    minimo: int = 0,
+    massimo: int = 0,
+):
+    """Le frasi da cui si può ricavare una citazione, al massimo `tetto`.
+
+    Serve a chi deve scegliere UNA frase vera dentro una giornata intera:
+    l'apertura per il suo virgolettato, la vignetta per le sue battute.
+    Mandare tutti i messaggi del giorno per ricavarne una riga è la
+    chiamata col rapporto peggiore di tutto il sistema — novantamila token
+    in ingresso per ventinove in uscita.
+
+    Il filtro di lunghezza è quello della frase del giorno: sotto il minimo
+    un messaggio non dice niente, sopra il massimo non è una citazione ma
+    un paragrafo. Se dentro la fascia i candidati restano troppi, si
+    tengono i più lunghi — dentro una fascia stretta, più lungo vuol dire
+    più contenuto — e si rimettono in ordine di tempo, perché uno scambio
+    a due voci deve restare leggibile come scambio."""
+    minimo = minimo or _MIN_QUOTE_CHARS
+    massimo = massimo or _MAX_QUOTE_CHARS
+    candidati = [
+        (topic, m)
+        for topic, m in messages_with_topic
+        if minimo <= len(m.text) <= massimo
+        and "http" not in m.text
+        and not m.text.startswith("[")
+    ]
+    candidati.sort(key=lambda coppia: coppia[1].timestamp)
+    if len(candidati) <= tetto:
+        return candidati
+    scelti = sorted(candidati, key=lambda coppia: len(coppia[1].text), reverse=True)[:tetto]
+    scelti.sort(key=lambda coppia: coppia[1].timestamp)
+    print(f"  {len(candidati)} frasi candidate, ne mando {tetto}.")
+    return scelti
 
 
 def _verify_quote(raw: str, messages) -> "Quote | None":
@@ -867,17 +954,19 @@ def write_topic_article(
 
     avoid_rule = _avoid_repetition_rule(written_so_far or [])
     prompt = (
-        f'Sei un cronista di quotidiano e stai scrivendo il pezzo della '
-        f'sezione "{topic_title}" per le pagine interne di oggi. Di seguito '
-        f"trovi {source_label}.\n"
-        "Il pezzo si apre con il fatto più concreto e significativo. Chi lo "
-        "legge NON era nella conversazione da cui la notizia arriva e non "
-        "sa niente di quello che è successo: deve capire tutto dal pezzo, "
-        "senza dover indovinare di chi o di che cosa si sta parlando.\n\n"
-        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n"
-        f"{IDENTIFICAZIONE_RULE}\n\n{STYLE_RULE}\n\n"
+        # Invariante per prima: è il prefisso che tutte le chiamate
+        # dell'edizione hanno in comune.
+        "Sei un cronista di quotidiano e stai scrivendo un pezzo per le "
+        "pagine interne del gazzettino di oggi. Chi lo legge NON era nella "
+        "conversazione da cui la notizia arriva e non sa niente di quello "
+        "che è successo: deve capire tutto dal pezzo, senza dover "
+        "indovinare di chi o di che cosa si sta parlando. Il pezzo si apre "
+        "con il fatto più concreto e significativo.\n\n"
+        f"{REGOLE_DI_PROSA}\n\n{ARTICLE_FORMAT_RULE}\n\n"
+        # Da qui in giù cambia a ogni chiamata.
+        f'Il pezzo di adesso è quello della sezione "{topic_title}". Di '
+        f"seguito trovi {source_label}.\n\n"
         + (f"{avoid_rule}\n\n" if avoid_rule else "")
-        + f"{ARTICLE_FORMAT_RULE}\n\n"
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
@@ -892,6 +981,87 @@ def write_topic_article(
     # stato scritto dal riassunto condensato: è la fonte, e il riassunto
     # non lo è.
     return headline, deck, body, _verify_quote(citazione, messages)
+
+
+# Quanti messaggi di un topic minore bastano per cavarne un titolo. Sono
+# pezzi che in pagina escono come una riga sola: mandare duecento messaggi
+# per ricavarne otto parole è lo stesso spreco, in piccolo, che si sta
+# togliendo in grande.
+_MESSAGGI_PER_TITOLO = 60
+
+
+def write_brief_headlines(
+    client: OpenAI,
+    model: str,
+    topics: list[tuple[str, list[SimpleMessage]]],
+    written_so_far: list[tuple[str, str]] | None = None,
+) -> dict[str, str]:
+    """Un titolo per ciascuno dei topic minori, in UNA chiamata sola.
+
+    In pagina queste voci — le righe di "In breve" e quelle dei blocchi di
+    famiglia — mostrano soltanto il titolo. Scriverle con lo stesso prompt
+    degli articoli pieni voleva dire pagare milleottocento token di regole
+    e la lista dei pezzi già scritti per ogni riga, nove volte su una
+    giornata normale.
+
+    Una chiamata sola costa meno e decide meglio: vede tutti i topic
+    minori insieme, quindi può evitare che due righe dicano la stessa
+    cosa, cosa che nove chiamate separate potevano fare solo passandosi
+    una lista che cresceva.
+
+    Restituisce {titolo del topic: titolo del pezzo}. I topic per cui il
+    modello non risponde restano fuori, e in pagina non compaiono."""
+    attivi = [(t, m) for t, m in topics if m]
+    if not attivi:
+        return {}
+
+    blocchi = []
+    for titolo, messaggi in attivi:
+        # Degli ultimi si tiene la coda: in una discussione la conclusione
+        # sta in fondo, e per un titolo è quello che serve.
+        campione = messaggi[-_MESSAGGI_PER_TITOLO:]
+        blocchi.append(f"### {titolo}\n" + _format_transcript(campione))
+
+    gia = ""
+    scritti = [h for h, _ in (written_so_far or []) if h]
+    if scritti:
+        gia = (
+            "Nella stessa edizione compaiono già questi titoli:\n"
+            + "\n".join(f"- {h}" for h in scritti)
+            + "\nNon ripeterli e non ripetere lo stesso fatto.\n\n"
+        )
+
+    prompt = (
+        "Sei un cronista di quotidiano. Per ognuno dei temi qui sotto "
+        "scrivi UN SOLO titolo, quello che andrà nel riquadro delle brevi "
+        "del gazzettino di oggi. Non scrivere articoli: solo il titolo.\n\n"
+        f"{HEADLINE_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n"
+        f"{GROUNDING_PROSE_RULE}\n\n{NO_META_RULE}\n\n"
+        "Rispondi con una riga per tema, in questo formato esatto e senza "
+        "altro testo:\n"
+        "NOME DEL TEMA | il titolo\n"
+        "Il nome del tema va copiato identico a come compare qui sotto "
+        "dopo '###'. Se di un tema non c'è niente da titolare, salta la "
+        "sua riga.\n\n"
+        + gia
+        + "\n\n".join(blocchi)
+    )
+    raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
+
+    noti = {t for t, _ in attivi}
+    out: dict[str, str] = {}
+    for riga in (raw or "").splitlines():
+        nome, barra, titolo = riga.partition("|")
+        if not barra:
+            continue
+        nome = _clean(nome).strip("# ").strip()
+        titolo = _chiudi_virgolette(_clean(titolo))
+        if nome in noti and titolo:
+            out[nome] = _enforce_lengths(titolo, "", "")[0]
+    mancanti = noti - set(out)
+    if mancanti:
+        print(f"  brevi senza titolo: {', '.join(sorted(mancanti))}")
+    return out
 
 
 def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
@@ -965,6 +1135,7 @@ def write_lead_story(
     messages_with_topic: list[tuple[str, SimpleMessage]],
     page_headlines: list[str] | None = None,
     sections: list[str] | None = None,
+    articoli: list[tuple[str, str, str, str, int]] | None = None,
 ) -> tuple[str, str, list[str], str, "Quote | None"]:
     """Genera (titolo, sommario, paragrafi, sezione, virgolettato) per
     l'articolo di apertura, basato sui temi più rilevanti/trasversali
@@ -983,18 +1154,45 @@ def write_lead_story(
         return "", "", [], "", None
 
     ordered = sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
-    all_messages = [m for _, m in ordered]
-    chunks = _chunk_messages(all_messages, MAX_TRANSCRIPT_CHARS)
 
-    if len(chunks) == 1:
-        lines = [_format_line(m, topic) for topic, m in ordered]
-        source_text = "\n".join(lines)
+    if articoli:
+        # L'apertura si scrive leggendo i pezzi delle pagine interne, che
+        # è come lavora un caporedattore vero — e che qui è anche l'unica
+        # cosa sensata: quando arriva il suo turno ogni topic è già stato
+        # riassunto e scritto, e rileggere la giornata da capo significa
+        # pagare due volte lo stesso lavoro. Su una giornata di partita
+        # erano centomila token e dieci chiamate, contro i quattromila
+        # dei pezzi già in mano.
+        pezzi = "\n\n".join(
+            f"### {topic} ({conteggio} messaggi)\n{headline}\n{deck}\n{body}".strip()
+            for topic, headline, deck, body, conteggio in articoli
+        )
+        # Il virgolettato dell'apertura deve comunque essere una frase
+        # vera: senza messaggi grezzi nel prompt non potrebbe esserlo, e
+        # _verify_quote lo scarterebbe sempre.
+        citabili = campione_citabile(ordered, _CITABILI_PER_APERTURA)
+        frasi = "\n".join(_format_line(m, topic) for topic, m in citabili)
+        source_text = (
+            f"LE NOTIZIE DI OGGI, GIÀ SCRITTE:\n{pezzi}\n\n"
+            f"FRASI DETTE OGGI, PER IL VIRGOLETTATO:\n{frasi}"
+        )
         source_label = (
-            "le conversazioni di oggi nel formato [ora] (sezione) autore: testo"
+            "i pezzi già scritti per le pagine interne di oggi, e in coda "
+            "un elenco di frasi vere del gruppo fra cui scegliere il "
+            "virgolettato"
         )
     else:
-        source_text = summarize_overall(client, model, messages_with_topic)
-        source_label = "un riepilogo già pronto dei temi più rilevanti di oggi"
+        all_messages = [m for _, m in ordered]
+        chunks = _chunk_messages(all_messages, MAX_TRANSCRIPT_CHARS)
+        if len(chunks) == 1:
+            lines = [_format_line(m, topic) for topic, m in ordered]
+            source_text = "\n".join(lines)
+            source_label = (
+                "le conversazioni di oggi nel formato [ora] (sezione) autore: testo"
+            )
+        else:
+            source_text = summarize_overall(client, model, messages_with_topic)
+            source_label = "un riepilogo già pronto dei temi più rilevanti di oggi"
 
     titles = [t for t in (page_headlines or []) if t]
     angle_rule = (
@@ -1012,16 +1210,17 @@ def write_lead_story(
 
     prompt = (
         "Sei il caporedattore e stai scrivendo l'articolo di apertura della "
-        f"prima pagina di oggi. Di seguito trovi {source_label}.\n"
-        "Individua il fatto più rilevante o il filo che attraversa più "
-        "sezioni della giornata. Il titolo sia incisivo ma non "
-        "sensazionalistico.\n"
-        "Chi legge NON era nella conversazione da cui la notizia arriva: "
-        "l'apertura deve spiegargli il fatto per intero, nomi compresi.\n\n"
-        f"{COHERENCE_RULE}\n\n{GROUNDING_PROSE_RULE}\n\n"
-        f"{IDENTIFICAZIONE_RULE}\n\n{STYLE_RULE}\n\n"
+        "prima pagina di oggi. Individua il fatto più rilevante o il filo "
+        "che attraversa più sezioni della giornata. Il titolo sia incisivo "
+        "ma non sensazionalistico. Chi legge NON era nella conversazione da "
+        "cui la notizia arriva: l'apertura deve spiegargli il fatto per "
+        "intero, nomi compresi.\n\n"
+        f"{REGOLE_DI_PROSA}\n\n"
+        # format_rule porta dentro le sezioni attive oggi, quindi cambia
+        # ogni giorno e sta sotto la parte invariante.
+        f"{format_rule}\n\n"
+        f"Di seguito trovi {source_label}.\n\n"
         + (f"{angle_rule}\n\n" if angle_rule else "")
-        + f"{format_rule}\n\n"
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)

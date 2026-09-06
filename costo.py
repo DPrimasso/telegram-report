@@ -23,6 +23,7 @@ import random
 from datetime import date, datetime, timedelta
 
 from report import llm, summarize, vignetta
+from report.newspaper import topics_needing_body
 from report.vignetta import Biblioteca
 
 # Prezzi del modello in uso (gpt-5.6-luna), dollari per milione di token.
@@ -114,6 +115,8 @@ class Contatore:
                 "TESTO: " + "x" * 1200 + "\n"
                 "CITAZIONE: " + "x" * 80 + " | Ciro"
             )
+        if self.etichetta == "brevi":
+            return "\n".join(f"Tema {i} | " + "x" * 60 for i in range(9))
         if self.etichetta == "riassunto":
             return "\n".join("• " + "x" * 120 for _ in range(6))
         if self.etichetta == "vignetta":
@@ -135,8 +138,15 @@ def misura(nome: str, topics) -> tuple[float, float, int]:
     vignetta.llm.complete = contatore
 
     try:
+        # Stessa separazione che fa main.py: pezzo pieno solo a chi in
+        # pagina ne avrà uno, un titolo agli altri.
+        con_corpo = topics_needing_body([(t, len(m), "") for t, m in dati])
+
         articoli = []
-        for titolo, messaggi in sorted(dati, key=lambda t: len(t[1]), reverse=True):
+        ordinati = sorted(dati, key=lambda t: len(t[1]), reverse=True)
+        for titolo, messaggi in ordinati:
+            if titolo not in con_corpo:
+                continue
             # I riassunti parziali del map-reduce passano dallo stesso
             # llm.complete: cambio etichetta prima e dopo per distinguerli.
             contatore.etichetta = (
@@ -150,11 +160,21 @@ def misura(nome: str, topics) -> tuple[float, float, int]:
             )
             articoli.append((h, b))
 
+        minori = [(t, m) for t, m in ordinati if t not in con_corpo]
+        if minori:
+            contatore.etichetta = "brevi"
+            summarize.write_brief_headlines(
+                None, "gpt-5.6-luna", minori,
+                written_so_far=[(a[0], a[1]) for a in articoli],
+            )
+
         contatore.etichetta = "apertura"
         summarize.write_lead_story(
             None, "gpt-5.6-luna", tutti,
             page_headlines=[a[0] for a in articoli],
             sections=["Napoli", "Calcio", "FantaCalcio", "Canale", "Sport", "Altro"],
+            articoli=[(f"Topic {i}", h, "un sommario", b, 100)
+                      for i, (h, b) in enumerate(articoli)],
         )
 
         contatore.etichetta = "vignetta"
