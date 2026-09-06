@@ -167,7 +167,7 @@ async def _run_newspaper_report(
         if not topic.messages:
             continue
         print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
-        headline, deck, body = write_topic_article(
+        headline, deck, body, virgolettato = write_topic_article(
             openai_client,
             config.openai_model,
             topic.title,
@@ -186,6 +186,7 @@ async def _run_newspaper_report(
                 count=len(topic.messages),
                 section=section_map.section_of(topic.title),
                 family=section_map.family_of(topic.title),
+                quote=virgolettato,
             )
         )
 
@@ -199,7 +200,13 @@ async def _run_newspaper_report(
     # più in basso: l'apertura deve nominare le stesse cose.
     sections = section_entries(topics, section_map)
 
-    lead_headline, lead_deck, lead_paragraphs, lead_section = write_lead_story(
+    (
+        lead_headline,
+        lead_deck,
+        lead_paragraphs,
+        lead_section,
+        lead_quote,
+    ) = write_lead_story(
         openai_client,
         config.openai_model,
         all_messages,
@@ -211,6 +218,7 @@ async def _run_newspaper_report(
         headline=lead_headline,
         deck=lead_deck,
         paragraphs=lead_paragraphs,
+        quote=lead_quote,
     )
 
     # La vignetta e la frase del giorno sono lo stesso elemento in due
@@ -219,6 +227,16 @@ async def _run_newspaper_report(
     # vuota, nessuno scambio adatto, una battuta che non combacia con
     # nessun messaggio. La frase costa una chiamata, quindi si chiede
     # solo se serve davvero.
+    #
+    # La vignetta sta in prima pagina accanto all'apertura, quindi deve
+    # raccontare quel fatto: i topic della sezione da cui l'apertura
+    # arriva sono il recinto entro cui le battute possono essere scelte.
+    # Quando l'apertura è trasversale il recinto non c'è, ed è giusto
+    # così: il fatto non appartiene a una sezione sola.
+    topic_apertura = {
+        t.title for t in topics if section_map.section_of(t.title) == lead_section
+    } if lead_section else set()
+
     biblioteca = Biblioteca(config.vignette_dir)
     vignetta = None
     if biblioteca:
@@ -229,6 +247,7 @@ async def _run_newspaper_report(
             all_messages,
             tema=f"{lead.headline} — {lead.deck}",
             giorno=target_date,
+            topic_sezione=topic_apertura,
             biblioteca=biblioteca,
         )
         if vignetta:

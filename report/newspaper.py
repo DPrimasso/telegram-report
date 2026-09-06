@@ -2,24 +2,39 @@
 
 Scelte che reggono tutto il resto del file:
 
-- una colonna sola a 1080px: dopo la ricompressione JPEG di Telegram un
-  corpo a 17px su colonne da 500px era al limite della leggibilità su
-  telefono. Qui il corpo sta a 28-30px.
+- **la prima pagina è una vetrina, non la prima puntata.** Porta gli
+  strilli, l'apertura fino al primo capoverso, la spalla e il sommario
+  dell'edizione; gli articoli per intero cominciano da pagina 2. È la
+  differenza fra un giornale e un rotolo di testo: chi apre la prima
+  deve sapere che cosa c'è dentro e a che pagina, e per saperlo non deve
+  scorrere fino in fondo.
+- **il testo va su due colonne**, corpo 24-26px su una misura di ~40
+  caratteri. Nessun altro mezzo impagina così: è il segno che l'occhio
+  riconosce come "giornale" prima di leggere una parola. Sotto queste
+  misure la ricompressione JPEG di Telegram comincia a mangiare le
+  grazie, e sopra le colonne diventano due elenchi.
 - palette e marchio del canale (navy #0c2340 / azzurro #17a3e0), così il
   report si riconosce nello scroll della chat.
-- **nessuna immagine** oltre al logo della testata: il peso visivo lo
-  fanno la tipografia e i dati. Il perché sta in docs/grafica.md.
-- ogni pezzo ha tre gradini — titolo, sommario, testo — e i topic minori
-  finiscono nel box "In breve" invece di avere un articolo ciascuno: con
-  tredici topic attivi, tredici pezzi uguali sono una schedina.
+- **nessuna immagine** oltre al logo della testata e alla vignetta: il
+  peso visivo lo fanno la tipografia e i dati. Il perché sta in
+  docs/grafica.md.
+- ogni pezzo ha tre gradini — titolo, sommario, testo — più un
+  virgolettato di chi c'era, e i topic minori finiscono nel box "In
+  breve" invece di avere un articolo ciascuno: con tredici topic attivi,
+  tredici pezzi uguali sono una schedina.
 - le pagine sono quante ne servono, sotto la stessa altezza utile e
   ridistribuite perché vengano simili fra loro.
+
+I rimandi ("a pagina 3") impongono di impaginare in due passate: prima si
+distribuiscono gli articoli sulle pagine interne, poi si costruisce la
+prima con i numeri che ne sono usciti. Vedi build_pages_html.
 """
 
 import base64
 import html
 import mimetypes
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -56,14 +71,17 @@ _VIGNETTA_HEIGHT = 560
 # successiva, quante volte serve.
 MAX_PAGE_HEIGHT = 2400
 
-# Anche quando l'altezza lo permetterebbe, la prima pagina non porta più di
-# così tante notizie: oltre, la gerarchia si appiattisce.
-MAX_ARTICLES_FIRST_PAGE = 3
+# Margine di sicurezza sulla coda dell'ultima pagina. Le stime dei blocchi
+# fissi sono misurate una per una, ma si sommano: sull'ultima pagina se ne
+# accumulano cinque o sei, e bastano pochi pixel di scarto ciascuno perché
+# il totale scavalchi il tetto. Un margine è più onesto che gonfiare le
+# singole costanti fino a farle mentire.
+_MARGINE_CODA = 60
 
-# Sotto questa soglia una pagina in più conterrebbe un trafiletto in mezzo
-# al bianco: meglio una pagina sola, anche un po' più lunga. Vale solo se
-# quella pagina ci sta davvero — vedi paginate_articles.
-MIN_ARTICLES_FOR_SPLIT = 4
+# Da quando la prima pagina è una vetrina, il tetto di notizie che poteva
+# portare non serve più: non ne porta nessuna. La gerarchia la fa la
+# scala degli elementi — apertura, spalla, strilli, sommario — e non più
+# il conteggio dei pezzi sopra il taglio.
 
 # Oltre questa posizione in classifica un topic non ha un articolo suo ma
 # una riga nel box "In breve". Con tredici topic attivi, tredici articoli
@@ -98,6 +116,28 @@ class Lead:
     headline: str
     deck: str
     paragraphs: list[str] = field(default_factory=list)
+    quote: "Quote | None" = None
+
+    # Quanti capoversi dell'apertura restano in prima. Due e non uno: con
+    # uno solo il titolone resta sospeso su tre righe di testo e la prima
+    # pagina sembra un manifesto, non un giornale. Con tutti, non è più
+    # una vetrina.
+    CAPOVERSI_IN_PRIMA = 2
+
+    @property
+    def attacco(self) -> list[str]:
+        """I capoversi che stanno in prima pagina.
+
+        Un'apertura di giornale non si esaurisce sotto la testata: dà la
+        notizia e rimanda al servizio dentro. Il taglio regge perché il
+        primo capoverso è scritto per bastare da solo — vedi la regola
+        dell'attacco in summarize.py."""
+        return self.paragraphs[: self.CAPOVERSI_IN_PRIMA]
+
+    @property
+    def seguito(self) -> list[str]:
+        """Il resto dell'apertura, che riprende sulla pagina dopo."""
+        return self.paragraphs[self.CAPOVERSI_IN_PRIMA :]
 
 
 @dataclass
@@ -106,6 +146,11 @@ class Article:
     headline: str
     body: str
     count: int
+    # Il virgolettato: una frase di un membro del gruppo, riportata alla
+    # lettera dentro il pezzo. È quello che distingue un articolo da un
+    # riassunto — un pezzo di cronaca dà la parola a chi c'era — e passa
+    # dalla stessa verifica di aderenza della frase del giorno.
+    quote: "Quote | None" = None
     # Sommario: la riga fra titolo e testo che aggiunge informazione
     # invece di riformulare il titolo. Senza, un pezzo è titolo e blocco
     # di testo — che è quello che rende una pagina un elenco invece di un
@@ -307,20 +352,124 @@ p {{ margin: 0; }}
 .lead h2 {{ font-size: 66px; line-height: 1.02; letter-spacing: -0.03em; margin-bottom: 18px; }}
 .lead .deck {{
   font-size: 30px; line-height: 1.35; color: {AZZURRO_DEEP};
-  font-weight: 600; margin-bottom: 26px;
+  font-weight: 600; margin-bottom: 26px; padding-bottom: 22px;
+  border-bottom: 2px solid {NAVY};
 }}
-.lead .body {{ font-size: 30px; line-height: 1.5; }}
-.lead .body p {{ margin-bottom: 16px; }}
-.lead .body p:last-child {{ margin-bottom: 0; color: {INK_SOFT}; }}
+/* Il testo su due colonne è la firma di un giornale stampato: nessun
+   altro mezzo impagina così, e il colpo d'occhio la riconosce prima di
+   leggere una parola. Costa corpo — 26px invece di 30 — ma su una
+   colonna da 456px sono quaranta caratteri per riga, che è esattamente
+   la misura di una colonna di quotidiano. */
+.lead .body {{
+  font-size: 26px; line-height: 1.46;
+  column-count: 2; column-gap: 40px;
+  /* Il filetto fra le colonne: in tipografia si chiama filetto di
+     separazione e serve all'occhio per non saltare da una colonna
+     all'altra a metà riga. */
+  column-rule: 1px solid #c9ced3;
+}}
+.lead .body p {{ margin-bottom: 14px; }}
+.lead .body p:last-child {{ margin-bottom: 0; }}
 
 /* Capolettera: fa partire l'articolo di apertura da un punto preciso
    invece che dal margine come tutti gli altri paragrafi. È la differenza
    fra una pagina impaginata e un blocco di testo. Il float lo tiene
    allineato alla riga di base della terza riga. */
 .lead .body.dropcap > p:first-child::first-letter {{
-  float: left; font-size: 104px; line-height: 0.78; font-weight: 800;
-  color: {NAVY}; padding: 8px 14px 0 0;
+  float: left; font-size: 80px; line-height: 0.76; font-weight: 800;
+  color: {NAVY}; padding: 6px 11px 0 0;
 }}
+
+/* --- Prima pagina: la vetrina -----------------------------------------
+   Una prima pagina non è la prima puntata del giornale, è la sua vetrina:
+   dice che cosa c'è dentro e dove. Da qui gli strilli in alto, la spalla
+   accanto all'apertura e il sommario dell'edizione in fondo — tutti e tre
+   rimandano a una pagina, e nessuno dei tre esaurisce il pezzo. */
+
+/* Gli strilli (in gergo: le civette) sono le tre righe sopra la testata
+   che annunciano il resto del giornale. Stanno su fondo navy perché
+   appartengono alla testata, non alla notizia sotto. */
+.strilli {{
+  background: {NAVY}; border-top: 2px solid {AZZURRO};
+  padding: 15px 56px; display: flex; gap: 0;
+}}
+.strillo {{
+  flex: 1; padding: 0 20px; border-left: 1px solid rgba(143, 201, 232, 0.34);
+}}
+.strillo:first-child {{ padding-left: 0; border-left: none; }}
+.strillo:last-child {{ padding-right: 0; }}
+.strillo .sez {{
+  display: block; font-size: 13px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: {AZZURRO}; margin-bottom: 5px;
+}}
+.strillo p {{
+  font-size: 20px; line-height: 1.2; font-weight: 700; color: #fff;
+  letter-spacing: -0.01em;
+}}
+.strillo .pag {{
+  display: block; margin-top: 6px; font-size: 13px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: {AZZURRO_PALE};
+}}
+
+/* Il rimando in coda all'apertura: dove continua il pezzo. */
+.rimando {{
+  margin-top: 20px; padding-top: 16px; border-top: 2px solid {NAVY};
+  font-size: 21px; font-weight: 800; letter-spacing: 0.04em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+
+/* La spalla: la seconda notizia della giornata, in prima ma sotto
+   l'apertura e visibilmente più piccola. Il fondo grigio la stacca senza
+   bisogno di un riquadro. */
+.spalla {{
+  background: {GROUND}; border-bottom: 6px solid {NAVY};
+  padding: 28px 56px 26px 56px;
+}}
+.spalla .section-label {{ display: block; margin-bottom: 12px; }}
+.spalla h3 {{ font-size: 38px; line-height: 1.06; letter-spacing: -0.02em; margin-bottom: 10px; }}
+.spalla .deck {{
+  font-size: 24px; line-height: 1.3; color: {AZZURRO_DEEP}; font-weight: 600;
+  margin-bottom: 14px;
+}}
+.spalla .body {{ font-size: 24px; line-height: 1.44; column-count: 2; column-gap: 40px;
+  column-rule: 1px solid #c9ced3; }}
+.spalla .rimando {{ margin-top: 16px; padding-top: 13px; font-size: 19px; }}
+
+/* Il sommario dell'edizione: una riga per sezione, con il titolo migliore
+   e la pagina. Prende il posto delle chip dell'indice, che dicevano
+   quanti messaggi e non che cosa c'era scritto. */
+.dentro {{ background: #fff; padding: 28px 56px 30px 56px; }}
+.dentro .section-label {{ display: block; margin-bottom: 16px; }}
+.dentro-row {{
+  display: flex; align-items: baseline; gap: 20px;
+  padding: 13px 0; border-top: 1px solid #d6dade;
+}}
+.dentro-row:first-of-type {{ border-top: 2px solid {NAVY}; }}
+.dentro-row .sez {{
+  flex: none; width: 190px; font-size: 16px; font-weight: 800;
+  letter-spacing: 0.11em; text-transform: uppercase; color: {NAVY};
+}}
+/* La riga di mezzo dice quanto pesa la sezione, non che cosa c'è scritto:
+   i titoli li hanno già gli strilli, e ripeterli qui farebbe della prima
+   pagina un indice. Corpo e peso sono quelli di una nota, non di un
+   titolo. */
+.dentro-row p {{ flex: 1; font-size: 19px; line-height: 1.25; font-weight: 600;
+  color: {INK_SOFT}; letter-spacing: 0.02em; }}
+.dentro-row .pag {{
+  flex: none; font-size: 15px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+
+/* Il seguito dell'apertura in apertura di pagina 2. Ripete il titolo in
+   piccolo — chi ha girato pagina deve ritrovare il pezzo che stava
+   leggendo — e non ripete occhiello né sommario. */
+.segue {{ background: #fff; padding: 30px 56px 28px 56px; border-bottom: 6px solid {NAVY}; }}
+.segue .section-label {{ display: block; margin-bottom: 10px; }}
+.segue h3 {{ font-size: 34px; line-height: 1.08; margin-bottom: 18px; }}
+.segue .body {{ font-size: 26px; line-height: 1.46; column-count: 2; column-gap: 40px;
+  column-rule: 1px solid #c9ced3; }}
+.segue .body p {{ margin-bottom: 14px; }}
+.segue .body p:last-child {{ margin-bottom: 0; }}
 
 /* Quadratino di fine pezzo: dice dove finisce l'articolo senza bisogno
    di un regolo, che a fine colonna aggiungerebbe una riga di stacco.
@@ -397,7 +546,29 @@ p {{ margin: 0; }}
   font-size: 25px; line-height: 1.3; color: {AZZURRO_DEEP};
   font-weight: 600; margin-bottom: 12px;
 }}
-.article .body {{ font-size: 28px; line-height: 1.45; }}
+.article .body {{
+  font-size: 24px; line-height: 1.45;
+  column-count: 2; column-gap: 40px; column-rule: 1px solid #c9ced3;
+}}
+.article .body p {{ margin-bottom: 13px; }}
+.article .body p:last-child {{ margin-bottom: 0; }}
+
+/* Il virgolettato. In un pezzo di cronaca la citazione non è un ornamento:
+   è la sola riga in cui parla qualcuno che c'era, e il resto del pezzo la
+   racconta. Sta dentro la colonna, staccata da un filetto azzurro sul
+   fianco, e non attraversa la pagina come farebbe un blocco isolato. */
+.virgolettato {{
+  break-inside: avoid; margin: 4px 0 13px 0;
+  border-left: 5px solid {AZZURRO}; padding: 3px 0 3px 16px;
+}}
+.virgolettato p {{
+  font-size: 25px; line-height: 1.24; font-weight: 700; color: {NAVY};
+  letter-spacing: -0.015em; margin-bottom: 6px;
+}}
+.virgolettato .chi {{
+  display: block; font-size: 14px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
 
 /* Il dato grande: il numero che descrive la giornata, alla scala a cui i
    numeri si guardano invece di leggerli. È l'elemento che dà peso visivo
@@ -444,6 +615,9 @@ p {{ margin: 0; }}
    rettangolo con un bordo, come il resto della pagina. */
 .vignetta {{ background: #fff; padding: 34px 56px 30px 56px; }}
 .vignetta .section-label {{ display: block; margin-bottom: 16px; }}
+/* Dentro l'apertura il blocco non porta margini suoi: quelli della
+   colonna ce li ha già la prima pagina. */
+.lead .vignetta {{ padding: 0; margin-bottom: 26px; }}
 .pannello {{
   position: relative; width: {_VIGNETTA_WIDTH}px; height: {_VIGNETTA_HEIGHT}px;
   border: 3px solid {NAVY}; overflow: hidden; background: #fff;
@@ -571,28 +745,159 @@ def _masthead(logo_uri: str | None, newspaper_name: str) -> str:
     )
 
 
-def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
+def _numeri_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
+    """Le proporzioni della giornata, in coda all'edizione.
+
+    Stavano in testa alla prima pagina, dove occupavano il posto che in un
+    giornale è della notizia: chi compra un quotidiano non trova sopra
+    l'apertura un istogramma di quanto si è parlato di che cosa. Sono
+    misure sul gruppo, non notizie, e stanno bene accanto alle altre
+    misure — nella fascia di chiusura."""
     if not entries:
         return ""
-    # Niente pittogramma sulle chip: le sezioni sono sei, e i segni
-    # disponibili ne distinguerebbero due o tre — le altre prenderebbero
-    # tutte lo stesso ripiego. Un simbolo ripetuto su metà delle voci non
-    # dice niente che il testo non dica già, che è la sola regola con cui
-    # in questo giornale un elemento grafico si tiene (vedi
-    # report/graphics.py). Sui tag dei pezzi, dove i topic sono
-    # ventinove, i pittogrammi restano.
-    chips = "".join(
-        f'<span class="chip">{html.escape(name)} <b>{count}</b></span>'
-        for name, count in entries
-    )
     share = share_bar_svg(entries) if gfx.share_bar else ""
+    numero = _number_html(entries) if gfx.number_block else ""
+    if not share and not numero:
+        return ""
+    barra = (
+        '<div class="index"><span class="section-label">Le proporzioni della '
+        f"giornata</span>{share}</div>"
+        if share
+        else ""
+    )
+    return barra + numero
+
+
+def _pick_spalla(chunks: list[list]):
+    """La seconda notizia dell'edizione, quella che va in prima accanto
+    all'apertura.
+
+    È il primo pezzo in ordine di lettura: le notizie arrivano già
+    ordinate per sezione e per peso, quindi il primo è quello che il
+    giornale ha deciso di mettere davanti. I blocchi di famiglia non
+    possono fare da spalla — non sono un pezzo, sono un elenco."""
+    for chunk in chunks:
+        for a in chunk:
+            if not isinstance(a, FamilyBlock) and a.headline:
+                return a
+    return None
+
+
+def _pick_strilli(
+    chunks: list[list], pagina_di: dict[int, int], escludi=None, quanti: int = 3
+) -> list[tuple[str, str, int]]:
+    """Le civette: i titoli che vale la pena annunciare sopra la testata.
+
+    Uno per sezione, per non spendere tutte e tre le caselle sulla sezione
+    più chiacchierona — che con otto leghe di fantacalcio è esattamente
+    quello che succederebbe. La sezione della spalla conta come già
+    spesa: la sua notizia sta appena sotto, in prima pagina, e annunciare
+    la seconda della stessa sezione toglierebbe la casella a chi non ne
+    ha nessuna."""
+    viste: set[str] = set()
+    if escludi is not None:
+        viste.add(getattr(escludi, "section", "") or getattr(escludi, "topic", ""))
+    out: list[tuple[str, str, int]] = []
+    for chunk in chunks:
+        for a in chunk:
+            if isinstance(a, FamilyBlock) or not a.headline or a is escludi:
+                continue
+            sezione = a.section or a.topic
+            if sezione in viste:
+                continue
+            viste.add(sezione)
+            out.append((sezione, a.headline, pagina_di.get(id(a), 2)))
+            if len(out) == quanti:
+                return out
+    return out
+
+
+def _righe_dentro(
+    chunks: list[list], stats: dict[str, tuple[int, int]] | None
+) -> list[tuple[str, str, int]]:
+    """Il sommario: ogni sezione, quanto pesa e a che pagina comincia."""
+    ordine: list[str] = []
+    pagina: dict[str, int] = {}
+    for numero, chunk in enumerate(chunks, start=2):
+        for a in chunk:
+            sezione = getattr(a, "section", "") or getattr(a, "topic", "")
+            if not sezione or sezione in pagina:
+                continue
+            ordine.append(sezione)
+            pagina[sezione] = numero
+    righe = []
+    for sezione in ordine:
+        if stats and sezione in stats:
+            pezzi, messaggi = stats[sezione]
+            unita = "pezzo" if pezzi == 1 else "pezzi"
+            dettaglio = f"{pezzi} {unita} · {messaggi} messaggi"
+        else:
+            dettaglio = ""
+        righe.append((sezione, dettaglio, pagina[sezione]))
+    return righe
+
+
+def _paragraphs(text: str) -> list[str]:
+    """Un blocco di testo diviso nei suoi paragrafi.
+
+    Gli articoli arrivano come stringa unica con i paragrafi separati da
+    una riga vuota: separarli qui evita che un pezzo di quattro capoversi
+    finisca in pagina come un muro."""
+    if not text:
+        return []
+    grezzi = re.split(r"\n\s*\n|\n", text)
+    return [p.strip() for p in grezzi if p.strip()]
+
+
+def _quote_inline_html(quote: "Quote | None") -> str:
+    """Il virgolettato dentro il pezzo."""
+    if quote is None or not quote.text:
+        return ""
+    testo = quote.text.strip().strip('"').strip("«»")
+    chi = html.escape(quote.author)
+    if quote.time:
+        chi += f", {html.escape(quote.time)}"
     return (
-        '<div class="index"><span class="section-label">In questa edizione</span>'
-        f'<div class="index-chips">{chips}</div>{share}</div>'
+        f'<div class="virgolettato"><p>«{html.escape(testo)}»</p>'
+        f'<span class="chi">{chi}</span></div>'
     )
 
 
-def _lead_html(lead: Lead, gfx: GraphicsOptions) -> str:
+def _body_html(text: str, quote: "Quote | None", end: str) -> str:
+    """Il corpo del pezzo, con il virgolettato dopo il primo capoverso.
+
+    Dopo il primo e non prima: l'attacco deve dare la notizia, e una
+    citazione messa sopra ruba il posto al fatto. Dopo l'ultimo, invece,
+    la citazione resterebbe fuori dal pezzo come una didascalia."""
+    parti = _paragraphs(text)
+    if not parti:
+        return ""
+    citazione = _quote_inline_html(quote)
+    pezzi = []
+    for i, p in enumerate(parti):
+        ultimo = i == len(parti) - 1
+        pezzi.append(f"<p>{html.escape(p)}{end if ultimo else ''}</p>")
+        if i == 0 and citazione:
+            pezzi.append(citazione)
+    return "".join(pezzi)
+
+
+def _lead_html(
+    lead: Lead,
+    gfx: GraphicsOptions,
+    continua_a: int | None = None,
+    vignetta_html: str = "",
+) -> str:
+    """L'apertura in prima pagina: la notizia, non tutto il pezzo.
+
+    `continua_a` è la pagina su cui riprende il resto. Senza, l'apertura
+    esce intera: succede quando l'edizione sta in una pagina sola.
+
+    `vignetta_html` è il disegno del giorno, che entra fra il sommario e
+    l'attacco — dove in un quotidiano sta la foto d'apertura. È anche il
+    solo posto in cui ha senso: la vignetta porta le parole che il gruppo
+    ha scritto sul fatto di apertura, quindi è il contorno di QUELLA
+    notizia, e in fondo all'edizione stava lontana da ciò che illustra."""
     kicker = (
         f'<div class="kicker">Apertura · {html.escape(lead.kicker)}</div>'
         if lead.kicker
@@ -600,18 +905,100 @@ def _lead_html(lead: Lead, gfx: GraphicsOptions) -> str:
     )
     deck = f'<p class="deck">{html.escape(lead.deck)}</p>' if lead.deck else ""
     end = END_MARK if gfx.end_mark else ""
-    paragraphs = lead.paragraphs or ["Nessun dettaglio disponibile."]
+    if continua_a:
+        testo = lead.attacco or lead.paragraphs
+        coda = f'<div class="rimando">Il servizio a pagina {continua_a}</div>'
+        chiusura = ""  # il pezzo non finisce qui: niente segno di fine
+    else:
+        testo = lead.paragraphs
+        coda = ""
+        chiusura = end
+    if not testo:
+        testo = ["Nessun dettaglio disponibile."]
     body = "".join(
-        f"<p>{html.escape(p)}{end if i == len(paragraphs) - 1 else ''}</p>"
-        for i, p in enumerate(paragraphs)
+        f"<p>{html.escape(p)}{chiusura if i == len(testo) - 1 else ''}</p>"
+        for i, p in enumerate(testo)
     )
     headline = html.escape(lead.headline) or "Giornata senza articolo di apertura"
-    # Il capolettera va sul primo paragrafo, che dopo la foto è comunque il
-    # primo blocco di testo lungo della pagina.
+    # Il capolettera va sul primo paragrafo, che è comunque il primo
+    # blocco di testo lungo della pagina.
     body_class = "body dropcap" if gfx.drop_cap else "body"
     return (
         f'<div class="lead">{kicker}<h2>{headline}</h2>{deck}'
-        f'<div class="{body_class}">{body}</div></div>'
+        f'{vignetta_html}<div class="{body_class}">{body}</div>{coda}</div>'
+    )
+
+
+def _lead_segue_html(lead: Lead, gfx: GraphicsOptions) -> str:
+    """Il seguito dell'apertura, in testa alla pagina dopo."""
+    resto = lead.seguito
+    if not resto:
+        return ""
+    end = END_MARK if gfx.end_mark else ""
+    # Il virgolettato dell'apertura sta dopo il primo capoverso del
+    # seguito, non in coda: attaccato in fondo, dopo il segno di fine
+    # pezzo, sembrerebbe una didascalia rimasta lì.
+    body = _body_html("\n\n".join(resto), lead.quote, end)
+    return (
+        '<div class="segue">'
+        '<span class="section-label">Segue dalla prima pagina</span>'
+        f"<h3>{html.escape(lead.headline)}</h3>"
+        f'<div class="body">{body}</div></div>'
+    )
+
+
+def _strilli_html(richiami: list[tuple[str, str, int]]) -> str:
+    """Le civette sopra la testata: che cosa c'è dentro, e a che pagina."""
+    if not richiami:
+        return ""
+    celle = "".join(
+        f'<div class="strillo"><span class="sez">{html.escape(sezione)}</span>'
+        f"<p>{html.escape(titolo)}</p>"
+        f'<span class="pag">a pagina {pagina}</span></div>'
+        for sezione, titolo, pagina in richiami
+    )
+    return f'<div class="strilli">{celle}</div>'
+
+
+def _spalla_html(article, pagina: int, gfx: GraphicsOptions) -> str:
+    """La seconda notizia in prima pagina.
+
+    Come l'apertura, non si esaurisce qui: dà titolo, sommario e il primo
+    capoverso, e manda il lettore alla pagina dove il pezzo sta per
+    intero."""
+    if article is None or not article.headline:
+        return ""
+    etichetta = article.section or article.topic
+    deck = f'<p class="deck">{html.escape(article.deck)}</p>' if article.deck else ""
+    parti = _paragraphs(article.body)
+    body = f'<div class="body"><p>{html.escape(parti[0])}</p></div>' if parti else ""
+    return (
+        '<div class="spalla">'
+        f'<span class="section-label">{html.escape(etichetta)}</span>'
+        f"<h3>{html.escape(article.headline)}</h3>{deck}{body}"
+        f'<div class="rimando">Il servizio a pagina {pagina}</div></div>'
+    )
+
+
+def _dentro_html(righe: list[tuple[str, str, int]]) -> str:
+    """Il sommario dell'edizione: dove sta ogni sezione.
+
+    Prende il posto delle chip dell'indice, che dicevano quanti messaggi
+    aveva una sezione senza dire dove trovarla. Non ripete i titoli — li
+    hanno gli strilli — e risponde alla sola domanda che in prima pagina
+    resta senza risposta: a che pagina si va per leggere di che cosa."""
+    if not righe:
+        return ""
+    corpo = "".join(
+        f'<div class="dentro-row"><span class="sez">{html.escape(sezione)}</span>'
+        f"<p>{html.escape(titolo)}</p>"
+        f'<span class="pag">pag. {pagina}</span></div>'
+        for sezione, titolo, pagina in righe
+    )
+    return (
+        '<div class="dentro">'
+        '<span class="section-label">Dentro il giornale</span>'
+        f"{corpo}</div>"
     )
 
 
@@ -812,7 +1199,7 @@ def _articles_html(
         # Senza corpo il segno di fine pezzo va sul sommario, o resterebbe
         # appeso a un paragrafo vuoto.
         if a.body:
-            body = deck + f'<p class="body">{html.escape(a.body)}{end}</p>'
+            body = deck + f'<div class="body">{_body_html(a.body, a.quote, end)}</div>'
         elif a.deck:
             body = f'<p class="deck">{html.escape(a.deck)}{end}</p>'
         else:
@@ -1002,22 +1389,29 @@ def _footer_html(note: str = FOOTER_NOTE) -> str:
 
 # --- Impaginazione -------------------------------------------------------
 
-# Stime in px CSS ricavate dalle misure reali del layout: servono solo a
-# decidere se spezzare la pagina, non a posizionare nulla, quindi
-# un'approssimazione grossolana basta.
+# Stime in px CSS, misurate una per una renderizzando il blocco da solo
+# (vedi misura_blocchi.py). Non servono a posizionare niente, solo a
+# decidere dove spezzare le pagine — ma l'approssimazione va fatta per
+# ECCESSO: una stima bassa non fa una pagina un po' lunga, fa l'ultima
+# pagina che sfonda il tetto proprio quando è più piena, perché è lì che
+# si accumulano tutti i blocchi fissi insieme.
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
 _H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
-_H_INDEX_ROW = 46
-_H_QUOTE = 220
+_H_QUOTE = 245
 # Etichetta, pannello, didascalia e i due margini del blocco.
-_H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 34 + 64
-_H_STATS = 120
-_H_CHART = 200          # titolo + grafico orario + regolo di separazione
-_H_NUMBER = 145         # blocco del dato grande
-_H_BRIEF_HEAD = 70      # titolo del box "In breve"
-_H_BRIEF_ROW = 108      # una riga del box (due voci affiancate)
-_H_SHARE = 48           # barra delle proporzioni sotto l'indice
-_H_BAND = 78            # testata di sezione: regolo, nome e contatori
+_H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 34 + 80
+_H_STATS = 130
+_H_STRILLI = 125        # la fascia delle civette sopra la testata
+_H_RIMANDO = 58         # "Il servizio a pagina N" in coda a un pezzo
+_H_VIRGOLETTATO = 120   # la citazione dentro il corpo, su una colonna
+_H_DENTRO_HEAD = 62     # titolo del sommario dell'edizione
+_H_DENTRO_ROW = 60      # una riga del sommario
+_H_CHART = 235          # titolo + grafico orario + regolo di separazione
+_H_NUMBER = 165         # blocco del dato grande
+_H_BRIEF_HEAD = 80      # titolo del box "In breve"
+_H_BRIEF_ROW = 122      # una riga del box (due voci affiancate)
+_H_SHARE = 120          # etichetta e barra delle proporzioni
+_H_BAND = 88            # testata di sezione: regolo, nome e contatori
 _H_FAMILY_HEAD = 84     # titolo del blocco di famiglia + regolo + padding
 _H_FAMILY_ROW = 86      # una riga del blocco (due voci affiancate)
 
@@ -1026,13 +1420,71 @@ _H_FAMILY_ROW = 86      # una riga del blocco (due voci affiancate)
 _H_TAIL = _H_QUOTE + _H_STATS
 
 
-def _estimate_lead_height(lead: Lead) -> int:
-    h = 120  # kicker + padding
+def _estimate_lead_height(
+    lead: Lead, front: bool = True, con_vignetta: bool = False
+) -> int:
+    """L'apertura in prima. Con `front` conta solo l'attacco: il resto del
+    pezzo riprende dentro e lo paga la pagina che lo ospita."""
+    h = 120  # occhiello + padding
     h += _text_height(lead.headline, chars_per_line=26, line_height=68)
-    h += _text_height(lead.deck, chars_per_line=52, line_height=41)
-    for p in lead.paragraphs:
-        h += _text_height(p, chars_per_line=58, line_height=45) + 16
+    h += _text_height(lead.deck, chars_per_line=52, line_height=41) + 24
+    if con_vignetta:
+        h += _H_VIGNETTA
+    testo = lead.attacco if front else lead.paragraphs
+    for p in testo:
+        h += _column_height(p, chars_per_line=40, line_height=38) + 14
+    if front and lead.seguito:
+        h += _H_RIMANDO
     return h
+
+
+def _estimate_front_height(
+    lead: Lead,
+    spalla,
+    strilli: list,
+    dentro: list,
+    gfx: GraphicsOptions,
+    con_vignetta: bool = False,
+) -> int:
+    """L'altezza della vetrina.
+
+    Non serve a spezzarla — la prima pagina è una sola e non ha niente da
+    passare alla successiva — ma a sapere quando sfonda: è l'unica pagina
+    che nessun meccanismo può alleggerire da sé, quindi se cresce troppo
+    deve almeno dirlo."""
+    return (
+        _H_CHROME
+        + (_H_STRILLI if strilli else 0)
+        + _estimate_lead_height(lead, con_vignetta=con_vignetta)
+        + _estimate_spalla_height(spalla)
+        + (_H_DENTRO_HEAD + _H_DENTRO_ROW * len(dentro) if dentro else 0)
+    )
+
+
+def _estimate_segue_height(lead: Lead) -> int:
+    """Il seguito dell'apertura in testa alla pagina dopo."""
+    resto = lead.seguito
+    if not resto:
+        return 0
+    h = 100  # etichetta + titolino ripetuto + padding
+    h += _text_height(lead.headline, chars_per_line=44, line_height=38)
+    for p in resto:
+        h += _column_height(p, chars_per_line=40, line_height=38) + 14
+    if lead.quote:
+        h += _H_VIRGOLETTATO
+    return h
+
+
+def _estimate_spalla_height(article) -> int:
+    if article is None or not getattr(article, "headline", ""):
+        return 0
+    h = 110  # etichetta + padding + rimando
+    h += _text_height(article.headline, chars_per_line=32, line_height=41)
+    h += _text_height(article.deck, chars_per_line=54, line_height=32) + (14 if article.deck else 0)
+    parti = _paragraphs(article.body)
+    if parti:
+        h += _column_height(parti[0], chars_per_line=42, line_height=35)
+    return h + _H_RIMANDO
 
 
 def _estimate_article_height(a) -> int:
@@ -1048,7 +1500,9 @@ def _estimate_article_height(a) -> int:
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
     h += _text_height(a.deck, chars_per_line=62, line_height=33) + (12 if a.deck else 0)
-    h += _text_height(a.body, chars_per_line=62, line_height=41)
+    h += _column_height(a.body, chars_per_line=42, line_height=35)
+    if a.quote:
+        h += _H_VIRGOLETTATO
     return h
 
 
@@ -1057,6 +1511,25 @@ def _text_height(text: str, chars_per_line: int, line_height: int) -> int:
         return 0
     lines = max(1, -(-len(text) // chars_per_line))
     return lines * line_height
+
+
+def _column_height(
+    text: str, chars_per_line: int, line_height: int, columns: int = 2
+) -> int:
+    """Altezza di un testo impaginato su più colonne.
+
+    Le righe sono le stesse — la misura di riga è già quella stretta della
+    colonna — ma stanno una accanto all'altra, quindi l'altezza si divide.
+    Ogni paragrafo però comincia una riga nuova in una colonna sola, e il
+    bilanciamento fra colonne lascia sempre un po' di aria: la mezza riga
+    per paragrafo la si paga per intero, arrotondando per eccesso, perché
+    sottostimare qui significa sfondare il tetto della pagina."""
+    if not text:
+        return 0
+    paragrafi = _paragraphs(text) or [text]
+    righe = sum(max(1, -(-len(p) // chars_per_line)) for p in paragrafi)
+    righe_per_colonna = -(-(righe + len(paragrafi)) // columns)
+    return righe_per_colonna * line_height
 
 
 def _item_heights(items: list) -> dict[int, int]:
@@ -1081,72 +1554,42 @@ def _item_heights(items: list) -> dict[int, int]:
 
 def paginate_articles(
     articles: list,
-    lead: Lead,
-    index_rows: int,
     *,
+    segue_height: int = 0,
     tail_height: int = _H_TAIL,
-    index_extra: int = 0,
 ) -> list[list]:
-    """Distribuisce le notizie su quante pagine servono e restituisce una
-    lista per pagina; la prima sta sotto l'apertura.
+    """Distribuisce le notizie sulle pagine interne, una lista per pagina.
+
+    La prima pagina non ne prende nessuna: è la vetrina dell'edizione, e
+    un articolo intero là sotto la trasformerebbe di nuovo nella prima
+    puntata del giornale. Le pagine qui restituite sono quindi la 2, la 3
+    e così via.
 
     Il numero di pagine non è fissato: dipende da quanto testo c'è. Con
-    dieci topic attivi una seconda pagina unica raccoglieva tutto il resto
-    e diventava una striscia che Telegram mostra rimpicciolita, cioè
+    dieci topic attivi una pagina unica raccoglieva tutto il resto e
+    diventava una striscia che Telegram mostra rimpicciolita, cioè
     illeggibile — che è il motivo per cui il tetto d'altezza vale per ogni
-    pagina e non solo per la prima.
+    pagina.
 
-    `tail_height` e `index_extra` esistono perché gli elementi grafici
-    opzionali cambiano l'altezza dei blocchi fissi: il grafico orario
-    allunga la chiusura di circa 200px, e ignorarlo faceva sfondare
-    l'ultima pagina proprio nel caso in cui era più piena."""
+    `segue_height` è il seguito dell'apertura, che apre la prima pagina
+    interna; `tail_height` la chiusura, che pesa sull'ultima. Contarli è
+    ciò che impedisce di sfondare il tetto proprio dove la pagina è già
+    più piena."""
     usable = [a for a in articles if a.headline]
+    if not usable:
+        return []
     heights = _item_heights(usable)
-    first_base = (
-        _H_CHROME
-        + index_rows * _H_INDEX_ROW
-        + index_extra
-        + _estimate_lead_height(lead)
-    )
+    prima_base = _H_CONT_CHROME + segue_height
 
-    # Con poche notizie una pagina sola è meglio di due, ma solo se ci
-    # stanno davvero: da quando la chiusura porta anche il box "In breve"
-    # e il provino, la coda pesa quasi mille pixel e tre trafiletti
-    # bastavano a mandare la pagina unica ben oltre il tetto. La soglia
-    # non è più l'unica condizione: conta anche l'altezza.
-    if len(usable) < MIN_ARTICLES_FOR_SPLIT:
-        single = (
-            first_base
-            + sum(heights[id(a)] for a in usable)
-            + tail_height
-        )
-        if single <= MAX_PAGE_HEIGHT or len(usable) < 2:
-            return [usable]
-
-    height = first_base
-    first: list[Article] = []
-    for a in usable:
-        if len(first) >= MAX_ARTICLES_FIRST_PAGE:
-            break
-        nxt = height + heights[id(a)]
-        # La prima notizia resta in prima pagina comunque: una prima con la
-        # sola apertura lascerebbe vuoto lo spazio sotto il taglio.
-        if first and nxt > MAX_PAGE_HEIGHT:
-            break
-        height = nxt
-        first.append(a)
-
-    pages = [first]
-    page_heights = [height]
-
-    rest = usable[len(first):]
+    pages: list[list] = []
+    page_heights: list[int] = []
     current: list[Article] = []
-    height = _H_CONT_CHROME
-    for index, a in enumerate(rest):
-        # Frase del giorno e statistiche chiudono l'ultima pagina: quando
+    height = prima_base
+    for index, a in enumerate(usable):
+        # Vignetta e statistiche chiudono l'ultima pagina: quando
         # sistemiamo l'ultima notizia vanno contate, o è proprio la coda a
         # far sfondare la pagina finale.
-        reserve = tail_height if index == len(rest) - 1 else 0
+        reserve = tail_height if index == len(usable) - 1 else 0
         h = heights[id(a)]
         if current and height + h + reserve > MAX_PAGE_HEIGHT:
             pages.append(current)
@@ -1170,7 +1613,7 @@ def paginate_articles(
         elif len(pages[-2]) > 1:
             pages[-1].insert(0, pages[-2].pop())
 
-    return _balance_pages(pages, first_base, tail_height, heights)
+    return _balance_pages(pages, prima_base, tail_height, heights)
 
 
 def _balance_pages(
@@ -1209,8 +1652,7 @@ def _balance_pages(
         height = base
         # Ogni pagina lascia almeno una notizia a ciascuna di quelle dopo.
         available = len(flat) - index - (total_pages - page_number - 1)
-        limit = MAX_ARTICLES_FIRST_PAGE if page_number == 0 else available
-        while index < len(flat) and len(current) < min(limit, available):
+        while index < len(flat) and len(current) < available:
             h = heights[id(flat[index])]
             # Si supera l'obiettivo solo se la notizia ci sta più dentro
             # che fuori: senza questo, un pezzo lungo apre sempre la
@@ -1265,7 +1707,6 @@ def build_pages_html(
     gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
     index_entries = index_entries or []
-    index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
     # I topic minori escono dalla colonna e diventano righe del box "In
     # breve": è la separazione che rende visibile la gerarchia. Le
@@ -1274,117 +1715,150 @@ def build_pages_html(
     usable = [a for a in articles if a.headline]
     laid_out, brief = arrange_sections(usable, brief_box=gfx.brief_box)
     sectioned = any(getattr(i, "section", "") for i in laid_out)
-    articles = laid_out
     stats_by_section = _section_stats(laid_out, brief) if sectioned else None
     total_messages = sum(a.count for a in usable)
 
     # Il contatore più alto fa da fondoscala alle barrette di peso: il
     # confronto è fra i topic della giornata, non con una soglia fissa.
     top_count = max(
-        (a.count for a in articles if not isinstance(a, FamilyBlock)), default=0
+        (a.count for a in laid_out if not isinstance(a, FamilyBlock)), default=0
     )
 
-    # La vignetta prende il posto della frase del giorno, e prende molto
-    # più spazio: l'impaginazione deve saperlo prima di distribuire gli
-    # articoli, o l'ultima pagina esce lunga il doppio del tetto.
+    # La vignetta sta in prima pagina, dentro l'apertura, dove in un
+    # quotidiano sta la foto: illustra il tono con cui il gruppo ha
+    # parlato del fatto di apertura, e stando in fondo all'edizione era
+    # lontana dalla notizia che le dà senso. Assorbe la frase del giorno,
+    # che quindi non esce; senza vignetta la frase torna in chiusura.
+    #
+    # La prima pagina non può però portare tutto: con il disegno dentro
+    # l'apertura, la spalla scende alle pagine interne (dove il suo pezzo
+    # stava comunque per intero) e resta annunciata dagli strilli. È il
+    # baratto giusto — un'immagine grande pesa più di un richiamo — ed è
+    # anche l'unico modo di restare sotto il tetto d'altezza.
     vignetta_html = _vignetta_html(vignetta)
     if vignetta_html:
         quote = None
     closing_height = (
         _H_TAIL
         - _H_QUOTE
-        + (_H_VIGNETTA if vignetta_html else _H_QUOTE if quote else 0)
+        + (_H_QUOTE if quote else 0)
         + (_H_CHART if gfx.hourly_chart and hourly else 0)
         + (_H_BRIEF_HEAD + _H_BRIEF_ROW * -(-len(brief) // 2) if brief else 0)
+        + (_H_SHARE if gfx.share_bar and index_entries else 0)
+        + (_H_NUMBER if gfx.number_block and index_entries else 0)
+        + _MARGINE_CODA
     )
-    index_extra = (_H_SHARE if gfx.share_bar and index_entries else 0) + (
-        _H_NUMBER if gfx.number_block and index_entries else 0
-    )
+
+    # PRIMA PASSATA: dove finisce ogni pezzo. I rimandi della prima pagina
+    # ("a pagina 3") non si possono scrivere prima di saperlo, ed è per
+    # questo che l'impaginazione viene prima della composizione e non
+    # dopo, come sarebbe naturale.
+    segue_height = _estimate_segue_height(lead)
     chunks = paginate_articles(
-        articles,
-        lead,
-        index_rows,
-        tail_height=closing_height,
-        index_extra=index_extra,
+        laid_out, segue_height=segue_height, tail_height=closing_height
     )
+    pagina_di = {
+        id(a): numero
+        for numero, chunk in enumerate(chunks, start=2)
+        for a in chunk
+    }
+    total = len(chunks) + 1
 
-    first_used = (
-        _H_CHROME
-        + index_rows * _H_INDEX_ROW
-        + index_extra
-        + _estimate_lead_height(lead)
+    # SECONDA PASSATA: la vetrina, con i numeri di pagina in mano.
+    spalla = None if vignetta_html else _pick_spalla(chunks)
+    strilli = _pick_strilli(chunks, pagina_di, escludi=spalla)
+    dentro = _righe_dentro(chunks, stats_by_section)
+
+    alta = _estimate_front_height(
+        lead, spalla, strilli, dentro, gfx, con_vignetta=bool(vignetta_html)
     )
-    total = len(chunks)
+    if alta > MAX_PAGE_HEIGHT:
+        print(
+            f"Prima pagina stimata {alta}px, sopra il tetto di "
+            f"{MAX_PAGE_HEIGHT}: l'apertura di oggi è più lunga del solito."
+        )
+
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
-
     brand = (
         f'<img src="{logo_uri}" alt="{html.escape(newspaper_name)}">'
         if logo_uri
         else f'<span class="folio">{html.escape(newspaper_name)}</span>'
     )
 
-    pages: list[str] = []
-    for number, chunk in enumerate(chunks, start=1):
-        if number == 1:
-            folio = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
-            head = (
-                _masthead(logo_uri, newspaper_name)
-                + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
-                f'<span class="folio">{html.escape(folio)}</span></div>'
-                + _index_html(index_entries, gfx)
-                + (_number_html(index_entries) if gfx.number_block else "")
-                + _lead_html(lead, gfx)
-            )
-            label = "Il resto della giornata"
-        else:
-            head = (
-                f'<div class="continuation">{brand}'
-                f'<span class="folio">{html.escape(short_italian_date(day))} · '
-                f"Pagina {number} di {total}</span>"
-                '</div><div class="rule-accent"></div>'
-            )
-            # "Segue dalla prima" è vero solo a pagina 2: dalla terza in poi
-            # si segue la pagina precedente, non la prima.
-            label = "Segue dalla prima" if number == 2 else "Segue"
+    def chiusura(numero: int) -> str:
+        note = (
+            FOOTER_NOTE
+            if total == 1
+            else f"Fine dell'edizione · pagina {numero} di {total}"
+        )
+        return (
+            _brief_html(brief, gfx)
+            # La vignetta ora sta in prima, dentro l'apertura: qui resta
+            # solo la frase del giorno, e solo nei giorni senza vignetta.
+            + _quote_html(quote)
+            + _numeri_html(index_entries, gfx)
+            + _stats_html(stats, hourly, gfx)
+            + _footer_html(note)
+        )
 
-        if number == total:
-            note = (
-                FOOTER_NOTE
-                if total == 1
-                else f"Fine dell'edizione · pagina {number} di {total}"
-            )
-            tail = (
-                _brief_html(brief, gfx)
-                + (vignetta_html or _quote_html(quote))
-                + _stats_html(stats, hourly, gfx)
-                + _footer_html(note)
-            )
-        else:
-            tail = (
-                '<div class="footer-continue">'
-                f'<span class="note">{html.escape(FOOTER_NOTE)}</span>'
-                f'<span class="next">Continua a pagina {number + 1} ▸</span></div>'
-            )
+    def continua(numero: int) -> str:
+        return (
+            '<div class="footer-continue">'
+            f'<span class="note">{html.escape(FOOTER_NOTE)}</span>'
+            f'<span class="next">Continua a pagina {numero + 1} ▸</span></div>'
+        )
+
+    folio_prima = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
+    vetrina = (
+        _masthead(logo_uri, newspaper_name)
+        + _strilli_html(strilli)
+        + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
+        f'<span class="folio">{html.escape(folio_prima)}</span></div>'
+        + _lead_html(
+            lead,
+            gfx,
+            continua_a=2 if chunks and lead.seguito else None,
+            vignetta_html=vignetta_html,
+        )
+        + _spalla_html(spalla, pagina_di.get(id(spalla), 2), gfx)
+        + _dentro_html(dentro)
+    )
+    pages = [
+        _wrap_page(vetrina + (continua(1) if chunks else chiusura(1)))
+    ]
+
+    for indice, chunk in enumerate(chunks):
+        numero = indice + 2
+        testa = (
+            f'<div class="continuation">{brand}'
+            f'<span class="folio">{html.escape(short_italian_date(day))} · '
+            f"Pagina {numero} di {total}</span>"
+            '</div><div class="rule-accent"></div>'
+        )
+        # Il seguito dell'apertura apre la prima pagina interna, dove chi
+        # ha girato pagina lo sta cercando.
+        if indice == 0:
+            testa += _lead_segue_html(lead, gfx)
 
         # Una sezione può finire a cavallo di due pagine: la testata si
         # ripete in cima alla successiva con "(segue)".
-        previous = chunks[number - 2][-1] if number > 1 and chunks[number - 2] else None
-        continues = getattr(previous, "section", "") if previous is not None else ""
+        precedente = chunks[indice - 1][-1] if indice > 0 and chunks[indice - 1] else None
+        continues = getattr(precedente, "section", "") if precedente is not None else ""
 
-        body = (
-            head
+        corpo = (
+            testa
             + _articles_html(
                 chunk,
-                label,
+                "Le notizie della giornata",
                 gfx,
                 top_count,
                 stats=stats_by_section,
                 total_messages=total_messages,
                 continues=continues,
             )
-            + tail
+            + (chiusura(numero) if numero == total else continua(numero))
         )
-        pages.append(_wrap_page(body))
+        pages.append(_wrap_page(corpo))
 
     return pages
 

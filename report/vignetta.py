@@ -134,10 +134,17 @@ def _prompt(toni: list[str], tema: str) -> str:
     return (
         "Di seguito i messaggi di oggi di un gruppo Telegram di tifosi, nel "
         "formato [ora] (topic) autore: testo.\n\n"
-        f"L'apertura del gazzettino di oggi è: «{tema}»\n\n"
-        "Devi comporre la VIGNETTA del giorno su questo argomento: una "
-        "scenetta con due personaggi che si dicono, alla lettera, cose che "
-        "il gruppo ha scritto davvero.\n\n"
+        f"L'APERTURA del gazzettino di oggi è questa, e la vignetta le sta "
+        f"accanto in prima pagina:\n«{tema}»\n\n"
+        "Devi comporre la VIGNETTA del giorno SU QUEL FATTO: una scenetta "
+        "con due personaggi che si dicono, alla lettera, cose che il gruppo "
+        "ha scritto davvero su quel fatto.\n\n"
+        "Le battute devono parlare della notizia qui sopra e di nient'altro. "
+        "Una battuta bellissima su un altro argomento è la risposta "
+        "sbagliata: in pagina finirebbe sotto quel titolo, e il lettore "
+        "leggerebbe due cose che non c'entrano niente fra loro. Se sul "
+        "fatto dell'apertura il gruppo non ha detto niente di riportabile, "
+        "rispondi NESSUNA — la vignetta salta e non è un problema.\n\n"
         "1) Scegli il TONO della discussione su quell'argomento, fra questi "
         "e solo questi:\n"
         f"{elenco}\n\n"
@@ -162,6 +169,12 @@ def _prompt(toni: list[str], tema: str) -> str:
     )
 
 
+# Sotto questo numero di candidati la selezione per sezione lascia troppo
+# poco da scegliere, e una vignetta pescata fra sei frasi è peggio di una
+# vignetta pescata larga: si torna a tutta la giornata.
+_MINIMI_PER_SEZIONE = 12
+
+
 def _candidati(
     messages_with_topic: list[tuple[str, "SimpleMessage"]],
 ) -> list[tuple[str, "SimpleMessage"]]:
@@ -172,6 +185,31 @@ def _candidati(
         and "http" not in m.text
         and not m.text.startswith("[")
     ]
+
+
+def _della_sezione(candidati, topic_sezione) -> list:
+    """I candidati che vengono dai topic da cui arriva l'apertura.
+
+    È il vincolo che rende la vignetta il contorno della notizia invece di
+    un fumetto qualsiasi in fondo alla pagina. Chiederlo nel prompt non
+    basta: quando sul fatto di apertura il gruppo ha detto poco, il
+    modello preferisce sempre una bella battuta fuori tema a un NESSUNA, e
+    in pagina restano un titolone e due che parlano d'altro.
+
+    Restringere qui è meccanico e non si può aggirare. Se però la sezione
+    lascia troppo poco materiale si torna a tutta la giornata: meglio una
+    vignetta scelta larga che nessuna vignetta, e a quel punto la
+    coerenza torna a dipendere dal prompt."""
+    if not topic_sezione:
+        return candidati
+    stretti = [(t, m) for t, m in candidati if t in topic_sezione]
+    if len(stretti) < _MINIMI_PER_SEZIONE:
+        print(
+            f"Vignetta: solo {len(stretti)} frasi dai topic dell'apertura, "
+            "troppo poche per scegliere. Guardo tutta la giornata."
+        )
+        return candidati
+    return stretti
 
 
 def _leggi(raw: str, toni: list[str]) -> tuple[str, list[tuple[str, str]]]:
@@ -199,9 +237,16 @@ def pick_vignetta(
     *,
     tema: str,
     giorno: date,
+    topic_sezione: set[str] | None = None,
     biblioteca: Biblioteca | None = None,
 ) -> Vignetta | None:
     """Sceglie tono e battute, e ci appoggia sopra un disegno.
+
+    `tema` è titolo e sommario dell'apertura: la vignetta sta in prima
+    accanto a quel pezzo, e deve raccontare quel fatto. `topic_sezione`
+    sono i topic da cui l'apertura arriva, e restringono da dove possono
+    venire le battute — è il vincolo vero, mentre il prompt è solo la
+    richiesta.
 
     Restituisce None ogni volta che qualcosa non torna — biblioteca
     vuota, nessuna frase adatta, battute che non combaciano. Chi chiama
@@ -212,7 +257,7 @@ def pick_vignetta(
     if not messages_with_topic or not tema:
         return None
 
-    usable = _candidati(messages_with_topic)
+    usable = _della_sezione(_candidati(messages_with_topic), topic_sezione)
     if not usable:
         return None
 

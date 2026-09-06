@@ -1,3 +1,5 @@
+import re
+
 from openai import OpenAI
 
 from report import llm
@@ -265,6 +267,53 @@ COHERENCE_RULE = (
     "meglio un pezzo corto e coerente che uno che tocca tre argomenti."
 )
 
+# L'attacco. Era la regola che mancava, ed era mancata nel modo peggiore:
+# il formato chiedeva un testo "che aggiunge i dettagli senza ricopiare le
+# parole del titolo o del sommario", cioè esattamente il contrario di come
+# si apre un pezzo di cronaca. Un attacco di giornale RIDICE il fatto, per
+# esteso e con le parole giuste; quello che non deve fare è ricopiare la
+# frase del titolo. Le due cose si assomigliano abbastanza da confondersi,
+# e finché non è stato detto il modello apriva i pezzi con una premessa e
+# lasciava la notizia al secondo capoverso.
+ATTACCO_RULE = (
+    "Il primo capoverso è l'attacco, e in un quotidiano l'attacco è già "
+    "tutta la notizia: chi legge solo quello deve sapere che cosa è "
+    "successo, quando e a quali condizioni. Non introduce e non prepara "
+    "il terreno — comincia dal fatto, con il verbo principale nella prima "
+    "riga, e si regge da solo anche staccato dal resto del pezzo. Riprende "
+    "il fatto del titolo e lo dice per intero: ridire il fatto va bene, "
+    "ricopiare la frase del titolo no."
+)
+
+# La piramide rovesciata: la forma con cui si scrive un pezzo di cronaca da
+# un secolo e mezzo, nata perché il tipografo tagliava dal fondo quando il
+# pezzo non stava in colonna. Qui il tipografo è l'impaginazione, che fa
+# esattamente la stessa cosa.
+PIRAMIDE_RULE = (
+    "I capoversi dopo l'attacco stanno in ordine di importanza calante: "
+    "prima il dettaglio che cambia la sostanza (chi ha deciso, con quali "
+    "numeri, contro quale posizione), poi il contorno, e in fondo quello "
+    "che resta aperto o deve ancora succedere. Ogni capoverso aggiunge una "
+    "cosa sola, e il pezzo deve reggersi in piedi anche se lo si taglia "
+    "dall'ultimo capoverso in su."
+)
+
+# Il virgolettato. Un pezzo di cronaca dà la parola a chi c'era: è la
+# differenza fra raccontare una discussione e riassumerla. Qui il rischio
+# è ovvio — una citazione inventata dentro le virgolette, con un nome vero
+# accanto — e la difesa non è il prompt ma la verifica che segue: se la
+# frase non compare alla lettera in un messaggio, non si stampa.
+QUOTE_RULE = (
+    "La citazione è una frase scritta da una persona, copiata ESATTAMENTE "
+    "come compare nel suo messaggio: non riscritta, non corretta, non "
+    "accorciata, virgolette escluse. Scegli quella che dà la posizione più "
+    "netta sul fatto del pezzo, non la più divertente e non un commento "
+    "generico, e scarta le frasi che fuori contesto non si capiscono. Se "
+    "nessun messaggio dice qualcosa di forte su questo fatto, rispondi "
+    "NESSUNA: un pezzo senza virgolettato è normale, un virgolettato "
+    "inventato no."
+)
+
 HEADLINE_RULE = (
     "Il titolo deve essere in stile testata: sintetico e concreto, senza "
     "punto finale, senza virgolette, senza markdown e senza la formula "
@@ -296,21 +345,25 @@ DECK_RULE = (
 # seguono hanno un riferimento comune a cui tornare invece di inseguire
 # ciascuna un fatto diverso. Costa una riga di output e si butta via.
 ARTICLE_FORMAT_RULE = (
-    "Rispondi SOLO con queste quattro righe etichettate, senza markdown e "
+    "Rispondi SOLO con queste cinque righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
     "FATTO: in una riga, il singolo fatto che il pezzo racconta (riga di "
     "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
     "scrivere)\n"
     "TITOLO: il titolo di quel fatto, massimo 8 parole\n"
     "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
-    "TESTO: 2-3 frasi di prosa (massimo 420 caratteri) sullo stesso fatto, "
-    "che ne aggiungono i dettagli senza ricopiare le parole del titolo o "
-    "del sommario\n\n"
-    f"{HEADLINE_RULE}\n\n{DECK_RULE}"
+    "TESTO: 3 capoversi separati da una riga vuota, in tutto fra 600 e 900 "
+    "caratteri, tutti sullo stesso fatto: il primo è l'attacco, il secondo "
+    "il dettaglio che conta, il terzo quello che resta aperto\n"
+    "CITAZIONE: una frase copiata alla lettera da un messaggio, poi una "
+    "barra verticale, poi il nome di chi l'ha scritta — oppure la sola "
+    "parola NESSUNA\n\n"
+    f"{HEADLINE_RULE}\n\n{DECK_RULE}\n\n{ATTACCO_RULE}\n\n{PIRAMIDE_RULE}"
+    f"\n\n{QUOTE_RULE}"
 )
 
 LEAD_FORMAT_RULE = (
-    "Rispondi SOLO con queste cinque righe etichettate, senza markdown e "
+    "Rispondi SOLO con queste sei righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
     "FATTO: in una riga, il singolo fatto che apre l'edizione (riga di "
     "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
@@ -318,10 +371,21 @@ LEAD_FORMAT_RULE = (
     "SEZIONE: {sections}\n"
     "TITOLO: il titolo di quel fatto, massimo 9 parole\n"
     "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
-    "TESTO: 2 paragrafi brevi (massimo 300 caratteri ciascuno) separati "
-    "da una riga vuota, entrambi su quel fatto; il primo lo racconta, il "
-    "secondo aggiunge contesto o conseguenze\n\n"
-    f"{HEADLINE_RULE}\n\n{DECK_RULE}"
+    "TESTO: 4 capoversi separati da una riga vuota, in tutto fra 900 e "
+    "1200 caratteri, tutti su quel fatto\n"
+    "CITAZIONE: una frase copiata alla lettera da un messaggio, poi una "
+    "barra verticale, poi il nome di chi l'ha scritta — oppure la sola "
+    "parola NESSUNA\n\n"
+    # Il primo capoverso dell'apertura va da solo in prima pagina, sotto
+    # il titolone: è l'unico pezzo di testo che il lettore incontra prima
+    # di decidere se girare pagina, e se non basta a sé stesso la prima
+    # pagina promette una notizia senza darla.
+    "Il primo capoverso dell'apertura viene stampato DA SOLO in prima "
+    "pagina, e il resto del pezzo riprende alla pagina seguente: deve "
+    "quindi contenere la notizia per intero e non rimandare niente ai "
+    "capoversi dopo.\n\n"
+    f"{HEADLINE_RULE}\n\n{DECK_RULE}\n\n{ATTACCO_RULE}\n\n{PIRAMIDE_RULE}"
+    f"\n\n{QUOTE_RULE}"
 )
 
 # Risposta attesa nella riga SEZIONE quando l'apertura non appartiene a una
@@ -396,7 +460,51 @@ MAX_DECK_CHARS = 190
 # SEZIONE diventa l'occhiello dell'apertura. Vanno comunque riconosciute
 # come etichette, altrimenti il parser le accoderebbe al blocco precedente
 # e il testo di lavoro finirebbe stampato dentro il pezzo.
-_LABELS = ("FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO")
+_LABELS = ("FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO", "CITAZIONE")
+
+# Le stesse soglie della frase del giorno: sotto, una citazione non dice
+# niente ("vero", "esatto"); sopra, non è più un virgolettato ma un
+# paragrafo fra virgolette.
+_MIN_QUOTE_CHARS = 25
+_MAX_QUOTE_CHARS = 130
+
+
+def _verify_quote(raw: str, messages) -> "Quote | None":
+    """Il virgolettato, ma solo se esiste davvero.
+
+    Il modello dichiara la frase e il nome; qui si cerca la frase, alla
+    lettera, dentro i messaggi. Se non c'è, non si stampa niente — e non
+    è una precauzione teorica: una citazione plausibile fra virgolette,
+    con accanto il nome di una persona vera, è la sola cosa che questo
+    giornale può stampare e che nessuno saprebbe riconoscere come falsa.
+
+    Il nome in pagina è quello del messaggio trovato, non quello
+    dichiarato dal modello: se sbaglia l'attribuzione, il messaggio ha
+    ragione."""
+    from report.newspaper import Quote
+
+    testo = _clean(raw or "")
+    if not testo or testo.upper().startswith("NESSUNA"):
+        return None
+    # "frase | autore": il nome dichiarato si scarta, serve solo a far
+    # capire al modello che deve attribuirla a qualcuno.
+    testo = testo.rpartition("|")[0].strip() or testo
+    testo = testo.strip().strip('"').strip("«»").strip()
+    if not (_MIN_QUOTE_CHARS <= len(testo) <= _MAX_QUOTE_CHARS):
+        return None
+
+    cercato = testo.lower()
+    for voce in messages:
+        topic, m = voce if isinstance(voce, tuple) else ("", voce)
+        if cercato in m.text.lower():
+            return Quote(
+                text=testo,
+                author=m.author,
+                topic=topic,
+                time=m.timestamp.strftime("%H:%M"),
+            )
+    print(f"Virgolettato scartato, non combacia con nessun messaggio: {testo!r}")
+    return None
 
 
 def _clean(text: str) -> str:
@@ -531,14 +639,25 @@ def _unlabeled_lines(raw: str) -> list[str]:
     return kept
 
 
-def _split_article(raw: str) -> tuple[str, str, str]:
-    """(titolo, sommario, corpo) da una risposta del modello."""
+def _paragraphs_of(testo: str) -> str:
+    """I capoversi del corpo, tenuti separati.
+
+    Prima si univa tutto con uno spazio, e un pezzo di quattro capoversi
+    arrivava in pagina come un muro unico: la struttura che il prompt
+    chiedeva veniva buttata via dal parser subito dopo essere stata
+    scritta. Il separatore è la riga vuota, che è anche quello che il
+    modello riceve come istruzione."""
+    blocchi = [b.strip() for b in re.split(r"\n\s*\n", testo)]
+    return "\n\n".join(" ".join(b.split()) for b in blocchi if b.strip())
+
+
+def _split_article(raw: str) -> tuple[str, str, str, str]:
+    """(titolo, sommario, corpo, citazione grezza) da una risposta."""
     parts = _parse_labeled(raw)
     headline = _clean(parts.get("TITOLO", ""))
     deck = _clean(parts.get("SOMMARIO", ""))
-    body = " ".join(
-        line.strip() for line in parts.get("TESTO", "").splitlines() if line.strip()
-    ).strip()
+    body = _paragraphs_of(parts.get("TESTO", ""))
+    citazione = parts.get("CITAZIONE", "")
 
     if not headline:
         # Nessuna etichetta riconosciuta: si ricade sulla vecchia regola
@@ -546,11 +665,11 @@ def _split_article(raw: str) -> tuple[str, str, str]:
         # lunghezza, che è ciò che mancava prima.
         lines = _unlabeled_lines(raw)
         if not lines:
-            return "", "", ""
+            return "", "", "", ""
         headline = _clean(lines[0])
         body = body or " ".join(lines[1:]).strip()
 
-    return _enforce_lengths(headline, deck, body)
+    return (*_enforce_lengths(headline, deck, body), citazione)
 
 
 def write_topic_article(
@@ -559,14 +678,14 @@ def write_topic_article(
     topic_title: str,
     messages: list[SimpleMessage],
     written_so_far: list[tuple[str, str]] | None = None,
-) -> tuple[str, str, str]:
-    """Genera (titolo, sommario, corpo) in stile cronaca per un topic.
+) -> tuple[str, str, str, "Quote | None"]:
+    """Genera (titolo, sommario, corpo, virgolettato) in stile cronaca.
     Per topic molto attivi (oltre la soglia di chunking) riusa il riassunto
     già condensato da summarize_topic come fonte, invece di rifare da zero
     la logica di map-reduce. `written_so_far` contiene i pezzi già scritti
     per la stessa pagina, usati per evitare attacchi e titoli ripetuti."""
     if not messages:
-        return "", "", ""
+        return "", "", "", None
 
     chunks = _chunk_messages(messages, MAX_TRANSCRIPT_CHARS)
     if len(chunks) == 1:
@@ -597,12 +716,16 @@ def write_topic_article(
     # resta nell'indice col suo contatore, senza un articolo che ripete
     # quello che il lettore ha appena letto.
     if raw.strip().upper().startswith(DUPLICATE_MARKER):
-        return "", "", ""
-    return _split_article(raw)
+        return "", "", "", None
+    headline, deck, body, citazione = _split_article(raw)
+    # La verifica gira sui messaggi veri del topic anche quando il pezzo è
+    # stato scritto dal riassunto condensato: è la fonte, e il riassunto
+    # non lo è.
+    return headline, deck, body, _verify_quote(citazione, messages)
 
 
-def _split_lead(raw: str) -> tuple[str, str, list[str], str]:
-    """(titolo, sommario, paragrafi, sezione) per l'apertura.
+def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
+    """(titolo, sommario, paragrafi, sezione, citazione grezza).
 
     Stessa logica degli articoli, con in più la divisione del corpo in
     paragrafi sulle righe vuote e la sezione dichiarata dal modello, che
@@ -612,6 +735,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str]:
     deck = _clean(parts.get("SOMMARIO", ""))
     section = _clean(parts.get("SEZIONE", ""))
     text = parts.get("TESTO", "")
+    citazione = parts.get("CITAZIONE", "")
 
     if not headline:
         # Nessuna etichetta: si ricade sul vecchio formato posizionale,
@@ -619,7 +743,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str]:
         blocks = [b for b in "\n".join(_unlabeled_lines(raw)).split("\n\n") if b.strip()]
         first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()] if blocks else []
         if not first_lines:
-            return "", "", [], section
+            return "", "", [], section, citazione
         headline = _clean(first_lines[0])
         deck = deck or (first_lines[1] if len(first_lines) > 1 else "")
         rest = blocks[1:]
@@ -632,7 +756,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str]:
         " ".join(l.strip() for l in block.splitlines() if l.strip())
         for block in text.split("\n\n")
     ]
-    return headline, deck, [p for p in paragraphs if p], section
+    return headline, deck, [p for p in paragraphs if p], section, citazione
 
 
 def _match_section(declared: str, sections: list[str]) -> str:
@@ -665,9 +789,12 @@ def write_lead_story(
     messages_with_topic: list[tuple[str, SimpleMessage]],
     page_headlines: list[str] | None = None,
     sections: list[str] | None = None,
-) -> tuple[str, str, list[str], str]:
-    """Genera (titolo, sommario, paragrafi, sezione) per l'articolo di
-    apertura, basato sui temi più rilevanti/trasversali della giornata. Per
+) -> tuple[str, str, list[str], str, "Quote | None"]:
+    """Genera (titolo, sommario, paragrafi, sezione, virgolettato) per
+    l'articolo di apertura, basato sui temi più rilevanti/trasversali
+    della giornata. Il primo capoverso resta in prima pagina e gli altri
+    riprendono dentro, quindi il pezzo va scritto perché quel primo
+    capoverso basti da solo: la regola sta in LEAD_FORMAT_RULE. Per
     giornate molto attive riusa summarize_overall come fonte condensata
     invece di rifare da zero il map-reduce sui messaggi grezzi.
     `page_headlines` sono i titoli degli articoli già in pagina: servono a
@@ -677,7 +804,7 @@ def write_lead_story(
     finché lo decideva il codice (il topic più attivo) poteva annunciare
     una sezione che con la notizia non c'entrava."""
     if not messages_with_topic:
-        return "", "", [], ""
+        return "", "", [], "", None
 
     ordered = sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
     all_messages = [m for _, m in ordered]
@@ -719,5 +846,11 @@ def write_lead_story(
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
-    headline, deck, paragraphs, declared = _split_lead(raw)
-    return headline, deck, paragraphs, _match_section(declared, section_list)
+    headline, deck, paragraphs, declared, citazione = _split_lead(raw)
+    return (
+        headline,
+        deck,
+        paragraphs,
+        _match_section(declared, section_list),
+        _verify_quote(citazione, ordered),
+    )

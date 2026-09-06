@@ -40,16 +40,33 @@ SAMPLE_LEAD = Lead(
         "l'uscita di un esubero per liberare lo slot in lista"
     ),
     paragraphs=[
-        "La trattativa si è chiusa nella tarda serata di lunedì sulla formula "
-        "del prestito con diritto di riscatto fissato a dodici milioni. Le "
-        "commissioni restano l'ultimo dettaglio da limare, ma le parti si sono "
-        "date appuntamento a mercoledì per la firma.",
-        "In gruppo la reazione è stata compatta: chi chiedeva un innesto in "
-        "mezzo da giugno considera l'operazione chiusa bene, mentre resta il "
-        "dubbio su chi lascerà il posto in lista.",
-        "Nel pomeriggio è atteso l'annuncio ufficiale, che chiuderebbe la "
-        "settimana più movimentata della sessione estiva.",
+        # L'attacco: sta in prima pagina e deve reggere da solo. Dà la
+        # notizia per intero — chi, che cosa, quando, a quali condizioni —
+        # senza rimandare niente ai capoversi dopo.
+        "Il centrocampista arriverà in prestito con diritto di riscatto "
+        "fissato a dodici milioni: la trattativa si è chiusa nella tarda "
+        "serata di lunedì, le visite mediche sono in programma mercoledì "
+        "mattina e la firma è attesa entro giovedì.",
+        # Da qui il pezzo riprende dentro, in ordine di importanza.
+        "A far muovere le cose è stata la disponibilità del club di "
+        "partenza ad abbassare la richiesta iniziale, ferma a quindici "
+        "milioni fino a domenica. Restano da limare le commissioni, "
+        "l'ultimo dettaglio ancora aperto: le parti si sono date "
+        "appuntamento a mercoledì, subito dopo le visite.",
+        "L'operazione apre però un problema di lista. Con l'arrivo del "
+        "centrocampista lo slot va liberato, e il nome dell'esubero "
+        "destinato a uscire non è ancora stato fatto: è la parte della "
+        "giornata su cui il gruppo si è diviso di più, con due candidati "
+        "e nessuna indicazione dal club.",
+        "L'annuncio ufficiale è atteso nel pomeriggio di giovedì e "
+        "chiuderebbe la settimana più movimentata della sessione estiva.",
     ],
+    quote=Quote(
+        text="Se lo prendiamo davvero, giovedì mi metto la maglia anche per andare a lavoro",
+        author="Ciro",
+        topic="Mantraskarso",
+        time="23:41",
+    ),
 )
 
 SAMPLE_ARTICLES = [
@@ -58,20 +75,43 @@ SAMPLE_ARTICLES = [
         headline="Il modificatore di difesa resta, l'asta slitta a sabato",
         deck="Tre leghe su quattro hanno già confermato la data, manca l'accordo sui crediti",
         body=(
-            "La discussione si è chiusa sul mantenere il modificatore anche "
-            "quest'anno. Sull'asta la data di sabato pomeriggio mette "
-            "d'accordo quasi tutti."
+            "Il modificatore di difesa resta anche quest'anno e l'asta si "
+            "farà sabato pomeriggio: la doppia decisione è arrivata lunedì "
+            "sera, dopo una discussione cominciata subito dopo cena e "
+            "chiusa poco prima di mezzanotte.\n\n"
+            "Sul modificatore la spaccatura era netta. Chi voleva toglierlo "
+            "sosteneva che premia chi compra tre difensori della stessa "
+            "squadra e nient'altro; chi voleva tenerlo ha fatto notare che "
+            "senza, i difensori si svalutano al punto da rendere inutile "
+            "metà del listino. Ha prevalso la seconda posizione, senza voto "
+            "formale.\n\n"
+            "Sulla data l'accordo è arrivato più in fretta: tre leghe su "
+            "quattro avevano già bloccato sabato pomeriggio, e la quarta si "
+            "è adeguata. Resta aperto il capitolo crediti, su cui nessuno "
+            "ha ancora messo un numero."
         ),
         count=132,
         section="FantaCalcio",
+        quote=Quote(
+            text="Togliere il modificatore adesso significa buttare metà listino",
+            author="Gennaro",
+            time="22:38",
+        ),
     ),
     Article(
         topic="Le Altre Squadre",
-        headline="La rincorsa della seconda in classifica si ferma a Bergamo",
+        headline="La rincorsa della seconda si ferma a Bergamo",
         deck="Il pareggio riapre il discorso sul terzo posto a due giornate dalla sosta",
         body=(
-            "Il risultato di Bergamo ha tenuto banco per tutta la sera. Sul "
-            "terzo posto le posizioni restano distanti."
+            "Il pareggio di Bergamo ferma la rincorsa della seconda in "
+            "classifica e riapre il discorso sul terzo posto, a due "
+            "giornate dalla sosta.\n\n"
+            "Il risultato ha tenuto banco per tutta la serata, ma non per "
+            "la partita in sé: a far discutere è stato il calendario che "
+            "resta, con due trasferte consecutive e una sola gara in casa "
+            "prima della pausa.\n\n"
+            "Sulle possibilità di rimonta le posizioni sono rimaste "
+            "distanti fino a tardi, e nessuno ha cambiato idea."
         ),
         count=113,
         section="Calcio",
@@ -81,8 +121,15 @@ SAMPLE_ARTICLES = [
         headline="La classifica dei panini trova finalmente un vincitore",
         deck="Tre settimane di ballottaggio si chiudono con una preferenza netta",
         body=(
-            "Dopo tre settimane di voti sparsi il ballottaggio si è chiuso "
-            "senza ricorsi. Il verbale resta agli atti del gruppo."
+            "Dopo tre settimane di votazioni sparse la classifica dei "
+            "panini si è chiusa martedì sera con una preferenza netta e "
+            "nessun ricorso.\n\n"
+            "Il ballottaggio era fermo da giorni su due nomi, con i voti "
+            "che arrivavano alla spicciolata e si annullavano a vicenda. "
+            "La svolta è arrivata quando si è deciso di contare solo i "
+            "voti espressi entro la mezzanotte di lunedì.\n\n"
+            "Il verbale resta agli atti del gruppo, e la prossima "
+            "classifica è già stata annunciata."
         ),
         count=113,
         section="Altro",
@@ -92,20 +139,37 @@ SAMPLE_ARTICLES = [
         headline="Il gol al novantesimo ribalta una partita già archiviata",
         deck="Sul secondo giallo le opinioni restano distanti anche a fine serata",
         body=(
-            "Il pareggio era stato dato per buono da quasi tutti fino "
-            "all'ultimo assalto. Sull'episodio del secondo giallo si è "
-            "discusso oltre la mezzanotte."
+            "Il gol al novantesimo ha ribaltato una partita che quasi tutti "
+            "avevano già archiviato come pareggio, e la discussione è "
+            "andata avanti oltre la mezzanotte.\n\n"
+            "Fino all'ultimo assalto il risultato era stato dato per buono "
+            "senza troppe discussioni. Il capovolgimento ha spostato tutto "
+            "sull'episodio precedente: il secondo giallo al difensore, "
+            "arrivato a venti minuti dalla fine, che ha lasciato la squadra "
+            "in dieci.\n\n"
+            "Su quell'intervento le posizioni sono rimaste distanti anche a "
+            "fine serata, con il replay guardato e riguardato senza che "
+            "nessuno cambiasse idea."
         ),
         count=87,
         section="Napoli",
+        quote=Quote(
+            text="Il secondo giallo non c'era manco a pagarlo, è entrato sul pallone",
+            author="Ciro",
+            time="23:14",
+        ),
     ),
     Article(
         topic="FantaSkarso",
         headline="I listini aggiornati sono online, i crediti restano cento",
         deck="Nessuna modifica ai ruoli rispetto alla scorsa stagione",
         body=(
-            "Il file aggiornato è stato condiviso in serata. Sui crediti "
-            "nessuno ha chiesto di cambiare il tetto."
+            "I listini aggiornati sono stati condivisi in serata: i crediti "
+            "restano cento e i ruoli non cambiano rispetto alla scorsa "
+            "stagione.\n\n"
+            "Sul tetto di spesa nessuno ha chiesto modifiche, nemmeno chi "
+            "l'anno scorso aveva proposto di alzarlo. Sui ruoli la scelta "
+            "di non toccare niente è passata senza commenti."
         ),
         count=51,
         section="FantaCalcio",
@@ -187,25 +251,32 @@ SAMPLE_STATS = Stats(
 # scrive il gruppo — minuscole, senza punteggiatura finale, con gli errori
 # — perché in pagina ci finiscono copiate alla lettera: una battuta
 # ripulita si riconosce subito e fa sembrare finto anche il resto.
+# Le battute della vignetta, una coppia per tono. Tutte sullo STESSO
+# fatto — quello dell'apertura — perché è il punto: a cambiare da un
+# giorno all'altro non è l'argomento della vignetta, che è sempre la
+# notizia principale, ma il tono con cui il gruppo l'ha presa. Sono
+# scritte come le scrive il gruppo (minuscole, senza punteggiatura
+# finale, con gli errori) perché in pagina ci finiscono copiate alla
+# lettera: una battuta ripulita si riconosce subito.
 SAMPLE_BATTUTE = {
     "battibecco": [
-        ("Il secondo giallo non c'era manco a pagarlo, è entrato sul pallone", "Ciro", "23:14"),
-        ("Sul pallone dopo che gli ha preso la caviglia, guardatelo un'altra volta", "Gennaro", "23:16"),
+        ("Dodici milioni di riscatto per uno che l'anno scorso ha fatto due gol", "Ciro", "23:14"),
+        ("Due gol da mediano, e ne ha fatti sei di assist, guardali prima di parlare", "Gennaro", "23:16"),
     ],
     "esultanza": [
-        ("Ragazzi io al novantesimo mi ero già messo il pigiama, giuro", "Peppe", "22:51"),
-        ("Ho svegliato tutto il palazzo e non me ne pento", "Ugo", "22:53"),
+        ("Ragazzi è fatta, visite mercoledì e giovedì firma, l'ho letto adesso", "Peppe", "22:51"),
+        ("Era da giugno che lo chiedevo, finalmente uno che sa fare due passaggi", "Ugo", "22:53"),
     ],
     "sconforto": [
-        ("Trentotto partite per farci male sempre nello stesso punto", "Salvo", "23:02"),
+        ("Un prestito con diritto, cioè fra un anno stiamo di nuovo qua a parlarne", "Salvo", "23:02"),
     ],
     "complotto": [
-        ("Vi ricordate chi arbitrava all'andata? Ecco, appunto", "Rino", "23:20"),
-        ("E infatti stessa identica cosa, stesso identico minuto", "Tonino", "23:22"),
+        ("Le visite mercoledì mattina, quindi la firma era già fatta da domenica", "Rino", "23:20"),
+        ("Certo che era fatta, aspettavano solo di piazzare quello che deve uscire", "Tonino", "23:22"),
     ],
     "spiegone": [
-        ("Allora ve lo rispiego con calma perché evidentemente non è chiaro", "Mimmo", "21:40"),
-        ("Mimmo per favore no, non stasera", "Ciro", "21:41"),
+        ("Allora, il prestito con diritto funziona che se non lo riscatti torna indietro", "Mimmo", "21:40"),
+        ("Mimmo lo sappiamo tutti come funziona il prestito", "Ciro", "21:41"),
     ],
     "attesa": [
         ("Le visite sono fissate per mercoledì mattina, prima di quello non si sa niente", "Gennaro", "20:12"),
@@ -213,12 +284,14 @@ SAMPLE_BATTUTE = {
     ],
 }
 
+# La didascalia dice dove è stato detto e quando: il CHE COSA lo dice già
+# il titolo sopra, ed è la stessa notizia.
 SAMPLE_VIGNETTA_TOPIC = {
-    "battibecco": "Match Day — il secondo giallo, dopo la mezzanotte",
-    "esultanza": "Match Day — il gol al novantesimo",
-    "sconforto": "Match Day — a fine partita",
-    "complotto": "Match Day — sull'arbitro, in serata",
-    "spiegone": "Mantraskarso — il modificatore di difesa",
+    "battibecco": "CalcioMercato — sul riscatto, dopo le undici di sera",
+    "esultanza": "CalcioMercato — alla notizia delle visite mediche",
+    "sconforto": "CalcioMercato — sulla formula del prestito",
+    "complotto": "CalcioMercato — sulle date, in tarda serata",
+    "spiegone": "CalcioMercato — sul diritto di riscatto",
     "attesa": "CalcioMercato — in attesa delle visite mediche",
 }
 
