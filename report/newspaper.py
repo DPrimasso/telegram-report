@@ -41,6 +41,15 @@ INK_SOFT = "#3d3d3d"
 
 PAGE_WIDTH = 1080
 
+# Il pannello della vignetta: la colonna intera meno i due margini da 56.
+# L'altezza non è il 3:2 dell'originale ma un formato più basso e largo —
+# una striscia, non un quadro — e costa un ritaglio del 13% sopra e sotto.
+# È il compromesso che tiene i balloon lontani dalle teste: i disegni
+# della biblioteca hanno le teste sotto la metà dell'immagine, e quello
+# che si perde nel ritaglio è il cielo vuoto che sta sopra.
+_VIGNETTA_WIDTH = PAGE_WIDTH - 56 * 2
+_VIGNETTA_HEIGHT = 560
+
 # Oltre questa altezza stimata (in px CSS) la pagina diventa una striscia
 # troppo lunga: Telegram la mostra rimpicciolita in anteprima e il testo
 # torna illeggibile. Il tetto vale per OGNI pagina: superarlo apre la
@@ -150,6 +159,42 @@ class Quote:
     author: str
     topic: str = ""
     time: str = ""
+
+
+@dataclass
+class Balloon:
+    """Una battuta della vignetta: parole del gruppo, alla lettera.
+
+    `text` non viene mai riscritto né accorciato: è la stessa difesa
+    della frase del giorno, e qui conta di più, perché un fumetto sembra
+    per sua natura una cosa inventata. Se le parole non sono vere, la
+    vignetta è una barzelletta con dei nomi veri sotto."""
+
+    text: str
+    author: str
+    time: str = ""
+
+
+@dataclass
+class Vignetta:
+    """La scenetta del giorno: un disegno della biblioteca più le battute.
+
+    Assorbe la frase del giorno invece di aggiungersi: sono la stessa
+    cosa detta in due forme — uno scambio a due voci quando la giornata
+    ne ha uno, un balloon solo quando la frase è rimasta senza risposta.
+
+    Il disegno non illustra il fatto (non può: è stato disegnato prima),
+    illustra il tono con cui il gruppo ne ha parlato. A legarlo alla
+    giornata sono le parole nei balloon, che invece di quel giorno sono."""
+
+    image_path: str | Path
+    balloons: list[Balloon] = field(default_factory=list)
+    # Da dove arriva lo scambio: topic e ora. Sta sotto il pannello come
+    # una didascalia di giornale, non dentro il disegno.
+    topic: str = ""
+    # Il tono che ha scelto il disegno. In pagina non compare: serve a
+    # chi legge i log a capire perché è uscito quel disegno lì.
+    tone: str = ""
 
 
 @dataclass
@@ -390,6 +435,65 @@ p {{ margin: 0; }}
 .quote .section-label {{ display: block; color: {NAVY}; margin-bottom: 14px; }}
 .quote p {{ font-size: 46px; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }}
 .quote .attrib {{ font-size: 20px; font-weight: 700; }}
+
+/* La vignetta. Il pannello è largo quanto la colonna (1080 meno i due
+   margini da 56) e il disegno lo riempie con object-fit: cover, quindi
+   viene tagliato sopra e sotto — è il motivo per cui i disegni della
+   biblioteca tengono le teste sotto la metà dell'immagine.
+   Niente angoli arrotondati e niente ombre nemmeno qui: il fumetto è un
+   rettangolo con un bordo, come il resto della pagina. */
+.vignetta {{ background: #fff; padding: 34px 56px 30px 56px; }}
+.vignetta .section-label {{ display: block; margin-bottom: 16px; }}
+.pannello {{
+  position: relative; width: {_VIGNETTA_WIDTH}px; height: {_VIGNETTA_HEIGHT}px;
+  border: 3px solid {NAVY}; overflow: hidden; background: #fff;
+}}
+.pannello img {{
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}}
+/* I balloon stanno nella metà alta, dove il disegno è sfondo e basta. */
+.battute {{
+  position: absolute; left: 26px; right: 26px; top: 22px;
+  display: flex; flex-direction: column; gap: 12px;
+}}
+.balloon {{
+  position: relative; border: 3px solid {NAVY}; background: #fff;
+  padding: 13px 18px 11px 18px; max-width: 72%;
+}}
+.balloon.sx {{ align-self: flex-start; }}
+.balloon.dx {{ align-self: flex-end; text-align: right; }}
+.balloon p {{ font-size: 30px; line-height: 1.26; font-weight: 600; letter-spacing: -0.015em; }}
+.balloon .firma {{
+  display: block; margin-top: 8px; font-size: 15px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+/* La codina: due triangoli sovrapposti, quello bianco più piccolo, così
+   il bordo resta continuo. Ce l'ha solo l'ultimo balloon di chi parla —
+   con due balloon di fila la codina del primo finisce coperta. */
+.balloon.coda::before, .balloon.coda::after {{
+  content: ""; position: absolute; width: 0; height: 0; border-style: solid;
+}}
+.balloon.sx.coda::before {{
+  left: 36px; bottom: -22px; border-width: 22px 24px 0 0;
+  border-color: {NAVY} transparent transparent transparent;
+}}
+.balloon.sx.coda::after {{
+  left: 40px; bottom: -15px; border-width: 16px 17px 0 0;
+  border-color: #fff transparent transparent transparent;
+}}
+.balloon.dx.coda::before {{
+  right: 36px; bottom: -22px; border-width: 22px 0 0 24px;
+  border-color: {NAVY} transparent transparent transparent;
+}}
+.balloon.dx.coda::after {{
+  right: 40px; bottom: -15px; border-width: 16px 0 0 17px;
+  border-color: #fff transparent transparent transparent;
+}}
+.vignetta figcaption {{
+  margin-top: 14px; font-size: 20px; font-weight: 700; color: {AZZURRO_DEEP};
+  letter-spacing: -0.01em;
+}}
 
 .stats {{ background: {NAVY}; color: #fff; padding: 28px 56px; }}
 .stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }}
@@ -807,6 +911,57 @@ def _quote_html(quote: Quote | None) -> str:
     )
 
 
+def _vignetta_html(vignetta: "Vignetta | None") -> str:
+    if vignetta is None or not vignetta.balloons:
+        return ""
+    try:
+        uri = data_uri(vignetta.image_path)
+    except OSError:
+        # Un disegno che non si apre non è un motivo per non spedire il
+        # gazzettino: la vignetta salta, il resto della pagina resta.
+        print(f"Vignetta saltata: non riesco a leggere {vignetta.image_path}.")
+        return ""
+
+    # Chi parla per primo sta a sinistra. Il lato non dice chi è la
+    # persona — i disegni sono sempre gli stessi due — dice solo che le
+    # voci sono due e distinte.
+    voci: list[str] = []
+    for b in vignetta.balloons:
+        if b.author not in voci:
+            voci.append(b.author)
+
+    pezzi = []
+    for i, b in enumerate(vignetta.balloons):
+        lato = "sx" if voci.index(b.author) == 0 else "dx"
+        # La codina va a chi non ha altre battute dopo dallo stesso lato,
+        # altrimenti resta nascosta sotto il balloon successivo.
+        ultimo = not any(
+            ("sx" if voci.index(x.author) == 0 else "dx") == lato
+            for x in vignetta.balloons[i + 1:]
+        )
+        firma = html.escape(b.author)
+        if b.time:
+            firma += f" &middot; {html.escape(b.time)}"
+        pezzi.append(
+            f'<div class="balloon {lato}{" coda" if ultimo else ""}">'
+            f"<p>{html.escape(b.text)}</p>"
+            f'<span class="firma">{firma}</span></div>'
+        )
+
+    didascalia = (
+        f"<figcaption>{html.escape(vignetta.topic)}</figcaption>"
+        if vignetta.topic
+        else ""
+    )
+    return (
+        '<div class="vignetta">'
+        '<span class="section-label">La vignetta</span>'
+        f'<figure><div class="pannello"><img src="{uri}" alt="">'
+        f'<div class="battute">{"".join(pezzi)}</div></div>'
+        f"{didascalia}</figure></div>"
+    )
+
+
 def _stats_html(
     stats: Stats | None, hourly: list[int] | None, gfx: GraphicsOptions
 ) -> str:
@@ -854,6 +1009,8 @@ _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
 _H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
 _H_INDEX_ROW = 46
 _H_QUOTE = 220
+# Etichetta, pannello, didascalia e i due margini del blocco.
+_H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 34 + 64
 _H_STATS = 120
 _H_CHART = 200          # titolo + grafico orario + regolo di separazione
 _H_NUMBER = 145         # blocco del dato grande
@@ -1086,6 +1243,7 @@ def build_pages_html(
     index_entries: list[tuple[str, int]] | None = None,
     stats: Stats | None = None,
     quote: Quote | None = None,
+    vignetta: "Vignetta | None" = None,
     edition_number: int | None = None,
     hourly: list[int] | None = None,
     graphics: GraphicsOptions | None = None,
@@ -1098,7 +1256,12 @@ def build_pages_html(
 
     `hourly` sono i 24 conteggi orari per il grafico di chiusura; senza,
     la fascia finale resta quella dei soli numeri. `graphics` decide quali
-    elementi grafici accendere (default: quelli a rischio zero)."""
+    elementi grafici accendere (default: quelli a rischio zero).
+
+    `vignetta` e `quote` occupano lo stesso posto in fondo all'ultima
+    pagina, e infatti dicono la stessa cosa: le parole del gruppo messe
+    in evidenza. Quando c'è la vignetta la frase del giorno non esce —
+    due blocchi di citazioni di fila sarebbero la stessa idea due volte."""
     gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
     index_entries = index_entries or []
@@ -1121,8 +1284,16 @@ def build_pages_html(
         (a.count for a in articles if not isinstance(a, FamilyBlock)), default=0
     )
 
+    # La vignetta prende il posto della frase del giorno, e prende molto
+    # più spazio: l'impaginazione deve saperlo prima di distribuire gli
+    # articoli, o l'ultima pagina esce lunga il doppio del tetto.
+    vignetta_html = _vignetta_html(vignetta)
+    if vignetta_html:
+        quote = None
     closing_height = (
         _H_TAIL
+        - _H_QUOTE
+        + (_H_VIGNETTA if vignetta_html else _H_QUOTE if quote else 0)
         + (_H_CHART if gfx.hourly_chart and hourly else 0)
         + (_H_BRIEF_HEAD + _H_BRIEF_ROW * -(-len(brief) // 2) if brief else 0)
     )
@@ -1184,7 +1355,7 @@ def build_pages_html(
             )
             tail = (
                 _brief_html(brief, gfx)
-                + _quote_html(quote)
+                + (vignetta_html or _quote_html(quote))
                 + _stats_html(stats, hourly, gfx)
                 + _footer_html(note)
             )

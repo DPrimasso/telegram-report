@@ -19,13 +19,16 @@ from pathlib import Path
 
 from report.newspaper import (
     Article,
+    Balloon,
     GraphicsOptions,
     Lead,
     Quote,
     Stats,
+    Vignetta,
     build_pages_html,
     render_html_to_png,
 )
+from report.vignetta import Biblioteca
 
 SAMPLE_DATE = date(2026, 8, 5)
 
@@ -180,6 +183,45 @@ SAMPLE_STATS = Stats(
     messages=800, participants=41, active_topics=14, peak_hour="22:00"
 )
 
+# Le battute della vignetta, una coppia per tono. Sono scritte come le
+# scrive il gruppo — minuscole, senza punteggiatura finale, con gli errori
+# — perché in pagina ci finiscono copiate alla lettera: una battuta
+# ripulita si riconosce subito e fa sembrare finto anche il resto.
+SAMPLE_BATTUTE = {
+    "battibecco": [
+        ("Il secondo giallo non c'era manco a pagarlo, è entrato sul pallone", "Ciro", "23:14"),
+        ("Sul pallone dopo che gli ha preso la caviglia, guardatelo un'altra volta", "Gennaro", "23:16"),
+    ],
+    "esultanza": [
+        ("Ragazzi io al novantesimo mi ero già messo il pigiama, giuro", "Peppe", "22:51"),
+        ("Ho svegliato tutto il palazzo e non me ne pento", "Ugo", "22:53"),
+    ],
+    "sconforto": [
+        ("Trentotto partite per farci male sempre nello stesso punto", "Salvo", "23:02"),
+    ],
+    "complotto": [
+        ("Vi ricordate chi arbitrava all'andata? Ecco, appunto", "Rino", "23:20"),
+        ("E infatti stessa identica cosa, stesso identico minuto", "Tonino", "23:22"),
+    ],
+    "spiegone": [
+        ("Allora ve lo rispiego con calma perché evidentemente non è chiaro", "Mimmo", "21:40"),
+        ("Mimmo per favore no, non stasera", "Ciro", "21:41"),
+    ],
+    "attesa": [
+        ("Le visite sono fissate per mercoledì mattina, prima di quello non si sa niente", "Gennaro", "20:12"),
+        ("Io il telefono me lo tengo in mano fino a giovedì", "Peppe", "20:15"),
+    ],
+}
+
+SAMPLE_VIGNETTA_TOPIC = {
+    "battibecco": "Match Day — il secondo giallo, dopo la mezzanotte",
+    "esultanza": "Match Day — il gol al novantesimo",
+    "sconforto": "Match Day — a fine partita",
+    "complotto": "Match Day — sull'arbitro, in serata",
+    "spiegone": "Mantraskarso — il modificatore di difesa",
+    "attesa": "CalcioMercato — in attesa delle visite mediche",
+}
+
 SAMPLE_QUOTE = Quote(
     text="Se lo prendiamo davvero, giovedì mi metto la maglia anche per andare a lavoro",
     author="Ciro",
@@ -216,6 +258,23 @@ async def main() -> None:
     parser.add_argument(
         "--no-brief", action="store_true", help="spegne il box In breve"
     )
+    parser.add_argument(
+        "--vignetta",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="TONO",
+        help="mette in pagina la vignetta al posto della frase del giorno; "
+             "senza argomento usa il primo tono che ha disegni",
+    )
+    parser.add_argument(
+        "--biblioteca", default="assets/vignette", help="cartella dei disegni"
+    )
+    parser.add_argument(
+        "--battuta-singola",
+        action="store_true",
+        help="una voce sola invece dello scambio a due",
+    )
     args = parser.parse_args()
 
     out = Path(args.out)
@@ -229,6 +288,29 @@ async def main() -> None:
     if args.no_brief:
         gfx.brief_box = False
 
+    vignetta = None
+    if args.vignetta is not None:
+        biblioteca = Biblioteca(args.biblioteca)
+        if not biblioteca:
+            raise SystemExit(
+                f"Nessun disegno in {args.biblioteca}/: la biblioteca vuole una "
+                f"cartella per tono ({', '.join(biblioteca.toni) or 'battibecco, esultanza, …'})"
+            )
+        tono = args.vignetta or biblioteca.toni[0]
+        if tono not in biblioteca.toni:
+            raise SystemExit(
+                f"Il tono «{tono}» non ha disegni. Disponibili: "
+                f"{', '.join(biblioteca.toni)}"
+            )
+        battute = SAMPLE_BATTUTE[tono][: 1 if args.battuta_singola else 2]
+        vignetta = Vignetta(
+            image_path=biblioteca.scegli(tono, SAMPLE_DATE),
+            balloons=[Balloon(text=t, author=a, time=o) for t, a, o in battute],
+            topic=SAMPLE_VIGNETTA_TOPIC[tono],
+            tone=tono,
+        )
+        print(f"vignetta: tono {tono}, disegno {vignetta.image_path}")
+
     logo = Path("assets/logo-azzurro.png")
     pages = build_pages_html(
         "Azzurro Fluido",
@@ -239,6 +321,7 @@ async def main() -> None:
         index_entries=SAMPLE_INDEX,
         stats=SAMPLE_STATS,
         quote=SAMPLE_QUOTE,
+        vignetta=vignetta,
         hourly=None if args.plain else SAMPLE_HOURS,
         graphics=gfx,
     )

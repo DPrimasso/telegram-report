@@ -22,6 +22,7 @@ from report.highlights import (
     section_entries,
 )
 from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
+from report.vignetta import Biblioteca, pick_vignetta
 from report.report_builder import build_report
 from report.sections import load_section_map
 from report.send import send_photo_report, send_report
@@ -212,8 +213,31 @@ async def _run_newspaper_report(
         paragraphs=lead_paragraphs,
     )
 
-    print("Scelgo la frase del giorno...")
-    quote = pick_quote(openai_client, config.openai_model, all_messages)
+    # La vignetta e la frase del giorno sono lo stesso elemento in due
+    # forme, e ne esce una sola: si prova prima la vignetta, che dice di
+    # più, e si ripiega sulla frase quando non si può fare — biblioteca
+    # vuota, nessuno scambio adatto, una battuta che non combacia con
+    # nessun messaggio. La frase costa una chiamata, quindi si chiede
+    # solo se serve davvero.
+    biblioteca = Biblioteca(config.vignette_dir)
+    vignetta = None
+    if biblioteca:
+        print("Compongo la vignetta del giorno...")
+        vignetta = pick_vignetta(
+            openai_client,
+            config.openai_model,
+            all_messages,
+            tema=f"{lead.headline} — {lead.deck}",
+            giorno=target_date,
+            biblioteca=biblioteca,
+        )
+        if vignetta:
+            print(f"  tono {vignetta.tone}, disegno {vignetta.image_path}")
+
+    quote = None
+    if vignetta is None:
+        print("Scelgo la frase del giorno...")
+        quote = pick_quote(openai_client, config.openai_model, all_messages)
 
     print("Recupero il nome del gruppo per la testata...")
     newspaper_name = config.newspaper_name or await get_group_title(client, config.group_id)
@@ -229,6 +253,7 @@ async def _run_newspaper_report(
             index_entries=sections,
             stats=build_stats(all_messages),
             quote=quote,
+            vignetta=vignetta,
             hourly=hourly_counts(all_messages),
         )
 
