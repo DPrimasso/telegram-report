@@ -30,6 +30,16 @@ from report.vignetta import Biblioteca
 # Sono quelli che avevamo assunto: se cambiano, si cambiano qui.
 P_IN, P_OUT = 0.20, 1.20
 
+# La cache dei prompt. Su gpt-5.6 il prefisso già visto costa il 10% del
+# normale, la prima volta che lo si stabilisce costa il 125%, e sotto i
+# 1024 token non si attiva affatto — il prefisso viene riconosciuto a
+# scatti di 128. La cache dura più a lungo di una nostra edizione intera,
+# quindi dentro una run tutte le chiamate si trovano quella di prima.
+CACHE_MINIMA = 1024
+CACHE_SCATTO = 128
+CACHE_LETTURA = 0.10
+CACHE_SCRITTURA = 1.25
+
 # Lunghezza media di un messaggio di chat, in caratteri. Presa alta di
 # proposito: sovrastimare il costo è l'errore giusto da fare.
 CARATTERI_PER_MESSAGGIO = 62
@@ -83,18 +93,55 @@ def giornata(topics):
     return out
 
 
+def _prefisso_comune(a: str, b: str) -> int:
+    """Quanti caratteri iniziali hanno in comune due prompt."""
+    n = 0
+    for x, y in zip(a, b):
+        if x != y:
+            break
+        n += 1
+    return n
+
+
 class Contatore:
     """Sostituisce llm.complete: registra il prompt e restituisce una
-    risposta della lunghezza che il prompt chiede davvero."""
+    risposta della lunghezza che il prompt chiede davvero.
+
+    Tiene anche il conto della cache, che non è un dettaglio: il blocco di
+    regole è identico a ogni chiamata, e se le chiamate lo condividono come
+    PREFISSO viene fatturato al 10%. Modellarlo qui è l'unico modo di
+    misurare quel risparmio invece di dichiararlo."""
 
     def __init__(self):
         self.chiamate = []
         self.etichetta = "?"
+        self._visti: list[str] = []
 
     def __call__(self, client, model, prompt, temperature=None):
         risposta = self._risposta()
-        self.chiamate.append((self.etichetta, len(prompt), len(risposta)))
+        cache = self._quanto_in_cache(prompt)
+        self.chiamate.append(
+            (self.etichetta, len(prompt), len(risposta), cache)
+        )
+        self._visti.append(prompt)
         return risposta
+
+    def _quanto_in_cache(self, prompt: str) -> int:
+        """Caratteri di questo prompt già visti come prefisso, oggi.
+
+        Zero quando il prefisso condiviso non arriva alla soglia: è
+        esattamente il caso in cui ci trovavamo prima di spostare le
+        regole in testa, con tre prefissi diversi e tre cache che non si
+        incontravano mai."""
+        if not self._visti:
+            return 0
+        comune = max(_prefisso_comune(prompt, v) for v in self._visti)
+        token_comuni = comune / CARATTERI_PER_TOKEN
+        if token_comuni < CACHE_MINIMA:
+            return 0
+        # Il prefisso viene riconosciuto a scatti, non al carattere.
+        scatti = int(token_comuni // CACHE_SCATTO) * CACHE_SCATTO
+        return int(scatti * CARATTERI_PER_TOKEN)
 
     def _risposta(self):
         if self.etichetta == "articolo":
@@ -113,7 +160,9 @@ class Contatore:
                 "TITOLO: " + "x" * 60 + "\n"
                 "SOMMARIO: " + "x" * 150 + "\n"
                 "TESTO: " + "x" * 1200 + "\n"
-                "CITAZIONE: " + "x" * 80 + " | Ciro"
+                "CITAZIONE: " + "x" * 80 + " | Ciro\n"
+                "TONO: battibecco\n"
+                "BATTUTA: " + "x" * 70 + " | Ciro"
             )
         if self.etichetta == "brevi":
             return "\n".join(f"Tema {i} | " + "x" * 60 for i in range(9))
@@ -175,39 +224,54 @@ def misura(nome: str, topics) -> tuple[float, float, int]:
             sections=["Napoli", "Calcio", "FantaCalcio", "Canale", "Sport", "Altro"],
             articoli=[(f"Topic {i}", h, "un sommario", b, 100)
                       for i, (h, b) in enumerate(articoli)],
+            toni=[("battibecco", "due che non sono d'accordo")],
         )
 
-        contatore.etichetta = "vignetta"
-        vignetta.pick_vignetta(
-            None, "gpt-5.6-luna", tutti,
-            tema="un titolo di apertura con il suo sommario",
-            giorno=date(2026, 9, 5),
-            biblioteca=Biblioteca("assets/vignette"),
-        )
+        # La vignetta non ha più una chiamata sua: esce dall'apertura.
     finally:
         llm.complete = originale
         summarize.llm.complete = originale
         vignetta.llm.complete = originale
 
     per_tipo: dict[str, list] = {}
-    for etichetta, entrata, uscita in contatore.chiamate:
-        per_tipo.setdefault(etichetta, []).append((entrata, uscita))
+    for etichetta, entrata, uscita, cache in contatore.chiamate:
+        per_tipo.setdefault(etichetta, []).append((entrata, uscita, cache))
 
     messaggi_totali = sum(q for _, q in topics)
     print(f"\n{nome}: {messaggi_totali} messaggi in {len(topics)} topic attivi\n")
-    print(f"{'chiamata':<12}{'n':>4}{'token in':>12}{'token out':>12}{'costo':>10}")
-    print("-" * 50)
-    tot_in = tot_out = 0.0
+    print(
+        f"{'chiamata':<12}{'n':>4}{'token in':>11}{'in cache':>10}"
+        f"{'token out':>11}{'costo':>9}"
+    )
+    print("-" * 57)
+    tot_in = tot_cache = tot_out = costo = 0.0
     for etichetta, valori in sorted(per_tipo.items()):
         ti = sum(token(v[0]) for v in valori)
+        tc = sum(token(v[2]) for v in valori)
         to = sum(token(v[1]) for v in valori)
         tot_in += ti
+        tot_cache += tc
         tot_out += to
-        c = ti / 1e6 * P_IN + to / 1e6 * P_OUT
-        print(f"{etichetta:<12}{len(valori):>4}{ti:>12,.0f}{to:>12,.0f}{c:>10.4f}")
-    print("-" * 50)
-    costo = tot_in / 1e6 * P_IN + tot_out / 1e6 * P_OUT
-    print(f"{'TOTALE':<12}{len(contatore.chiamate):>4}{tot_in:>12,.0f}{tot_out:>12,.0f}{costo:>10.4f}")
+        # Il prefisso in cache si paga un decimo; il resto pieno. La
+        # scrittura della cache la paga la prima chiamata che stabilisce
+        # quel prefisso, ed è già dentro `ti - tc`.
+        c = ((ti - tc) + tc * CACHE_LETTURA) / 1e6 * P_IN + to / 1e6 * P_OUT
+        costo += c
+        print(f"{etichetta:<12}{len(valori):>4}{ti:>11,.0f}{tc:>10,.0f}{to:>11,.0f}{c:>9.4f}")
+    # La prima chiamata di ogni famiglia di prefisso paga la scrittura in
+    # cache al 125%: la si approssima come un sovrapprezzo sul primo
+    # prefisso stabilito.
+    prefissi = {e for e, v in per_tipo.items() if any(x[2] for x in v)}
+    if prefissi:
+        scrittura = token(max(
+            (x[2] for v in per_tipo.values() for x in v), default=0
+        )) * (CACHE_SCRITTURA - 1) / 1e6 * P_IN
+        costo += scrittura
+    print("-" * 57)
+    print(
+        f"{'TOTALE':<12}{len(contatore.chiamate):>4}{tot_in:>11,.0f}"
+        f"{tot_cache:>10,.0f}{tot_out:>11,.0f}{costo:>9.4f}"
+    )
     return costo, messaggi_totali, len(contatore.chiamate)
 
 

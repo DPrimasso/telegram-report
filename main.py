@@ -28,7 +28,14 @@ from report.newspaper import (
     render_html_to_png,
     topics_needing_body,
 )
-from report.vignetta import Biblioteca, pick_vignetta
+from report.summarize import campione_citabile, istogramma_lunghezze
+from report.vignetta import (
+    DESCRIZIONI,
+    Biblioteca,
+    componi,
+    leggi_battute,
+    pick_vignetta,
+)
 from report.report_builder import build_report
 from report.sections import load_section_map
 from report.send import send_photo_report, send_report
@@ -163,6 +170,10 @@ async def _run_newspaper_report(
     section_map = load_section_map()
 
     attivi = [t for t in topics if t.messages]
+    # Come è fatta la giornata, prima di spendere un token. Serve a
+    # tarare la soglia sotto cui un messaggio non porta fatti, e ad
+    # accorgersi se il gruppo cambia abitudini.
+    print(istogramma_lunghezze([m for _, m in all_messages]))
 
     # Chi merita un pezzo per esteso si decide PRIMA di scriverlo. In
     # pagina i pezzi pieni sono cinque più i blocchi di famiglia, e tutto
@@ -241,12 +252,15 @@ async def _run_newspaper_report(
     # più in basso: l'apertura deve nominare le stesse cose.
     sections = section_entries(topics, section_map)
 
+    biblioteca = Biblioteca(config.vignette_dir)
     (
         lead_headline,
         lead_deck,
         lead_paragraphs,
         lead_section,
         lead_quote,
+        lead_tono,
+        lead_battute,
     ) = write_lead_story(
         openai_client,
         config.openai_model,
@@ -259,6 +273,10 @@ async def _run_newspaper_report(
         articoli=[
             (a.topic, a.headline, a.deck, a.body, a.count) for a in articles
         ],
+        # La vignetta esce da questa stessa chiamata: è la stessa testa
+        # che sceglie il fatto del giorno e le due frasi che lo
+        # raccontano. Senza disegni in biblioteca non si chiede nemmeno.
+        toni=[(t, DESCRIZIONI[t]) for t in biblioteca.toni] if biblioteca else None,
     )
     lead = Lead(
         kicker=lead_section,
@@ -284,19 +302,34 @@ async def _run_newspaper_report(
         t.title for t in topics if section_map.section_of(t.title) == lead_section
     } if lead_section else set()
 
-    biblioteca = Biblioteca(config.vignette_dir)
     vignetta = None
     if biblioteca:
-        print("Compongo la vignetta del giorno...")
-        vignetta = pick_vignetta(
-            openai_client,
-            config.openai_model,
-            all_messages,
-            tema=f"{lead.headline} — {lead.deck}",
-            giorno=target_date,
-            topic_sezione=topic_apertura,
-            biblioteca=biblioteca,
-        )
+        # Prima strada: tono e battute sono già arrivati con l'apertura.
+        # Le verifiche sono le stesse — tono esistente in biblioteca,
+        # battuta presente alla lettera, due autori diversi — perché è la
+        # stessa funzione, con due ingressi.
+        if lead_tono and lead_battute:
+            tono, battute = leggi_battute(lead_tono, lead_battute, biblioteca.toni)
+            vignetta = componi(
+                tono,
+                battute,
+                campione_citabile(all_messages, 10_000, minimo=20, massimo=110),
+                target_date,
+                biblioteca,
+            )
+        # Ripiego: se l'apertura non l'ha prodotta, o se le battute non
+        # hanno superato la verifica, si torna alla chiamata dedicata.
+        if vignetta is None:
+            print("Compongo la vignetta del giorno con una chiamata a parte...")
+            vignetta = pick_vignetta(
+                openai_client,
+                config.openai_model,
+                all_messages,
+                tema=f"{lead.headline} — {lead.deck}",
+                giorno=target_date,
+                topic_sezione=topic_apertura,
+                biblioteca=biblioteca,
+            )
         if vignetta:
             print(f"  tono {vignetta.tone}, disegno {vignetta.image_path}")
 

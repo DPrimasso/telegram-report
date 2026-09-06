@@ -442,6 +442,33 @@ REGOLE_DI_PROSA = (
 )
 
 
+# La vignetta si compone nella stessa chiamata dell'apertura. Non è solo
+# una chiamata risparmiata: è la stessa testa che sceglie il fatto del
+# giorno e le due frasi che lo raccontano, mentre prima erano due
+# chiamate a un minuto di distanza tenute insieme da un recinto di
+# sezione e da una richiesta nel prompt. La coerenza fra il disegno e il
+# titolo che gli sta sopra smette di essere una speranza.
+VIGNETTA_FORMAT_RULE = (
+    "In fondo, dopo il pezzo, componi anche la VIGNETTA che andrà in "
+    "prima pagina accanto a questa apertura: due personaggi che si dicono, "
+    "alla lettera, cose che il gruppo ha scritto DAVVERO SU QUESTO STESSO "
+    "FATTO.\n"
+    "Le battute le prendi dall'elenco di frasi in coda al materiale, e "
+    "devono parlare del fatto dell'apertura e di nient'altro: una battuta "
+    "bellissima su un altro argomento è la risposta sbagliata, perché in "
+    "pagina finisce sotto questo titolo.\n"
+    "Copiale ESATTAMENTE come sono scritte: non riscriverle, non "
+    "correggere gli errori, non accorciarle. Una battuta che non compare "
+    "identica in una di quelle frasi viene scartata.\n"
+    "Due battute se c'è uno scambio vero fra due persone diverse, una "
+    "sola se la frase migliore è rimasta senza risposta. Se sul fatto "
+    "dell'apertura non c'è niente di riportabile, scrivi NESSUNA come "
+    "tono: la vignetta salta e non è un problema.\n"
+    "TONO: {toni_elenco}\n"
+    "BATTUTA: la frase copiata alla lettera | il nome di chi l'ha scritta\n"
+    "BATTUTA: la seconda, solo se serve"
+)
+
 LEAD_FORMAT_RULE = (
     "Rispondi SOLO con queste sei righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
@@ -564,7 +591,10 @@ MAX_DECK_CHARS = 190
 # SEZIONE diventa l'occhiello dell'apertura. Vanno comunque riconosciute
 # come etichette, altrimenti il parser le accoderebbe al blocco precedente
 # e il testo di lavoro finirebbe stampato dentro il pezzo.
-_LABELS = ("FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO", "CITAZIONE")
+_LABELS = (
+    "FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO",
+    "CITAZIONE", "TONO", "BATTUTA",
+)
 
 # Le stesse soglie della frase del giorno: sotto, una citazione non dice
 # niente ("vero", "esatto"); sopra, non è più un virgolettato ma un
@@ -573,8 +603,69 @@ _LABELS = ("FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO", "CITA
 # bastano per scegliere un virgolettato vero senza rileggere la giornata.
 _CITABILI_PER_APERTURA = 200
 
+# Quando l'apertura compone anche la vignetta, il campione le serve per
+# due mestieri: se ne manda un po' di più, e si scende alla lunghezza
+# minima di una battuta, che è più corta di un virgolettato.
+_CITABILI_CON_VIGNETTA = 400
+_MIN_BATTUTA_APERTURA = 20
+
 _MIN_QUOTE_CHARS = 25
 _MAX_QUOTE_CHARS = 130
+
+
+# Sotto questa lunghezza un messaggio non porta fatti: porta tono. Su una
+# giornata di partita sono la maggioranza — "dai", "gol", "ma vaffa" — e
+# per scrivere novecento caratteri di cronaca ne leggiamo tremila.
+#
+# Zero vuol dire spento: si accende solo quando l'istogramma della
+# giornata vera dice dove sta il confine. Tagliare a occhio qui vuol dire
+# perdere un fatto senza accorgersene.
+SOGLIA_RUMORE = 0
+
+# Oltre questo numero di messaggi un topic non si legge tutto: si
+# campiona. Il tetto è alto di proposito — serve a fermare le giornate
+# fuori scala, non a potare quelle normali.
+MAX_MESSAGGI_PER_ARTICOLO = 1_200
+
+
+def istogramma_lunghezze(messaggi) -> str:
+    """Come sono lunghi i messaggi di oggi, in una riga di log.
+
+    Serve a decidere SOGLIA_RUMORE guardando i dati invece che a occhio,
+    e a riaccorgersene se il gruppo cambia abitudini: un gruppo che passa
+    ai vocali o alle foto ha una distribuzione diversa, e la soglia di
+    ieri non è più quella giusta."""
+    if not messaggi:
+        return ""
+    tagli = [(0, 10), (10, 20), (20, 40), (40, 80), (80, 160), (160, 10**9)]
+    totale = len(messaggi)
+    pezzi = []
+    for basso, alto in tagli:
+        quanti = sum(1 for m in messaggi if basso <= len(m.text) < alto)
+        etichetta = f"{basso}-{alto}" if alto < 10**9 else f"{basso}+"
+        pezzi.append(f"{etichetta}: {quanti} ({100 * quanti / totale:.0f}%)")
+    return "  lunghezze dei messaggi — " + ", ".join(pezzi)
+
+
+def campione_per_articolo(messaggi, soglia: int = 0, tetto: int = 0):
+    """I messaggi da cui si scrive un articolo, tolto il rumore.
+
+    Due filtri, in quest'ordine. Il primo toglie i messaggi troppo corti
+    per contenere un fatto. Il secondo, se ne restano ancora troppi,
+    campiona a passo fisso lungo la giornata invece di prendere i primi:
+    un articolo che perde la fine della partita è un articolo sbagliato,
+    non un articolo corto, e i messaggi arrivano in ordine di tempo."""
+    soglia = soglia or SOGLIA_RUMORE
+    tetto = tetto or MAX_MESSAGGI_PER_ARTICOLO
+    tenuti = [m for m in messaggi if len(m.text) >= soglia] if soglia else list(messaggi)
+    if not tenuti:
+        return list(messaggi)
+    if len(tenuti) <= tetto:
+        return tenuti
+    passo = len(tenuti) / tetto
+    campione = [tenuti[int(i * passo)] for i in range(tetto)]
+    print(f"  {len(messaggi)} messaggi, ne leggo {len(campione)}.")
+    return campione
 
 
 def campione_citabile(
@@ -941,7 +1032,8 @@ def write_topic_article(
     if not messages:
         return "", "", "", None
 
-    chunks = _chunk_messages(messages, MAX_TRANSCRIPT_CHARS)
+    utili = campione_per_articolo(messages)
+    chunks = _chunk_messages(utili, MAX_TRANSCRIPT_CHARS)
     if len(chunks) == 1:
         source_text = _format_transcript(chunks[0])
         source_label = (
@@ -949,7 +1041,7 @@ def write_topic_article(
             "[ora] autore: testo"
         )
     else:
-        source_text = summarize_topic(client, model, topic_title, messages)
+        source_text = summarize_topic(client, model, topic_title, utili)
         source_label = "un riepilogo già pronto dei punti principali del tema"
 
     avoid_rule = _avoid_repetition_rule(written_so_far or [])
@@ -1064,8 +1156,8 @@ def write_brief_headlines(
     return out
 
 
-def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
-    """(titolo, sommario, paragrafi, sezione, citazione grezza).
+def _split_lead(raw: str) -> tuple[str, str, list[str], str, str, str, list[str]]:
+    """(titolo, sommario, paragrafi, sezione, citazione, tono, battute).
 
     Stessa logica degli articoli, con in più la divisione del corpo in
     paragrafi sulle righe vuote e la sezione dichiarata dal modello, che
@@ -1076,6 +1168,8 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
     section = _clean(parts.get("SEZIONE", ""))
     text = parts.get("TESTO", "")
     citazione = parts.get("CITAZIONE", "")
+    tono = _clean(parts.get("TONO", ""))
+    battute = [r.strip() for r in parts.get("BATTUTA", "").splitlines() if r.strip()]
 
     if not headline:
         # Nessuna etichetta: si ricade sul vecchio formato posizionale,
@@ -1083,7 +1177,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
         blocks = [b for b in "\n".join(_unlabeled_lines(raw)).split("\n\n") if b.strip()]
         first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()] if blocks else []
         if not first_lines:
-            return "", "", [], section, citazione
+            return "", "", [], section, citazione, tono, battute
         headline = _clean(first_lines[0])
         deck = deck or (first_lines[1] if len(first_lines) > 1 else "")
         rest = blocks[1:]
@@ -1102,7 +1196,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str]:
         " ".join(l.strip() for l in block.splitlines() if l.strip())
         for block in text.split("\n\n")
     ]
-    return headline, deck, [p for p in paragraphs if p], section, citazione
+    return headline, deck, [p for p in paragraphs if p], section, citazione, tono, battute
 
 
 def _match_section(declared: str, sections: list[str]) -> str:
@@ -1136,7 +1230,8 @@ def write_lead_story(
     page_headlines: list[str] | None = None,
     sections: list[str] | None = None,
     articoli: list[tuple[str, str, str, str, int]] | None = None,
-) -> tuple[str, str, list[str], str, "Quote | None"]:
+    toni: list[tuple[str, str]] | None = None,
+) -> tuple[str, str, list[str], str, "Quote | None", str, list[str]]:
     """Genera (titolo, sommario, paragrafi, sezione, virgolettato) per
     l'articolo di apertura, basato sui temi più rilevanti/trasversali
     della giornata. Il primo capoverso resta in prima pagina e gli altri
@@ -1151,7 +1246,7 @@ def write_lead_story(
     finché lo decideva il codice (il topic più attivo) poteva annunciare
     una sezione che con la notizia non c'entrava."""
     if not messages_with_topic:
-        return "", "", [], "", None
+        return "", "", [], "", None, "", []
 
     ordered = sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
 
@@ -1170,7 +1265,15 @@ def write_lead_story(
         # Il virgolettato dell'apertura deve comunque essere una frase
         # vera: senza messaggi grezzi nel prompt non potrebbe esserlo, e
         # _verify_quote lo scarterebbe sempre.
-        citabili = campione_citabile(ordered, _CITABILI_PER_APERTURA)
+        # Con la vignetta nella stessa chiamata il campione serve a due
+        # cose, quindi si allarga e si apre alla fascia più stretta delle
+        # battute: una frase da balloon può essere più corta di una da
+        # virgolettato.
+        citabili = campione_citabile(
+            ordered,
+            _CITABILI_CON_VIGNETTA if toni else _CITABILI_PER_APERTURA,
+            minimo=_MIN_BATTUTA_APERTURA if toni else 0,
+        )
         frasi = "\n".join(_format_line(m, topic) for topic, m in citabili)
         source_text = (
             f"LE NOTIZIE DI OGGI, GIÀ SCRITTE:\n{pezzi}\n\n"
@@ -1207,6 +1310,9 @@ def write_lead_story(
 
     section_list = [s for s in (sections or []) if s]
     format_rule = LEAD_FORMAT_RULE.format(sections=_lead_section_line(section_list))
+    if toni:
+        elenco = "; ".join(f"{nome} ({desc})" for nome, desc in toni)
+        format_rule += "\n\n" + VIGNETTA_FORMAT_RULE.format(toni_elenco=elenco)
 
     prompt = (
         "Sei il caporedattore e stai scrivendo l'articolo di apertura della "
@@ -1224,7 +1330,7 @@ def write_lead_story(
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
-    headline, deck, paragraphs, declared, citazione = _split_lead(raw)
+    headline, deck, paragraphs, declared, citazione, tono, battute = _split_lead(raw)
     _segnala_se_generico("apertura", headline, " ".join(paragraphs))
     return (
         headline,
@@ -1232,4 +1338,6 @@ def write_lead_story(
         paragraphs,
         _match_section(declared, section_list),
         _verify_quote(citazione, ordered),
+        tono,
+        battute,
     )

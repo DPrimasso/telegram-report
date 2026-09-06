@@ -286,6 +286,24 @@ def pick_vignetta(
         return None
 
     tono, battute = _leggi(raw, biblioteca.toni)
+    return componi(tono, battute, usable, giorno, biblioteca)
+
+
+def componi(
+    tono: str,
+    battute: list[tuple[str, str]],
+    candidati,
+    giorno: date,
+    biblioteca: "Biblioteca",
+) -> Vignetta | None:
+    """Da tono e battute grezze alla vignetta, passando dalle verifiche.
+
+    Sta separata dalla chiamata perché le battute possono arrivare da due
+    posti: dalla chiamata dedicata, oppure — ed è la strada normale —
+    dalla chiamata dell'apertura, che sceglie il fatto del giorno e le
+    battute su quel fatto in un colpo solo. Le verifiche sono le stesse
+    da qualunque parte arrivino, ed è il punto: non ci sono due strade,
+    ce n'è una con due ingressi."""
     if not tono or not battute:
         print("Vignetta saltata: il modello non ha scelto un tono valido.")
         return None
@@ -298,7 +316,7 @@ def pick_vignetta(
     for testo, _autore in battute:
         cercato = testo.lower()
         trovato = next(
-            ((topic, m) for topic, m in usable if cercato in m.text.lower()), None
+            ((topic, m) for topic, m in candidati if cercato in m.text.lower()), None
         )
         if trovato is None:
             print(f"Battuta scartata, non combacia con nessun messaggio: {testo!r}")
@@ -327,3 +345,9 @@ def pick_vignetta(
         topic=topic_scena,
         tone=tono,
     )
+
+
+def leggi_battute(raw_tono: str, righe: list[str], toni: list[str]):
+    """Tono e battute da quello che ha risposto la chiamata dell'apertura."""
+    testo = f"TONO: {raw_tono}\n" + "\n".join(f"BATTUTA: {r}" for r in righe)
+    return _leggi(testo, toni)

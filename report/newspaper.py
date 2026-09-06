@@ -1006,7 +1006,7 @@ def topics_needing_body(
     entries: list[tuple[str, int, str]],
     *,
     max_full: int = MAX_FULL_ARTICLES,
-    margin: int = 2,
+    margin: int = 1,
 ) -> set[str]:
     """Quali topic avranno un articolo per esteso, deciso PRIMA di scriverlo.
 
@@ -1021,9 +1021,14 @@ def topics_needing_body(
     di famiglia non concorrono mai — vanno nel loro blocco compatto — e i
     restanti si ordinano per volume.
 
-    `margin` tiene qualche pezzo di scorta oltre il taglio: un articolo
-    può uscire come DUPLICATO e sparire dalla pagina, promuovendo il
-    successivo, che a quel punto un corpo deve averlo.
+    `margin` tiene un pezzo di scorta oltre il taglio: un articolo può
+    uscire come DUPLICATO e sparire dalla pagina, promuovendo il
+    successivo, che a quel punto un corpo deve averlo. Era due, ed è
+    sceso a uno guardando le run vere: il caso DUPLICATO non è mai
+    scattato, e intanto ogni edizione pagava due pezzi completi che la
+    pagina non stampava. Nel caso peggiore la pagina mostra quattro pezzi
+    pieni invece di cinque, che nessuno nota — e resta comunque meglio di
+    pagarne due di scorta tutti i giorni.
 
     `entries` sono (titolo, messaggi, famiglia) in qualunque ordine."""
     candidati = sorted(
