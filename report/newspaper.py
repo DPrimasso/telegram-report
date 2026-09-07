@@ -50,20 +50,28 @@ from report.graphics import (
 #
 # Un quotidiano non è stampato su bianco: la Gazzetta è rosa, il Foglio è
 # avorio, e il colore della carta è la prima cosa che si riconosce da
-# lontano, prima di qualunque titolo. Qui la carta è appena azzurrina —
-# così l'azzurro c'è su tutta la pagina senza essere su nessuna parola.
+# lontano, prima di qualunque titolo. Qui è avorio, quella da edicola.
 #
-# È il contrario di prima: l'azzurro brillante stava nei sommari, nelle
-# etichette e nei rimandi, cioè sul testo, e una pagina di testo azzurro
-# somiglia a un sito. Adesso il testo è nero e l'azzurro è la carta, il
-# filetto sotto la testata e poco altro.
-PAPER = "#e3ecf2"
-PAPER_DEEP = "#d5e2eb"      # il fondo dei riquadri, mezzo tono più giù
-RULE = "#a7b8c4"            # il filetto sottile, quello che fa la griglia
+# Il primo tentativo era una carta azzurrina, per portare sul fondo
+# l'azzurro tolto dal testo. Era l'idea più elegante e non ha retto la
+# prova: al tono giusto per essere elegante non si vedeva — tre varianti
+# messe una accanto all'altra erano indistinguibili — e alzato quanto
+# serviva a vederlo, finiva per fare concorrenza all'azzurro del marchio
+# e delle vignette. Due azzurri diversi nella stessa pagina.
+#
+# L'avorio li lascia parlare: l'azzurro resta uno solo, quello del
+# Napoli, e sta dove serve — il marchio, il filetto della testata, i
+# rimandi di pagina.
+#
+# Perché quello che conta è comunque il contrario di prima: l'azzurro
+# brillante stava nei sommari, nelle etichette e nei rimandi, cioè sul
+# testo, e una pagina di testo azzurro somiglia a un sito.
+PAPER = "#f2ece0"
+PAPER_DEEP = "#e6dcc9"      # il fondo dei riquadri, mezzo tono più giù
+RULE = "#c3b9a4"            # il filetto sottile, quello che fa la griglia
 
-# La testata resta un blocco scuro perché il marchio ha il contorno
-# bianco e su carta chiara sparirebbe. Ma è un blu quasi nero, non un
-# blu: deve leggersi come inchiostro.
+# Il fondo scuro: piede di pagina e fascia dei numeri, non più la
+# testata. È un blu quasi nero — deve leggersi come inchiostro.
 NAVY = "#0a1c2b"
 
 # L'azzurro da stampa, per gli accenti. Più profondo e più sporco di
@@ -75,8 +83,11 @@ AZZURRO_BRIGHT = "#17a3e0"  # solo il filetto della testata e il fine pezzo
 AZZURRO_PALE = "#8fc9e8"    # solo sopra il fondo scuro
 
 GROUND = PAPER_DEEP
-INK = "#14181c"
-INK_SOFT = "#4a5158"
+# Su carta calda l'inchiostro freddo stona: il nero dei giornali tira al
+# bruno, non al blu. Sono due punti di tinta, e sono la differenza fra
+# una pagina stampata e una pagina bianca colorata di beige.
+INK = "#181612"
+INK_SOFT = "#544d42"
 
 PAGE_WIDTH = 1080
 
