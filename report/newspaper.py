@@ -82,7 +82,7 @@ AZZURRO_DEEP = "#0a4b6d"
 AZZURRO_BRIGHT = "#17a3e0"  # solo il filetto della testata e il fine pezzo
 AZZURRO_PALE = "#8fc9e8"    # solo sopra il fondo scuro
 
-GROUND = PAPER_DEEP
+GROUND = PAPER_DEEP  # nel giornale non si usa più: lo tiene catalogo.py
 # Su carta calda l'inchiostro freddo stona: il nero dei giornali tira al
 # bruno, non al blu. Sono due punti di tinta, e sono la differenza fra
 # una pagina stampata e una pagina bianca colorata di beige.
@@ -597,7 +597,14 @@ p {{ margin: 0; }}
   background: {AZZURRO}; position: relative; top: 1px;
 }}
 
-.articles {{ background: {GROUND}; padding: 0 56px; }}
+/* La colonna delle notizie sta sulla carta come tutto il resto.
+   Il fondo più scuro qui era il residuo di quando la pagina era grigia e
+   i blocchi erano riquadri bianchi appoggiati sopra — un modo di
+   impaginare che è dei siti e non dei giornali. Da quando il fondo è
+   carta, quel mezzo tono di differenza non separa più niente: fa
+   sembrare la colonna un pannello incollato sulla pagina, con una
+   giuntura visibile là dove finisce. */
+.articles {{ background: {PAPER}; padding: 0 56px; }}
 .articles > .section-label {{ display: block; padding: 24px 0 4px 0; }}
 
 /* Testata di sezione. Il regolo azzurro a 6px è lo stesso stacco che la
