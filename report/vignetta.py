@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from report import llm
-from report.summarize import campione_citabile
+from report.summarize import campione_citabile, trova_alla_lettera
 from report.newspaper import Balloon, Vignetta
 
 if TYPE_CHECKING:
@@ -221,9 +221,19 @@ def _della_sezione(candidati, topic_sezione) -> list:
     return stretti
 
 
-def _leggi(raw: str, toni: list[str]) -> tuple[str, list[tuple[str, str]]]:
+def _leggi(raw: str, toni: list[str]) -> tuple[str, list[str]]:
+    """Tono e battute grezze, senza decidere ancora niente.
+
+    La riga della battuta si prende intera, nome compreso: qui non si
+    stacca l'autore e non si scarta niente per come è scritto. Prima
+    questa funzione pretendeva la barra verticale e buttava in silenzio
+    la battuta attribuita con un trattino — un controllo di formato
+    travestito da controllo di verità, per giunta su un nome che poi
+    nessuno usa: in pagina l'autore del balloon è quello del messaggio
+    trovato. A dire di sì o di no è `componi`, e lo fa cercando la frase
+    dentro i messaggi."""
     tono = ""
-    battute: list[tuple[str, str]] = []
+    battute: list[str] = []
     for riga in raw.splitlines():
         riga = riga.strip()
         if riga.upper().startswith("TONO:"):
@@ -231,11 +241,9 @@ def _leggi(raw: str, toni: list[str]) -> tuple[str, list[tuple[str, str]]]:
             if scelto in toni:
                 tono = scelto
         elif riga.upper().startswith("BATTUTA:"):
-            corpo = riga.split(":", 1)[1]
-            testo, _, autore = corpo.rpartition("|")
-            testo = testo.strip().strip('"').strip("«»")
-            if testo and autore.strip():
-                battute.append((testo, autore.strip()))
+            corpo = riga.split(":", 1)[1].strip().strip('"').strip("«»").strip()
+            if corpo:
+                battute.append(corpo)
     return tono, battute[:_MAX_BATTUTE]
 
 
@@ -291,7 +299,7 @@ def pick_vignetta(
 
 def componi(
     tono: str,
-    battute: list[tuple[str, str]],
+    battute: list[str],
     candidati,
     giorno: date,
     biblioteca: "Biblioteca",
@@ -313,15 +321,12 @@ def componi(
     # un'altra la scenetta si fa con un balloon solo.
     palloncini: list[Balloon] = []
     topic_scena = ""
-    for testo, _autore in battute:
-        cercato = testo.lower()
-        trovato = next(
-            ((topic, m) for topic, m in candidati if cercato in m.text.lower()), None
-        )
+    for riga in battute:
+        trovato = trova_alla_lettera(riga, candidati)
         if trovato is None:
-            print(f"Battuta scartata, non combacia con nessun messaggio: {testo!r}")
+            print(f"Battuta scartata, non combacia con nessun messaggio: {riga!r}")
             continue
-        topic, m = trovato
+        testo, topic, m = trovato
         topic_scena = topic_scena or topic
         palloncini.append(
             Balloon(text=testo, author=m.author, time=m.timestamp.strftime("%H:%M"))

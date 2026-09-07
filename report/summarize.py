@@ -719,6 +719,86 @@ def campione_citabile(
     return scelti
 
 
+# Con che cosa il modello attribuisce una frase a qualcuno. Il prompt
+# chiede la barra verticale; il 5 settembre ha risposto "— Antonio", e
+# _verify_quote è andato a cercare nei messaggi una frase con il nome
+# attaccato in fondo. Non l'ha trovata, e la prima pagina è uscita senza
+# il suo virgolettato.
+#
+# La frase c'era. A mancare era solo il carattere con cui il modello
+# avrebbe dovuto staccarla dal nome.
+_SEPARATORI_AUTORE = ("—", "–", " - ")
+
+# Un nome è corto e non è una frase. Sopra questa misura, o con dentro
+# una punteggiatura da discorso, quello che segue il trattino è il
+# seguito di quello che uno stava dicendo, non la firma.
+_MAX_NOME_CHARS = 30
+_MAX_NOME_PAROLE = 4
+
+
+def _spoglia(testo: str) -> str:
+    return (testo or "").strip().strip('"').strip("«»").strip()
+
+
+def _sembra_un_nome(coda: str) -> bool:
+    nome = _spoglia(coda)
+    if not nome or len(nome) > _MAX_NOME_CHARS:
+        return False
+    if len(nome.split()) > _MAX_NOME_PAROLE:
+        return False
+    return not any(segno in nome for segno in ".,;:!?")
+
+
+def _varianti_senza_autore(riga: str) -> list[str]:
+    """La frase così com'è, e poi — se in coda c'è una firma — senza.
+
+    L'ordine conta, ed è tutta la prudenza di questa funzione: prima si
+    cerca la riga intera, e solo se quella non compare in nessun
+    messaggio si prova a togliere la coda. Così una frase che finisce
+    davvero per "— mi sa" non viene accorciata perché somiglia a una
+    firma: viene trovata intera al primo colpo."""
+    testo = _spoglia(riga)
+    if not testo:
+        return []
+    varianti = [testo]
+    # La barra verticale è quella che il prompt chiede e non capita mai
+    # dentro un messaggio: se c'è, quello che segue è il nome e basta.
+    testa, barra, _coda = testo.rpartition("|")
+    if barra and _spoglia(testa):
+        varianti.append(_spoglia(testa))
+        return varianti
+    for separatore in _SEPARATORI_AUTORE:
+        testa, trattino, coda = testo.rpartition(separatore)
+        if trattino and _spoglia(testa) and _sembra_un_nome(coda):
+            varianti.append(_spoglia(testa))
+            break
+    return varianti
+
+
+def trova_alla_lettera(riga: str, voci):
+    """La frase dentro i messaggi, alla lettera, oppure niente.
+
+    È la difesa su cui poggiano le due cose che questo giornale stampa
+    fra virgolette — il virgolettato della prima e le battute della
+    vignetta — quindi vale la pena dire che cosa NON fa: non allenta la
+    verifica di una virgola. La frase deve continuare a comparire dentro
+    un messaggio vero, dal primo all'ultimo carattere. L'unica cosa che
+    tollera è che il modello le abbia appiccicato in fondo il nome di chi
+    l'ha detta invece di staccarlo come gli era stato chiesto — che è una
+    questione di formato, non di verità.
+
+    Restituisce (testo, topic, messaggio), dove `testo` è la frase che ha
+    combaciato, cioè quella che va stampata."""
+    elenco = list(voci)
+    for candidato in _varianti_senza_autore(riga):
+        cercato = candidato.lower()
+        for voce in elenco:
+            topic, m = voce if isinstance(voce, tuple) else ("", voce)
+            if cercato in m.text.lower():
+                return candidato, topic, m
+    return None
+
+
 def _verify_quote(raw: str, messages) -> "Quote | None":
     """Il virgolettato, ma solo se esiste davvero.
 
@@ -736,25 +816,25 @@ def _verify_quote(raw: str, messages) -> "Quote | None":
     testo = _clean(raw or "")
     if not testo or testo.upper().startswith("NESSUNA"):
         return None
-    # "frase | autore": il nome dichiarato si scarta, serve solo a far
-    # capire al modello che deve attribuirla a qualcuno.
-    testo = testo.rpartition("|")[0].strip() or testo
-    testo = testo.strip().strip('"').strip("«»").strip()
-    if not (_MIN_QUOTE_CHARS <= len(testo) <= _MAX_QUOTE_CHARS):
+
+    trovato = trova_alla_lettera(testo, messages)
+    if trovato is None:
+        print(f"Virgolettato scartato, non combacia con nessun messaggio: {testo!r}")
         return None
 
-    cercato = testo.lower()
-    for voce in messages:
-        topic, m = voce if isinstance(voce, tuple) else ("", voce)
-        if cercato in m.text.lower():
-            return Quote(
-                text=testo,
-                author=m.author,
-                topic=topic,
-                time=m.timestamp.strftime("%H:%M"),
-            )
-    print(f"Virgolettato scartato, non combacia con nessun messaggio: {testo!r}")
-    return None
+    # La misura si prende su quello che finisce in pagina, non su quello
+    # che ha risposto il modello: con il nome ancora attaccato in coda una
+    # citazione buona poteva sforare il tetto e sparire senza una riga di
+    # log, che è il modo peggiore di perdere qualcosa.
+    testo, topic, m = trovato
+    if not (_MIN_QUOTE_CHARS <= len(testo) <= _MAX_QUOTE_CHARS):
+        return None
+    return Quote(
+        text=testo,
+        author=m.author,
+        topic=topic,
+        time=m.timestamp.strftime("%H:%M"),
+    )
 
 
 def _clean(text: str) -> str:
@@ -1121,11 +1201,11 @@ def write_brief_headlines(
         return {}
 
     blocchi = []
-    for titolo, messaggi in attivi:
+    for numero, (titolo, messaggi) in enumerate(attivi, start=1):
         # Degli ultimi si tiene la coda: in una discussione la conclusione
         # sta in fondo, e per un titolo è quello che serve.
         campione = messaggi[-_MESSAGGI_PER_TITOLO:]
-        blocchi.append(f"### {titolo}\n" + _format_transcript(campione))
+        blocchi.append(f"### {numero}. {titolo}\n" + _format_transcript(campione))
 
     gia = ""
     scritti = [h for h, _ in (written_so_far or []) if h]
@@ -1144,26 +1224,32 @@ def write_brief_headlines(
         f"{GROUNDING_PROSE_RULE}\n\n{NO_META_RULE}\n\n"
         "Rispondi con una riga per tema, in questo formato esatto e senza "
         "altro testo:\n"
-        "NOME DEL TEMA | il titolo\n"
-        "Il nome del tema va copiato identico a come compare qui sotto "
-        "dopo '###'. Se di un tema non c'è niente da titolare, salta la "
-        "sua riga.\n\n"
+        "NUMERO DEL TEMA | il titolo\n"
+        "Il numero è quello che compare qui sotto dopo '###'. Se di un "
+        "tema non c'è niente da titolare, salta la sua riga.\n\n"
         + gia
         + "\n\n".join(blocchi)
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
 
-    noti = {t for t, _ in attivi}
+    # La chiave della risposta è il numero, non il nome. Il nome resta
+    # scritto dentro il blocco perché serve al modello per capire di che
+    # cosa parla, ma pretendere che lo ricopiasse identico era una
+    # richiesta destinata a fallire: i topic di Telegram si chiamano
+    # anche "Seri eCcí", e il 5 settembre quella breve è rimasta senza
+    # titolo per un accento. Un numero si ricopia.
+    per_numero = {str(n): t for n, (t, _) in enumerate(attivi, start=1)}
     out: dict[str, str] = {}
     for riga in (raw or "").splitlines():
-        nome, barra, titolo = riga.partition("|")
+        chiave, barra, titolo = riga.partition("|")
         if not barra:
             continue
-        nome = _clean(nome).strip("# ").strip()
+        chiave = _clean(chiave).strip("# ").strip().rstrip(".").strip()
         titolo = _chiudi_virgolette(_clean(titolo))
-        if nome in noti and titolo:
+        nome = per_numero.get(chiave)
+        if nome and titolo:
             out[nome] = _enforce_lengths(titolo, "", "")[0]
-    mancanti = noti - set(out)
+    mancanti = set(per_numero.values()) - set(out)
     if mancanti:
         print(f"  brevi senza titolo: {', '.join(sorted(mancanti))}")
     return out
