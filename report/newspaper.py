@@ -46,13 +46,37 @@ from report.graphics import (
     weight_bar_svg,
 )
 
-NAVY = "#0c2340"
-AZZURRO = "#17a3e0"
-AZZURRO_DEEP = "#0f6fa8"
-AZZURRO_PALE = "#8fc9e8"
-GROUND = "#f4f5f6"
-INK = "#101820"
-INK_SOFT = "#3d3d3d"
+# La carta prima dell'inchiostro.
+#
+# Un quotidiano non è stampato su bianco: la Gazzetta è rosa, il Foglio è
+# avorio, e il colore della carta è la prima cosa che si riconosce da
+# lontano, prima di qualunque titolo. Qui la carta è appena azzurrina —
+# così l'azzurro c'è su tutta la pagina senza essere su nessuna parola.
+#
+# È il contrario di prima: l'azzurro brillante stava nei sommari, nelle
+# etichette e nei rimandi, cioè sul testo, e una pagina di testo azzurro
+# somiglia a un sito. Adesso il testo è nero e l'azzurro è la carta, il
+# filetto sotto la testata e poco altro.
+PAPER = "#edf1f4"
+PAPER_DEEP = "#e2e8ed"      # il fondo dei riquadri, mezzo tono più giù
+RULE = "#b6c0c8"            # il filetto sottile, quello che fa la griglia
+
+# La testata resta un blocco scuro perché il marchio ha il contorno
+# bianco e su carta chiara sparirebbe. Ma è un blu quasi nero, non un
+# blu: deve leggersi come inchiostro.
+NAVY = "#0a1c2b"
+
+# L'azzurro da stampa, per gli accenti. Più profondo e più sporco di
+# quello del marchio: quello brillante regge su fondo scuro, su carta
+# chiara diventa il colore di un collegamento.
+AZZURRO = "#0d6f9f"
+AZZURRO_DEEP = "#0a4b6d"
+AZZURRO_BRIGHT = "#17a3e0"  # solo il filetto della testata e il fine pezzo
+AZZURRO_PALE = "#8fc9e8"    # solo sopra il fondo scuro
+
+GROUND = PAPER_DEEP
+INK = "#14181c"
+INK_SOFT = "#4a5158"
 
 PAGE_WIDTH = 1080
 
@@ -62,8 +86,12 @@ PAGE_WIDTH = 1080
 # È il compromesso che tiene i balloon lontani dalle teste: i disegni
 # della biblioteca hanno le teste sotto la metà dell'immagine, e quello
 # che si perde nel ritaglio è il cielo vuoto che sta sopra.
-_VIGNETTA_WIDTH = PAGE_WIDTH - 56 * 2
-_VIGNETTA_HEIGHT = 560
+# Da quando l'apertura sta su una colonna e non sulla pagina intera, il
+# disegno prende la larghezza di quella colonna: è la foto dell'articolo,
+# e una foto che sborda dalla colonna del pezzo non è impaginazione, è
+# un banner.
+_VIGNETTA_WIDTH = 616
+_VIGNETTA_HEIGHT = 356
 
 # Oltre questa altezza stimata (in px CSS) la pagina diventa una striscia
 # troppo lunga: Telegram la mostra rimpicciolita in anteprima e il testo
@@ -298,12 +326,27 @@ CSS = f"""
 * {{ box-sizing: border-box; }}
 body {{
   margin: 0; width: {PAGE_WIDTH}px;
-  background: {GROUND}; color: {INK};
-  font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
+  background: {PAPER}; color: {INK};
+  /* Titoli e testo in graziato. È il cambio che si vede da più lontano
+     di tutti: nessun quotidiano al mondo titola in bastoni, e il bastone
+     era la ragione per cui questa pagina somigliava a un sito. */
+  font-family: Newsreader, 'Times New Roman', Georgia, serif;
   font-weight: 400;
 }}
-h1, h2, h3 {{ margin: 0; font-weight: 800; letter-spacing: -0.025em; }}
+h1, h2, h3 {{ margin: 0; font-weight: 800; letter-spacing: -0.015em; }}
 p {{ margin: 0; }}
+
+/* Il bastone resta, ma solo per gli arredi: occhielli, etichette di
+   sezione, data, rimandi, numeri di pagina. È il contrasto che hanno
+   tutti i giornali veri — la notizia in graziato, le indicazioni di
+   servizio in bastoni — e serve a distinguere a colpo d'occhio quello
+   che è scritto da quello che è segnaletica. */
+.kicker, .section-label, .dateline, .rimando, .folio, .chip,
+.strillo .sez, .strillo .pag, .dentro-row .sez, .dentro-row .pag,
+.band, .brief-head, .footer, .footer-continue, .stats, .numero,
+.continuation, .vignetta .didascalia, .balloon .chi {{
+  font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
+}}
 /* Nessun angolo arrotondato in tutto il documento: la struttura la fanno
    i regoli e gli allineamenti, non le smussature. */
 
@@ -314,21 +357,22 @@ p {{ margin: 0; }}
   text-align: right; color: {AZZURRO_PALE}; font-size: 15px; font-weight: 600;
   letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.5;
 }}
-.rule-accent {{ height: 6px; background: {AZZURRO}; }}
+.rule-accent {{ height: 5px; background: {AZZURRO_BRIGHT}; }}
 
 .dateline {{
   display: flex; justify-content: space-between; align-items: baseline;
-  padding: 16px 56px; background: #fff; border-bottom: 2px solid {NAVY};
+  padding: 14px 56px; background: {PAPER};
+  border-top: 1px solid {INK}; border-bottom: 3px solid {INK};
   font-size: 17px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
 }}
-.dateline .folio {{ color: {AZZURRO_DEEP}; }}
+.dateline .folio {{ color: {AZZURRO}; }}
 
 .section-label {{
   font-size: 15px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase; color: {AZZURRO_DEEP};
+  text-transform: uppercase; color: {AZZURRO};
 }}
 
-.index {{ padding: 22px 56px 24px 56px; background: #fff; border-bottom: 2px solid {NAVY}; }}
+.index {{ padding: 22px 56px 24px 56px; background: {PAPER}; border-bottom: 2px solid {INK}; }}
 .index .section-label {{ display: block; margin-bottom: 14px; }}
 .index-chips {{ display: flex; flex-wrap: wrap; gap: 10px; }}
 /* Le chip dell'indice sono le sezioni dell'edizione, non i topic: sono
@@ -343,7 +387,7 @@ p {{ margin: 0; }}
 .chip .glyph {{ color: {AZZURRO_DEEP}; flex: none; }}
 .share {{ display: block; margin-top: 14px; }}
 
-.lead {{ padding: 34px 56px 30px 56px; background: #fff; border-bottom: 6px solid {NAVY}; }}
+.lead {{ padding: 30px 56px 26px 56px; background: {PAPER}; }}
 .kicker {{
   display: inline-block; background: {NAVY}; color: #fff; font-size: 15px;
   font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
@@ -351,9 +395,9 @@ p {{ margin: 0; }}
 }}
 .lead h2 {{ font-size: 66px; line-height: 1.02; letter-spacing: -0.03em; margin-bottom: 18px; }}
 .lead .deck {{
-  font-size: 30px; line-height: 1.35; color: {AZZURRO_DEEP};
-  font-weight: 600; margin-bottom: 26px; padding-bottom: 22px;
-  border-bottom: 2px solid {NAVY};
+  font-size: 27px; line-height: 1.32; color: {INK_SOFT};
+  font-weight: 500; font-style: italic; margin-bottom: 20px;
+  padding-bottom: 18px; border-bottom: 1px solid {RULE};
 }}
 /* Il testo su due colonne è la firma di un giornale stampato: nessun
    altro mezzo impagina così, e il colpo d'occhio la riconosce prima di
@@ -366,7 +410,7 @@ p {{ margin: 0; }}
   /* Il filetto fra le colonne: in tipografia si chiama filetto di
      separazione e serve all'occhio per non saltare da una colonna
      all'altra a metà riga. */
-  column-rule: 1px solid #c9ced3;
+  column-rule: 1px solid {RULE};
 }}
 .lead .body p {{ margin-bottom: 14px; }}
 .lead .body p:last-child {{ margin-bottom: 0; }}
@@ -380,6 +424,37 @@ p {{ margin: 0; }}
   color: {NAVY}; padding: 6px 11px 0 0;
 }}
 
+/* --- Prima pagina: la griglia -----------------------------------------
+   Una prima pagina di quotidiano non è una pila di fasce larghe quanto la
+   pagina: è una griglia di colonne di larghezza diversa. L'occhio
+   riconosce quello prima di leggere una parola, ed è la ragione per cui
+   la vecchia prima pagina — apertura a tutta pagina, poi un riquadro
+   grigio a tutta pagina, poi una tabella a tutta pagina — somigliava a un
+   sito anche quando quello che c'era scritto era giusto.
+
+   La griglia è quella classica dei quotidiani italiani: la notizia di
+   apertura sulla colonna larga, e a destra la colonna stretta con i
+   richiami al resto del giornale. Fra le due un filetto verticale, che è
+   il segno che fa la griglia. */
+.vetrina {{
+  display: flex; align-items: stretch;
+  padding: 26px 56px 24px 56px; background: {PAPER};
+  border-bottom: 3px solid {INK};
+}}
+.vetrina-main {{ flex: 1; min-width: 0; padding-right: 30px; }}
+.vetrina-side {{
+  flex: none; width: 292px; padding-left: 30px;
+  border-left: 1px solid {INK};
+}}
+/* Dentro la griglia l'apertura non ha più margini suoi: i margini li dà
+   la colonna. */
+.vetrina .lead {{ padding: 0; background: transparent; border: none; }}
+.vetrina .lead h2 {{ font-size: 58px; }}
+.vetrina .lead .body {{ font-size: 22px; line-height: 1.44; column-gap: 30px; }}
+.vetrina .lead .body.dropcap > p:first-child::first-letter {{
+  font-size: 68px; padding: 5px 9px 0 0; color: {INK};
+}}
+
 /* --- Prima pagina: la vetrina -----------------------------------------
    Una prima pagina non è la prima puntata del giornale, è la sua vetrina:
    dice che cosa c'è dentro e dove. Da qui gli strilli in alto, la spalla
@@ -389,56 +464,61 @@ p {{ margin: 0; }}
 /* Gli strilli (in gergo: le civette) sono le tre righe sopra la testata
    che annunciano il resto del giornale. Stanno su fondo navy perché
    appartengono alla testata, non alla notizia sotto. */
-.strilli {{
-  background: {NAVY}; border-top: 2px solid {AZZURRO};
-  padding: 15px 56px; display: flex; gap: 0;
-}}
+/* I richiami stanno in colonna, uno sotto l'altro, separati da un
+   filetto: è la forma che hanno su qualunque prima pagina. Prima erano
+   tre caselle affiancate su fondo scuro sopra la testata — una fascia da
+   sito di notizie, non una colonna di giornale. */
+.strilli {{ background: transparent; padding: 0; display: block; }}
 .strillo {{
-  flex: 1; padding: 0 20px; border-left: 1px solid rgba(143, 201, 232, 0.34);
+  padding: 0 0 15px 0; margin-bottom: 15px;
+  border-left: none; border-bottom: 1px solid {RULE};
 }}
-.strillo:first-child {{ padding-left: 0; border-left: none; }}
-.strillo:last-child {{ padding-right: 0; }}
+.strillo:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
 .strillo .sez {{
-  display: block; font-size: 13px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase; color: {AZZURRO}; margin-bottom: 5px;
+  display: block; font-size: 12px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; color: {AZZURRO}; margin-bottom: 6px;
 }}
 .strillo p {{
-  font-size: 20px; line-height: 1.2; font-weight: 700; color: #fff;
-  letter-spacing: -0.01em;
+  font-size: 22px; line-height: 1.14; font-weight: 700; color: {INK};
+  letter-spacing: -0.015em;
 }}
 .strillo .pag {{
-  display: block; margin-top: 6px; font-size: 13px; font-weight: 800;
-  letter-spacing: 0.1em; text-transform: uppercase; color: {AZZURRO_PALE};
+  display: block; margin-top: 7px; font-size: 12px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase; color: {INK_SOFT};
 }}
 
 /* Il rimando in coda all'apertura: dove continua il pezzo. */
 .rimando {{
-  margin-top: 20px; padding-top: 16px; border-top: 2px solid {NAVY};
-  font-size: 21px; font-weight: 800; letter-spacing: 0.04em;
-  text-transform: uppercase; color: {AZZURRO_DEEP};
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid {INK};
+  font-size: 18px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: {AZZURRO};
 }}
 
 /* La spalla: la seconda notizia della giornata, in prima ma sotto
    l'apertura e visibilmente più piccola. Il fondo grigio la stacca senza
    bisogno di un riquadro. */
+/* La seconda notizia sta sotto il taglio, a tutta pagina e su tre
+   colonne: la larghezza e il numero di colonne sono il modo in cui una
+   pagina dice che questo pezzo conta meno di quello sopra e più di un
+   richiamo. Niente fondo grigio — a separarla basta il filetto spesso. */
 .spalla {{
-  background: {GROUND}; border-bottom: 6px solid {NAVY};
-  padding: 28px 56px 26px 56px;
+  background: {PAPER}; border-bottom: 3px solid {INK};
+  padding: 24px 56px 24px 56px;
 }}
 .spalla .section-label {{ display: block; margin-bottom: 12px; }}
-.spalla h3 {{ font-size: 38px; line-height: 1.06; letter-spacing: -0.02em; margin-bottom: 10px; }}
+.spalla h3 {{ font-size: 36px; line-height: 1.06; letter-spacing: -0.015em; margin-bottom: 10px; }}
 .spalla .deck {{
-  font-size: 24px; line-height: 1.3; color: {AZZURRO_DEEP}; font-weight: 600;
-  margin-bottom: 14px;
+  font-size: 23px; line-height: 1.3; color: {INK_SOFT}; font-weight: 500;
+  font-style: italic; margin-bottom: 14px;
 }}
-.spalla .body {{ font-size: 24px; line-height: 1.44; column-count: 2; column-gap: 40px;
-  column-rule: 1px solid #c9ced3; }}
+.spalla .body {{ font-size: 23px; line-height: 1.46; column-count: 3; column-gap: 32px;
+  column-rule: 1px solid {RULE}; }}
 .spalla .rimando {{ margin-top: 16px; padding-top: 13px; font-size: 19px; }}
 
 /* Il sommario dell'edizione: una riga per sezione, con il titolo migliore
    e la pagina. Prende il posto delle chip dell'indice, che dicevano
    quanti messaggi e non che cosa c'era scritto. */
-.dentro {{ background: #fff; padding: 28px 56px 30px 56px; }}
+.dentro {{ background: {PAPER}; padding: 26px 56px 28px 56px; }}
 .dentro .section-label {{ display: block; margin-bottom: 16px; }}
 .dentro-row {{
   display: flex; align-items: baseline; gap: 20px;
@@ -455,19 +535,32 @@ p {{ margin: 0; }}
    titolo. */
 .dentro-row p {{ flex: 1; font-size: 19px; line-height: 1.25; font-weight: 600;
   color: {INK_SOFT}; letter-spacing: 0.02em; }}
+/* Nella colonna stretta il sommario perde la riga di mezzo: sezione e
+   pagina bastano, ed è esattamente quello che dice un "Dentro il
+   giornale" vero. */
+.vetrina-side .dentro {{
+  padding: 0; margin-top: 22px; padding-top: 16px;
+  border-top: 2px solid {INK}; background: transparent;
+}}
+.vetrina-side .dentro-row {{ padding: 8px 0; gap: 10px; border-top: 1px solid {RULE}; }}
+.vetrina-side .dentro-row:first-of-type {{ border-top: none; }}
+.vetrina-side .dentro-row .sez {{ width: auto; flex: 1; font-size: 14px; color: {INK}; }}
+.vetrina-side .dentro-row p {{ display: none; }}
+.vetrina-side .dentro-row .pag {{ font-size: 13px; }}
+
 .dentro-row .pag {{
-  flex: none; font-size: 15px; font-weight: 800; letter-spacing: 0.1em;
-  text-transform: uppercase; color: {AZZURRO_DEEP};
+  flex: none; font-size: 14px; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: {AZZURRO};
 }}
 
 /* Il seguito dell'apertura in apertura di pagina 2. Ripete il titolo in
    piccolo — chi ha girato pagina deve ritrovare il pezzo che stava
    leggendo — e non ripete occhiello né sommario. */
-.segue {{ background: #fff; padding: 30px 56px 28px 56px; border-bottom: 6px solid {NAVY}; }}
+.segue {{ background: {PAPER}; padding: 30px 56px 28px 56px; border-bottom: 3px solid {INK}; }}
 .segue .section-label {{ display: block; margin-bottom: 10px; }}
 .segue h3 {{ font-size: 34px; line-height: 1.08; margin-bottom: 18px; }}
-.segue .body {{ font-size: 26px; line-height: 1.46; column-count: 2; column-gap: 40px;
-  column-rule: 1px solid #c9ced3; }}
+.segue .body {{ font-size: 25px; line-height: 1.5; column-count: 2; column-gap: 40px;
+  column-rule: 1px solid {RULE}; }}
 .segue .body p {{ margin-bottom: 14px; }}
 .segue .body p:last-child {{ margin-bottom: 0; }}
 
@@ -493,7 +586,7 @@ p {{ margin: 0; }}
    occupava spazio senza dire niente: stesso ingombro, un'informazione. */
 .band {{ padding-top: 28px; }}
 .band:first-child {{ padding-top: 20px; }}
-.band-rule {{ height: 6px; background: {AZZURRO}; }}
+.band-rule {{ height: 5px; background: {INK}; }}
 .band-row {{
   display: flex; justify-content: space-between; align-items: baseline;
   gap: 20px; padding: 14px 0 10px 0;
@@ -530,8 +623,8 @@ p {{ margin: 0; }}
 }}
 .topic-tag {{
   display: inline-flex; align-items: center; gap: 8px;
-  background: {AZZURRO}; color: {NAVY}; font-size: 15px; font-weight: 800;
-  letter-spacing: 0.12em; text-transform: uppercase; padding: 6px 11px;
+  background: {INK}; color: {PAPER}; font-size: 14px; font-weight: 800;
+  letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 10px;
 }}
 .topic-tag .glyph {{ flex: none; }}
 .msg-count {{
@@ -543,12 +636,12 @@ p {{ margin: 0; }}
    scala sotto. È il gradino che mancava — titolo, sommario, testo — e
    senza il quale ogni articolo era un blocco unico. */
 .article .deck {{
-  font-size: 25px; line-height: 1.3; color: {AZZURRO_DEEP};
-  font-weight: 600; margin-bottom: 12px;
+  font-size: 24px; line-height: 1.3; color: {INK_SOFT};
+  font-weight: 500; font-style: italic; margin-bottom: 12px;
 }}
 .article .body {{
   font-size: 24px; line-height: 1.45;
-  column-count: 2; column-gap: 40px; column-rule: 1px solid #c9ced3;
+  column-count: 2; column-gap: 40px; column-rule: 1px solid {RULE};
 }}
 .article .body p {{ margin-bottom: 13px; }}
 .article .body p:last-child {{ margin-bottom: 0; }}
@@ -587,7 +680,7 @@ p {{ margin: 0; }}
 /* In breve: i topic minori in due colonne, titolo e basta. Un trafiletto
    di quattro righe per un topic da sei messaggi è una promessa che il
    contenuto non mantiene. */
-.brief {{ background: #fff; padding: 26px 56px 30px 56px; border-top: 6px solid {NAVY}; }}
+.brief {{ background: {PAPER}; padding: 26px 56px 30px 56px; border-top: 3px solid {INK}; }}
 .brief > .section-label {{ display: block; margin-bottom: 16px; }}
 .brief-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }}
 .brief-item {{ border-top: 2px solid {NAVY}; padding: 14px 0; }}
@@ -602,8 +695,11 @@ p {{ margin: 0; }}
 .brief-item .head .sez {{ color: {NAVY}; }}
 .brief-item p {{ font-size: 25px; line-height: 1.22; font-weight: 700; letter-spacing: -0.015em; }}
 
-.quote {{ background: {AZZURRO}; color: {NAVY}; padding: 34px 56px; }}
-.quote .section-label {{ display: block; color: {NAVY}; margin-bottom: 14px; }}
+.quote {{
+  background: {PAPER_DEEP}; color: {INK}; padding: 30px 56px;
+  border-top: 3px solid {INK}; border-bottom: 3px solid {INK};
+}}
+.quote .section-label {{ display: block; color: {AZZURRO}; margin-bottom: 14px; }}
 .quote p {{ font-size: 46px; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }}
 .quote .attrib {{ font-size: 20px; font-weight: 700; }}
 
@@ -613,14 +709,14 @@ p {{ margin: 0; }}
    biblioteca tengono le teste sotto la metà dell'immagine.
    Niente angoli arrotondati e niente ombre nemmeno qui: il fumetto è un
    rettangolo con un bordo, come il resto della pagina. */
-.vignetta {{ background: #fff; padding: 34px 56px 30px 56px; }}
+.vignetta {{ background: {PAPER}; padding: 0 0 22px 0; }}
 .vignetta .section-label {{ display: block; margin-bottom: 16px; }}
 /* Dentro l'apertura il blocco non porta margini suoi: quelli della
    colonna ce li ha già la prima pagina. */
-.lead .vignetta {{ padding: 0; margin-bottom: 26px; }}
+.lead .vignetta {{ padding: 0; margin-bottom: 22px; }}
 .pannello {{
   position: relative; width: {_VIGNETTA_WIDTH}px; height: {_VIGNETTA_HEIGHT}px;
-  border: 3px solid {NAVY}; overflow: hidden; background: #fff;
+  border: 2px solid {INK}; overflow: hidden; background: #fff;
 }}
 .pannello img {{
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -628,19 +724,19 @@ p {{ margin: 0; }}
 }}
 /* I balloon stanno nella metà alta, dove il disegno è sfondo e basta. */
 .battute {{
-  position: absolute; left: 26px; right: 26px; top: 22px;
-  display: flex; flex-direction: column; gap: 12px;
+  position: absolute; left: 16px; right: 16px; top: 14px;
+  display: flex; flex-direction: column; gap: 9px;
 }}
 .balloon {{
-  position: relative; border: 3px solid {NAVY}; background: #fff;
-  padding: 13px 18px 11px 18px; max-width: 72%;
+  position: relative; border: 2px solid {INK}; background: #fff;
+  padding: 8px 12px 7px 12px; max-width: 74%;
 }}
 .balloon.sx {{ align-self: flex-start; }}
 .balloon.dx {{ align-self: flex-end; text-align: right; }}
-.balloon p {{ font-size: 30px; line-height: 1.26; font-weight: 600; letter-spacing: -0.015em; }}
+.balloon p {{ font-size: 19px; line-height: 1.24; font-weight: 600; letter-spacing: -0.01em; }}
 .balloon .firma {{
-  display: block; margin-top: 8px; font-size: 15px; font-weight: 800;
-  letter-spacing: 0.1em; text-transform: uppercase; color: {AZZURRO_DEEP};
+  display: block; margin-top: 5px; font-size: 11px; font-weight: 800;
+  letter-spacing: 0.09em; text-transform: uppercase; color: {INK_SOFT};
 }}
 /* La codina: due triangoli sovrapposti, quello bianco più piccolo, così
    il bordo resta continuo. Ce l'ha solo l'ultimo balloon di chi parla —
@@ -649,24 +745,27 @@ p {{ margin: 0; }}
   content: ""; position: absolute; width: 0; height: 0; border-style: solid;
 }}
 .balloon.sx.coda::before {{
-  left: 36px; bottom: -22px; border-width: 22px 24px 0 0;
-  border-color: {NAVY} transparent transparent transparent;
+  left: 24px; bottom: -15px; border-width: 15px 16px 0 0;
+  border-color: {INK} transparent transparent transparent;
 }}
 .balloon.sx.coda::after {{
-  left: 40px; bottom: -15px; border-width: 16px 17px 0 0;
+  left: 27px; bottom: -10px; border-width: 11px 12px 0 0;
   border-color: #fff transparent transparent transparent;
 }}
 .balloon.dx.coda::before {{
-  right: 36px; bottom: -22px; border-width: 22px 0 0 24px;
-  border-color: {NAVY} transparent transparent transparent;
+  right: 24px; bottom: -15px; border-width: 15px 0 0 16px;
+  border-color: {INK} transparent transparent transparent;
 }}
 .balloon.dx.coda::after {{
-  right: 40px; bottom: -15px; border-width: 16px 0 0 17px;
+  right: 27px; bottom: -10px; border-width: 11px 0 0 12px;
   border-color: #fff transparent transparent transparent;
 }}
+/* La didascalia di una foto, in un giornale, è piccola e in bastoni:
+   non è un titolo, è una nota di servizio. */
 .vignetta figcaption {{
-  margin-top: 14px; font-size: 20px; font-weight: 700; color: {AZZURRO_DEEP};
-  letter-spacing: -0.01em;
+  margin-top: 10px; font-size: 14px; font-weight: 600; color: {INK_SOFT};
+  letter-spacing: 0.01em; line-height: 1.3;
+  font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
 }}
 
 .stats {{ background: {NAVY}; color: #fff; padding: 28px 56px; }}
@@ -688,18 +787,18 @@ p {{ margin: 0; }}
 }}
 
 .footer {{
-  background: {NAVY}; color: {AZZURRO_PALE}; border-top: 2px solid {AZZURRO};
+  background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
   padding: 18px 56px; display: flex; justify-content: space-between;
   font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
 }}
 .footer-continue {{
-  background: {NAVY}; color: {AZZURRO_PALE}; border-top: 6px solid {AZZURRO};
+  background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
   padding: 20px 56px; display: flex; justify-content: space-between; align-items: baseline;
 }}
 .footer-continue .note {{ font-size: 17px; letter-spacing: 0.08em; text-transform: uppercase; }}
 .footer-continue .next {{
-  font-size: 22px; font-weight: 800; letter-spacing: 0.06em;
-  text-transform: uppercase; color: {AZZURRO};
+  font-size: 20px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #fff;
 }}
 
 /* Testatina della seconda pagina: più bassa della prima, così si capisce a
@@ -722,7 +821,8 @@ def _wrap_page(inner: str) -> str:
 <head>
 <meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;0,6..72,800;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
 </head>
 <body>
@@ -1434,9 +1534,16 @@ _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
 _H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
 _H_QUOTE = 245
 # Etichetta, pannello, didascalia e i due margini del blocco.
-_H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 34 + 80
+_H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 4 + 28 + 22   # etichetta, pannello, didascalia
 _H_STATS = 130
-_H_STRILLI = 125        # la fascia delle civette sopra la testata
+# La prima pagina non è più una pila di fasce: l'apertura e i richiami
+# sono due colonne affiancate, e l'altezza della pagina è quella della
+# colonna più alta. Sommarle, come si faceva quando erano sovrapposte,
+# sovrastimerebbe la pagina di cinque o seicento pixel.
+_H_CHROME_PRIMA = 284   # testata, data, margini della griglia, piede
+_H_STRILLO = 138        # un richiamo nella colonna di destra
+_H_DENTRO_SIDE = 77     # margine, filetto e titolo del sommario stretto
+_H_DENTRO_SIDE_ROW = 38 # una riga sezione/pagina nella colonna stretta
 _H_RIMANDO = 58         # "Il servizio a pagina N" in coda a un pezzo
 _H_VIRGOLETTATO = 120   # la citazione dentro il corpo, su una colonna
 _H_DENTRO_HEAD = 62     # titolo del sommario dell'edizione
@@ -1460,14 +1567,17 @@ def _estimate_lead_height(
 ) -> int:
     """L'apertura in prima. Con `front` conta solo l'attacco: il resto del
     pezzo riprende dentro e lo paga la pagina che lo ospita."""
-    h = 120  # occhiello + padding
-    h += _text_height(lead.headline, chars_per_line=26, line_height=68)
-    h += _text_height(lead.deck, chars_per_line=52, line_height=41) + 24
+    h = 47  # occhiello
+    h += _text_height(lead.headline, chars_per_line=22, line_height=59)
+    h += _text_height(lead.deck, chars_per_line=54, line_height=36) + 39
     if con_vignetta:
         h += _H_VIGNETTA
+    # I capoversi si contano insieme, non uno per uno: scorrono in un
+    # unico flusso a due colonne, e contarli separatamente faceva pagare
+    # a ciascuno l'aria di fine blocco che in pagina non c'è.
     testo = lead.attacco if front else lead.paragraphs
-    for p in testo:
-        h += _column_height(p, chars_per_line=40, line_height=38) + 14
+    if testo:
+        h += _column_height("\n\n".join(testo), chars_per_line=29, line_height=32) + 14
     if front and lead.seguito:
         h += _H_RIMANDO
     return h
@@ -1487,12 +1597,14 @@ def _estimate_front_height(
     passare alla successiva — ma a sapere quando sfonda: è l'unica pagina
     che nessun meccanismo può alleggerire da sé, quindi se cresce troppo
     deve almeno dirlo."""
+    colonna_apertura = _estimate_lead_height(lead, con_vignetta=con_vignetta)
+    colonna_richiami = _H_STRILLO * len(strilli) + (
+        _H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0
+    )
     return (
-        _H_CHROME
-        + (_H_STRILLI if strilli else 0)
-        + _estimate_lead_height(lead, con_vignetta=con_vignetta)
+        _H_CHROME_PRIMA
+        + max(colonna_apertura, colonna_richiami)
         + _estimate_spalla_height(spalla)
-        + (_H_DENTRO_HEAD + _H_DENTRO_ROW * len(dentro) if dentro else 0)
     )
 
 
@@ -1513,12 +1625,14 @@ def _estimate_segue_height(lead: Lead) -> int:
 def _estimate_spalla_height(article) -> int:
     if article is None or not getattr(article, "headline", ""):
         return 0
-    h = 110  # etichetta + padding + rimando
-    h += _text_height(article.headline, chars_per_line=32, line_height=41)
-    h += _text_height(article.deck, chars_per_line=54, line_height=32) + (14 if article.deck else 0)
+    # La spalla sta sotto il taglio, a tutta pagina e su TRE colonne: le
+    # misure sono quelle, non più quelle di due colonne strette.
+    h = 96  # etichetta + margini
+    h += _text_height(article.headline, chars_per_line=44, line_height=38)
+    h += _text_height(article.deck, chars_per_line=66, line_height=30) + (14 if article.deck else 0)
     parti = _paragraphs(article.body)
     if parti:
-        h += _column_height(parti[0], chars_per_line=42, line_height=35)
+        h += _column_height(parti[0], chars_per_line=30, line_height=34, columns=3)
     return h + _H_RIMANDO
 
 
@@ -1800,8 +1914,13 @@ def build_pages_html(
     total = len(chunks) + 1
 
     # SECONDA PASSATA: la vetrina, con i numeri di pagina in mano.
-    spalla = None if vignetta_html else _pick_spalla(chunks)
-    strilli = _pick_strilli(chunks, pagina_di, escludi=spalla)
+    # La spalla esce tutti i giorni, vignetta o no. Prima il disegno la
+    # cacciava dalla pagina perché occupava una fascia larga quanto la
+    # pagina; ora sta dentro la colonna dell'apertura, e sotto il taglio
+    # resta lo spazio per la seconda notizia. Una prima pagina con una
+    # sola notizia non è una prima pagina.
+    spalla = _pick_spalla(chunks)
+    strilli = _pick_strilli(chunks, pagina_di, escludi=spalla, quanti=4)
     dentro = _righe_dentro(chunks, stats_by_section)
 
     alta = _estimate_front_height(
@@ -1844,19 +1963,25 @@ def build_pages_html(
         )
 
     folio_prima = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
+    # L'ordine è quello di una prima pagina vera: testata, data, e poi la
+    # griglia a due colonne — l'apertura sulla larga, i richiami e il
+    # sommario sulla stretta. Sotto il taglio, la seconda notizia.
+    apertura = _lead_html(
+        lead,
+        gfx,
+        continua_a=2 if chunks and lead.seguito else None,
+        vignetta_html=vignetta_html,
+    )
+    colonna = _strilli_html(strilli) + _dentro_html(dentro)
     vetrina = (
         _masthead(logo_uri, newspaper_name)
-        + _strilli_html(strilli)
         + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
         f'<span class="folio">{html.escape(folio_prima)}</span></div>'
-        + _lead_html(
-            lead,
-            gfx,
-            continua_a=2 if chunks and lead.seguito else None,
-            vignetta_html=vignetta_html,
-        )
+        + '<div class="vetrina">'
+        f'<div class="vetrina-main">{apertura}</div>'
+        f'<div class="vetrina-side">{colonna}</div>'
+        '</div>'
         + _spalla_html(spalla, pagina_di.get(id(spalla), 2), gfx)
-        + _dentro_html(dentro)
     )
     pages = [
         _wrap_page(vetrina + (continua(1) if chunks else chiusura(1)))
