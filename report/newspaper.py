@@ -746,7 +746,7 @@ p {{ margin: 0; }}
 .lead .vignetta {{ padding: 0; margin-bottom: 22px; }}
 .pannello {{
   position: relative; width: {_VIGNETTA_WIDTH}px; height: {_VIGNETTA_HEIGHT}px;
-  border: 2px solid {INK}; overflow: hidden; background: #fff;
+  border: 2px solid {INK}; overflow: hidden; background: {PAPER};
 }}
 .pannello img {{
   position: absolute; inset: 0; width: 100%; height: 100%;
@@ -758,7 +758,7 @@ p {{ margin: 0; }}
   display: flex; flex-direction: column; gap: 9px;
 }}
 .balloon {{
-  position: relative; border: 2px solid {INK}; background: #fff;
+  position: relative; border: 2px solid {INK}; background: {PAPER};
   padding: 8px 12px 7px 12px; max-width: 74%;
 }}
 .balloon.sx {{ align-self: flex-start; }}
@@ -780,7 +780,7 @@ p {{ margin: 0; }}
 }}
 .balloon.sx.coda::after {{
   left: 27px; bottom: -10px; border-width: 11px 12px 0 0;
-  border-color: #fff transparent transparent transparent;
+  border-color: {PAPER} transparent transparent transparent;
 }}
 .balloon.dx.coda::before {{
   right: 24px; bottom: -15px; border-width: 15px 0 0 16px;
@@ -788,7 +788,7 @@ p {{ margin: 0; }}
 }}
 .balloon.dx.coda::after {{
   right: 27px; bottom: -10px; border-width: 11px 0 0 12px;
-  border-color: #fff transparent transparent transparent;
+  border-color: {PAPER} transparent transparent transparent;
 }}
 /* La didascalia di una foto, in un giornale, è piccola e in bastoni:
    non è un titolo, è una nota di servizio. */

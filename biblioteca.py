@@ -24,11 +24,15 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image, ImageChops, ImageOps
 except ImportError:
     sys.exit("Serve Pillow: pip install Pillow")
 
-NAVY, AZZURRO, BIANCO = "#0c2340", "#17a3e0", "#ffffff"
+# I colori li tiene il giornale. Qui c'erano tre costanti scritte a mano
+# — navy, azzurro, bianco — e sono rimaste indietro quando la pagina è
+# passata alla carta avorio: la bicromia rimappava ancora su un navy
+# freddo e sul bianco puro, due colori che in pagina non esistono più.
+from report.newspaper import AZZURRO, INK, PAPER  # noqa: E402
 
 # I toni e le estensioni sono gli stessi che legge il gazzettino: se qui
 # ci fosse una seconda lista, prima o poi direbbe una cosa diversa.
@@ -36,11 +40,17 @@ from report.vignetta import ESTENSIONI, TONI as _TONI  # noqa: E402
 
 TONI = list(_TONI)
 
-# Il pannello è largo 968px e la pagina si renderizza a scala 2.
-LARGHEZZA_UTILE = 1936
-# I modelli producono 1536px di larghezza: portarli a 1936 sarebbe un
-# ingrandimento che non aggiunge dettaglio, solo byte.
-LARGHEZZA_DEFAULT = 1536
+# Il pannello è largo 616px e la pagina si renderizza a scala 2: oltre
+# 1232px non serve un pixel.
+#
+# Era 968 (e quindi 1936) finché l'apertura occupava tutta la pagina. Da
+# quando sta su una colonna, il disegno è più stretto di un terzo, e le
+# immagini della biblioteca portavano un quarto di byte in più del
+# necessario. Prima il default dei modelli — 1536px — stava SOTTO la
+# larghezza utile e ridurlo sarebbe stato buttare dettaglio; adesso ci
+# sta sopra, e ridurre è gratis.
+LARGHEZZA_UTILE = 1232
+LARGHEZZA_DEFAULT = LARGHEZZA_UTILE
 
 # Sotto queste soglie la biblioteca si nota che si ripete: vedi la
 # simulazione fatta a suo tempo (con 8 varianti per tono un disegno già
@@ -145,16 +155,42 @@ def bicromia(immagine: Image.Image) -> Image.Image:
 
     Serve alle illustrazioni realistiche, che arrivano a colori pieni con
     ombre e profondità di campo — cioè tutto quello che le cinque regole
-    della grafica vietano. La luminanza viene rimappata sulla rampa navy →
-    azzurro → bianco: l'immagine resta leggibile e smette di essere un
-    corpo estraneo in pagina.
+    della grafica vietano. La luminanza viene rimappata sulla rampa
+    inchiostro → azzurro → carta: l'immagine resta leggibile e smette di
+    essere un corpo estraneo in pagina.
 
     L'autocontrasto prima della mappatura non è un vezzo: senza, le foto
     con poco contrasto diventano una macchia di azzurro medio e i neri non
     arrivano mai al navy.
     """
     grigi = ImageOps.autocontrast(ImageOps.grayscale(immagine), cutoff=2)
-    return ImageOps.colorize(grigi, black=NAVY, white=BIANCO, mid=AZZURRO)
+    return ImageOps.colorize(grigi, black=INK, white=PAPER, mid=AZZURRO)
+
+
+def sulla_carta(immagine: Image.Image) -> Image.Image:
+    """Stampa il disegno sulla carta del giornale invece che sul bianco.
+
+    I modelli consegnano su bianco qualunque cosa dica il prompt, e un
+    rettangolo bianco dentro una pagina avorio si vede: è la stessa
+    giuntura che si vedeva quando la colonna delle notizie aveva un fondo
+    suo.
+
+    Il conto è una moltiplicazione, che è precisamente quello che fa
+    l'inchiostro sulla carta colorata: il bianco diventa carta, il nero
+    resta nero, e l'azzurro si scalda di quel poco che si scalda quando
+    lo stampi su avorio invece che su bianco. Non è un filtro sul fondo —
+    è il disegno intero che cambia supporto, ed è per questo che non
+    lascia aloni sui bordi antialiasati.
+    """
+    carta = Image.new("RGB", immagine.size, PAPER)
+    if immagine.mode in ("RGBA", "LA") or "transparency" in immagine.info:
+        # Il trasparente è già carta: comporlo prima evita che il
+        # convert lo appiattisca sul nero.
+        rgba = immagine.convert("RGBA")
+        fondo = Image.new("RGB", immagine.size, PAPER)
+        fondo.paste(rgba, mask=rgba.split()[3])
+        immagine = fondo
+    return ImageChops.multiply(immagine.convert("RGB"), carta)
 
 
 # Dove possono cominciare le teste, in percentuale dell'altezza. Il
@@ -203,12 +239,14 @@ def ottimizza(
     jpeg: bool,
     applica: bool,
     duotone: bool = False,
+    carta: bool = False,
 ) -> None:
     print(f"\n{'—' * 60}")
     print(
         f"{'Ridimensiono' if applica else 'Ridimensionerei'} a {larghezza}px "
         f"di larghezza, formato {'JPEG' if jpeg else 'PNG'}"
-        f"{', con la bicromia azzurra' if duotone else ''}."
+        f"{', con la bicromia azzurra' if duotone else ''}"
+        f"{', stampandole sulla carta' if carta else ''}."
     )
     if not applica:
         print("(prova a vuoto: aggiungi --applica per scrivere davvero)")
@@ -242,6 +280,8 @@ def ottimizza(
                 # sembra sfumato.
                 if duotone:
                     immagine = bicromia(immagine)
+                if carta:
+                    immagine = sulla_carta(immagine)
                 piatto = not jpeg and _e_disegno_piatto(immagine)
                 immagine = _ridimensiona(immagine, larghezza, piatto)
 
@@ -304,14 +344,19 @@ def main() -> None:
     p.add_argument("--applica", action="store_true", help="scrivi davvero i file")
     p.add_argument("--jpeg", action="store_true", help="converti in JPEG invece che PNG")
     p.add_argument(
+        "--carta", action="store_true",
+        help="stampa i disegni sulla carta avorio del giornale invece che "
+             "sul bianco (i modelli consegnano su bianco comunque)",
+    )
+    p.add_argument(
         "--duotone", action="store_true",
         help="riporta le immagini nella tavolozza navy/azzurro del gazzettino "
              "(serve alle illustrazioni realistiche)",
     )
     p.add_argument(
         "--larghezza", type=int, default=LARGHEZZA_DEFAULT,
-        help=f"larghezza massima in px (default {LARGHEZZA_DEFAULT}; "
-             f"in pagina ne servono {LARGHEZZA_UTILE})",
+        help=f"larghezza massima in px (default {LARGHEZZA_DEFAULT}, "
+             f"che è quanto ne servono in pagina)",
     )
     p.add_argument("--crea", action="store_true", help="crea le cartelle dei toni e esci")
     args = p.parse_args()
@@ -328,7 +373,10 @@ def main() -> None:
 
     trovate = referto(base)
     if any(trovate.values()):
-        ottimizza(trovate, args.larghezza, args.jpeg, args.applica, args.duotone)
+        ottimizza(
+            trovate, args.larghezza, args.jpeg, args.applica,
+            args.duotone, args.carta,
+        )
 
 
 if __name__ == "__main__":
