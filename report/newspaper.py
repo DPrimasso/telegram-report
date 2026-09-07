@@ -57,9 +57,9 @@ from report.graphics import (
 # etichette e nei rimandi, cioè sul testo, e una pagina di testo azzurro
 # somiglia a un sito. Adesso il testo è nero e l'azzurro è la carta, il
 # filetto sotto la testata e poco altro.
-PAPER = "#edf1f4"
-PAPER_DEEP = "#e2e8ed"      # il fondo dei riquadri, mezzo tono più giù
-RULE = "#b6c0c8"            # il filetto sottile, quello che fa la griglia
+PAPER = "#e3ecf2"
+PAPER_DEEP = "#d5e2eb"      # il fondo dei riquadri, mezzo tono più giù
+RULE = "#a7b8c4"            # il filetto sottile, quello che fa la griglia
 
 # La testata resta un blocco scuro perché il marchio ha il contorno
 # bianco e su carta chiara sparirebbe. Ma è un blu quasi nero, non un
@@ -350,12 +350,24 @@ p {{ margin: 0; }}
 /* Nessun angolo arrotondato in tutto il documento: la struttura la fanno
    i regoli e gli allineamenti, non le smussature. */
 
-.masthead {{ background: {NAVY}; padding: 34px 56px 26px 56px; }}
-.masthead-row {{ display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; }}
-.masthead img {{ width: 520px; display: block; }}
+/* La testata sta sulla carta, non su un blocco di colore, ed è centrata
+   fra due filetti. È la forma che ha la testata di qualunque quotidiano,
+   e il blocco scuro era la cosa che più di ogni altra faceva leggere
+   questa pagina come l'intestazione di un sito.
+
+   Ha richiesto una seconda versione del marchio: quello originale ha il
+   contorno bianco, fatto per il fondo scuro, e su carta chiara le lettere
+   si sfaldavano. In assets/logo-carta.png il contorno è di inchiostro. */
+.masthead {{
+  background: {PAPER}; padding: 24px 56px 14px 56px; text-align: center;
+  border-top: 3px solid {INK};
+}}
+.masthead-row {{ display: block; }}
+.masthead img {{ width: 600px; display: block; margin: 0 auto; }}
 .masthead .tagline {{
-  text-align: right; color: {AZZURRO_PALE}; font-size: 15px; font-weight: 600;
-  letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.5;
+  text-align: center; color: {INK_SOFT}; font-size: 13px; font-weight: 800;
+  letter-spacing: 0.3em; text-transform: uppercase; margin-top: 12px;
+  line-height: 1.4;
 }}
 .rule-accent {{ height: 5px; background: {AZZURRO_BRIGHT}; }}
 
@@ -803,15 +815,19 @@ p {{ margin: 0; }}
 
 /* Testatina della seconda pagina: più bassa della prima, così si capisce a
    colpo d'occhio che è la continuazione e non un secondo giornale. */
+/* Le pagine interne non ripetono il marchio: portano una riga di folio,
+   nome del giornale a sinistra e pagina a destra, come si usa. Ripetere
+   la testata intera a ogni pagina faceva sembrare ogni pagina l'inizio di
+   un giornale nuovo. */
 .continuation {{
-  background: {NAVY}; padding: 24px 56px; display: flex;
-  align-items: center; justify-content: space-between; gap: 24px;
+  background: {PAPER}; padding: 14px 56px; display: flex;
+  align-items: baseline; justify-content: space-between; gap: 24px;
+  border-top: 3px solid {INK}; border-bottom: 1px solid {INK};
+  font-size: 15px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase;
 }}
-.continuation img {{ width: 340px; display: block; }}
-.continuation .folio {{
-  color: {AZZURRO_PALE}; font-size: 17px; font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase;
-}}
+.continuation .testata {{ color: {INK}; }}
+.continuation .folio {{ color: {AZZURRO}; font-size: 15px; }}
 """
 
 
@@ -835,7 +851,7 @@ def _masthead(logo_uri: str | None, newspaper_name: str) -> str:
     brand = (
         f'<img src="{logo_uri}" alt="{html.escape(newspaper_name)}">'
         if logo_uri
-        else f'<h1 style="color:#fff;font-size:64px;text-transform:uppercase">'
+        else f'<h1 style="font-size:64px;text-transform:uppercase">'
         f"{html.escape(newspaper_name)}</h1>"
     )
     return (
@@ -1933,11 +1949,7 @@ def build_pages_html(
         )
 
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
-    brand = (
-        f'<img src="{logo_uri}" alt="{html.escape(newspaper_name)}">'
-        if logo_uri
-        else f'<span class="folio">{html.escape(newspaper_name)}</span>'
-    )
+    testatina = f'<span class="testata">{html.escape(newspaper_name)}</span>'
 
     def chiusura(numero: int) -> str:
         note = (
@@ -1990,10 +2002,10 @@ def build_pages_html(
     for indice, chunk in enumerate(chunks):
         numero = indice + 2
         testa = (
-            f'<div class="continuation">{brand}'
+            f'<div class="continuation">{testatina}'
             f'<span class="folio">{html.escape(short_italian_date(day))} · '
             f"Pagina {numero} di {total}</span>"
-            '</div><div class="rule-accent"></div>'
+            "</div>"
         )
         # Il seguito dell'apertura apre la prima pagina interna, dove chi
         # ha girato pagina lo sta cercando.
