@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import TYPE_CHECKING
 
 from openai import OpenAI
@@ -775,6 +776,27 @@ def _varianti_senza_autore(riga: str) -> list[str]:
     return varianti
 
 
+# Le differenze che non si vedono ma bloccano il confronto: un a capo
+# dentro un messaggio, due spazi invece di uno, l'apostrofo tipografico
+# al posto di quello dritto. Il modello ricopia la frase e la normalizza
+# senza accorgersene, e la ricerca alla lettera fallisce su qualcosa che
+# in pagina nessuno distinguerebbe.
+_SPAZI = re.compile(r"\s+")
+_SEGNI_EQUIVALENTI = str.maketrans({
+    "\u2019": "'", "\u2018": "'", "\u02bc": "'",
+    "\u201c": '"', "\u201d": '"',
+    "\u2013": "-", "\u2014": "-", "\u2212": "-",
+    "\u00a0": " ",
+})
+
+
+def _normalizza(testo: str) -> str:
+    """La forma su cui si confronta: la stessa frase, senza le differenze
+    che l'occhio non vede."""
+    piatto = unicodedata.normalize("NFKC", testo or "").translate(_SEGNI_EQUIVALENTI)
+    return _SPAZI.sub(" ", piatto).strip().lower()
+
+
 def trova_alla_lettera(riga: str, voci):
     """La frase dentro i messaggi, alla lettera, oppure niente.
 
@@ -789,12 +811,16 @@ def trova_alla_lettera(riga: str, voci):
 
     Restituisce (testo, topic, messaggio), dove `testo` è la frase che ha
     combaciato, cioè quella che va stampata."""
-    elenco = list(voci)
+    elenco = []
+    for voce in voci:
+        topic, m = voce if isinstance(voce, tuple) else ("", voce)
+        elenco.append((topic, m, _normalizza(m.text)))
     for candidato in _varianti_senza_autore(riga):
-        cercato = candidato.lower()
-        for voce in elenco:
-            topic, m = voce if isinstance(voce, tuple) else ("", voce)
-            if cercato in m.text.lower():
+        cercato = _normalizza(candidato)
+        if not cercato:
+            continue
+        for topic, m, testo in elenco:
+            if cercato in testo:
                 return candidato, topic, m
     return None
 
