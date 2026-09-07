@@ -341,11 +341,21 @@ async def _run_newspaper_report(
     print("Recupero il nome del gruppo per la testata...")
     newspaper_name = config.newspaper_name or await get_group_title(client, config.group_id)
 
+    # Il giornale esce la mattina dopo la giornata che racconta, e in
+    # testata va la data dell'edizione: il Corriere di lunedì è datato
+    # lunedì e racconta la domenica.
+    #
+    # Si calcola dal giorno raccontato e non da date.today(): per
+    # l'edizione notturna sono la stessa cosa — il cron riassume sempre
+    # ieri — ma una riesecuzione con --date deve uscire con la data che
+    # quel giornale AVEVA, non con quella di oggi.
+    giorno_di_uscita = target_date + timedelta(days=1)
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         logo = Path(config.logo_path)
         pages_html = build_pages_html(
             newspaper_name,
-            target_date,
+            giorno_di_uscita,
             lead,
             articles,
             logo_path=logo if logo.exists() else None,
@@ -354,6 +364,7 @@ async def _run_newspaper_report(
             quote=quote,
             vignetta=vignetta,
             hourly=hourly_counts(all_messages),
+            giorno_raccontato=target_date,
         )
 
         print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")
@@ -364,7 +375,7 @@ async def _run_newspaper_report(
             image_paths.append(image_path)
 
         print("Invio il giornale su Telegram...")
-        caption = f"📰 {newspaper_name} — {target_date.strftime('%d/%m/%Y')}"
+        caption = f"📰 {newspaper_name} — {giorno_di_uscita.strftime('%d/%m/%Y')}"
         await send_photo_report(client, config, image_paths, caption=caption)
 
     print("Fatto.")

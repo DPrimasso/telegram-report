@@ -36,7 +36,7 @@ import mimetypes
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from report.graphics import (
@@ -323,6 +323,16 @@ def italian_date(day: date) -> str:
 
 def short_italian_date(day: date) -> str:
     return f"{_IT_WEEKDAYS[day.weekday()][:3]} {day.day} {_IT_MONTHS[day.month - 1][:3]} {day.year}"
+
+
+def giorno_e_mese(day: date) -> str:
+    """Il giorno per le rubriche: senza l'anno e in minuscolo.
+
+    Le rubriche lo portano dentro una frase — «le notizie di sabato 6
+    settembre» — e in maiuscoletto spaziato l'anno sarebbe una riga più
+    lunga per dire una cosa che nessuno si sta chiedendo: il giornale ha
+    già la data completa in testata."""
+    return f"{_IT_WEEKDAYS[day.weekday()].lower()} {day.day} {_IT_MONTHS[day.month - 1]}"
 
 
 def data_uri(path: str | Path) -> str:
@@ -1519,15 +1529,22 @@ def _vignetta_html(vignetta: "Vignetta | None") -> str:
 
 
 def _stats_html(
-    stats: Stats | None, hourly: list[int] | None, gfx: GraphicsOptions
+    stats: Stats | None,
+    hourly: list[int] | None,
+    gfx: GraphicsOptions,
+    giorno: date | None = None,
 ) -> str:
     chart = ""
     if gfx.hourly_chart and hourly:
         svg = hourly_chart_svg(hourly)
         if svg:
+            # Da quando la testata porta la data di uscita, «la
+            # giornata» non è più quella scritta in cima alla pagina:
+            # tanto vale dire quale.
+            quando = f"di {giorno_e_mese(giorno)}" if giorno else "della giornata"
             chart = (
                 '<div class="chart-block">'
-                '<span class="section-label">Il ritmo della giornata</span>'
+                f'<span class="section-label">Il ritmo {quando}</span>'
                 f"{svg}</div>"
             )
     if stats is None:
@@ -1872,6 +1889,7 @@ def build_pages_html(
     edition_number: int | None = None,
     hourly: list[int] | None = None,
     graphics: GraphicsOptions | None = None,
+    giorno_raccontato: date | None = None,
 ) -> list[str]:
     """Compone il gazzettino e restituisce l'HTML di ciascuna pagina.
 
@@ -1886,10 +1904,20 @@ def build_pages_html(
     `vignetta` e `quote` occupano lo stesso posto in fondo all'ultima
     pagina, e infatti dicono la stessa cosa: le parole del gruppo messe
     in evidenza. Quando c'è la vignetta la frase del giorno non esce —
-    due blocchi di citazioni di fila sarebbero la stessa idea due volte."""
+    due blocchi di citazioni di fila sarebbero la stessa idea due volte.
+
+    `day` è il giorno in cui il giornale ESCE, che è quello che va in
+    testata: un quotidiano si data con l'edizione, non con i fatti.
+    `giorno_raccontato` è il giorno di cui parla, e serve alle rubriche
+    delle pagine interne e della chiusura, che altrimenti direbbero «la
+    giornata» indicando un giorno diverso da quello stampato in cima.
+    Senza, vale il giorno prima: è la relazione normale fra le due — il
+    gazzettino esce la mattina dopo — e così chi chiama per un'anteprima
+    o un controllo non deve saperne niente."""
     gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
     index_entries = index_entries or []
+    raccontato = giorno_raccontato or day - timedelta(days=1)
 
     # I topic minori escono dalla colonna e diventano righe del box "In
     # breve": è la separazione che rende visibile la gerarchia. Le
@@ -1966,7 +1994,21 @@ def build_pages_html(
             f"{MAX_PAGE_HEIGHT}: l'apertura di oggi è più lunga del solito."
         )
 
-    edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
+    # La riga sotto la testata è il posto in cui il lettore incontra la
+    # data, e da quando la testata porta il giorno di USCITA è anche
+    # l'unico posto in cui può leggere di che giorno parla il giornale.
+    # "Edizione quotidiana" non diceva niente che la testata non dicesse
+    # già; "la giornata di domenica 6" risponde all'unica domanda che
+    # resta aperta.
+    #
+    # L'etichetta generica di _articles_html non serve allo scopo: con le
+    # sezioni attive — cioè sempre, in un'edizione vera — le testate di
+    # sezione prendono il suo posto e quella riga non si stampa mai.
+    edition = (
+        f"Edizione n. {edition_number}"
+        if edition_number
+        else f"La giornata di {giorno_e_mese(raccontato)}"
+    )
     testatina = f'<span class="testata">{html.escape(newspaper_name)}</span>'
 
     def chiusura(numero: int) -> str:
@@ -1981,7 +2023,7 @@ def build_pages_html(
             # solo la frase del giorno, e solo nei giorni senza vignetta.
             + _quote_html(quote)
             + _numeri_html(index_entries, gfx)
-            + _stats_html(stats, hourly, gfx)
+            + _stats_html(stats, hourly, gfx, raccontato)
             + _footer_html(note)
         )
 
@@ -2039,7 +2081,7 @@ def build_pages_html(
             testa
             + _articles_html(
                 chunk,
-                "Le notizie della giornata",
+                f"Le notizie di {giorno_e_mese(raccontato)}",
                 gfx,
                 top_count,
                 stats=stats_by_section,
