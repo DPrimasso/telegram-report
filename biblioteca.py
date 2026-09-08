@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageChops, ImageOps
+    from PIL import Image, ImageOps
 except ImportError:
     sys.exit("Serve Pillow: pip install Pillow")
 
@@ -167,6 +167,32 @@ def bicromia(immagine: Image.Image) -> Image.Image:
     return ImageOps.colorize(grigi, black=INK, white=PAPER, mid=AZZURRO)
 
 
+_CARTA_RGB = tuple(int(PAPER[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def fattori_carta(immagine: Image.Image) -> tuple[float, float, float]:
+    """Di quanto va scurito ogni canale perché il fondo diventi carta.
+
+    Il conto è carta diviso fondo VERO, non carta diviso bianco. La
+    differenza si è vista quando sono arrivate le novantasei: i prompt
+    nuovi chiedono un fondo avorio, il modello lo consegna — ma un avorio
+    suo, tredici punti più chiaro del nostro. Moltiplicare per la carta
+    dando per scontato un fondo bianco le avrebbe scurite troppo;
+    lasciarle stare le lasciava chiare, e in pagina il pannello si vedeva
+    come un rettangolo più chiaro dentro la carta.
+
+    Misurato sulle novantasei: quattro erano già a posto (il fondo a due
+    punti dalla carta), le altre novantadue a tredici.
+
+    Il fattore non sale mai sopra uno: un fondo già scuro quanto la carta,
+    o più scuro, è una tinta del disegno e non il suo supporto —
+    schiarirlo vorrebbe dire riscrivere il disegno. Da qui viene anche
+    l'idempotenza, senza doverla aggiungere: dopo una passata il fondo È
+    la carta, i fattori valgono uno e la seconda passata non fa niente."""
+    fondo = _fondo_chiaro(immagine) or (255, 255, 255)
+    return tuple(min(1.0, c / f) for c, f in zip(_CARTA_RGB, fondo))
+
+
 def sulla_carta(immagine: Image.Image) -> Image.Image:
     """Stampa il disegno sulla carta del giornale invece che sul bianco.
 
@@ -182,15 +208,10 @@ def sulla_carta(immagine: Image.Image) -> Image.Image:
     è il disegno intero che cambia supporto, ed è per questo che non
     lascia aloni sui bordi antialiasati.
 
-    Ma proprio perché è una moltiplicazione, darla due volte scurisce due
-    volte, e dal file non te ne accorgi. Quindi prima si guarda: un
-    disegno già stampato sulla carta si riconosce e si lascia stare, e il
-    comando si può ridare quante volte si vuole — che è l'unico modo
-    perché sia sicuro darlo.
+    Quanto scurire lo dice `fattori_carta`, che misura il fondo invece di
+    darlo per scontato. Un disegno già sulla carta esce identico: è la
+    stessa formula, con i fattori a uno.
     """
-    if gia_sulla_carta(immagine):
-        return immagine
-    carta = Image.new("RGB", immagine.size, PAPER)
     if immagine.mode in ("RGBA", "LA") or "transparency" in immagine.info:
         # Il trasparente è già carta: comporlo prima evita che il
         # convert lo appiattisca sul nero.
@@ -198,15 +219,11 @@ def sulla_carta(immagine: Image.Image) -> Image.Image:
         fondo = Image.new("RGB", immagine.size, PAPER)
         fondo.paste(rgba, mask=rgba.split()[3])
         immagine = fondo
-    return ImageChops.multiply(immagine.convert("RGB"), carta)
-
-
-# Quanto deve essere caldo il fondo perché sia già carta e non più
-# bianco. Sulla carta il rosso supera il blu di diciotto punti; su un
-# disegno passato due volte di trentatré; sul bianco, su un muro grigio e
-# su qualunque fondo neutro la differenza è zero. Dieci sta comodamente
-# in mezzo e non tocca niente che vada ancora stampato.
-_CALORE_CARTA = 10
+    immagine = immagine.convert("RGB")
+    tavola: list[int] = []
+    for fattore in fattori_carta(immagine):
+        tavola += [min(255, round(v * fattore)) for v in range(256)]
+    return immagine.point(tavola)
 
 
 def _fondo_chiaro(immagine: Image.Image) -> tuple[int, int, int] | None:
@@ -234,21 +251,14 @@ def _fondo_chiaro(immagine: Image.Image) -> tuple[int, int, int] | None:
 
 
 def gia_sulla_carta(immagine: Image.Image) -> bool:
-    """Se questo disegno è già stato stampato sulla carta.
+    """Se stamparlo sulla carta non cambierebbe niente.
 
-    Non si confronta col colore esatto della carta, perché dopo il
-    ridimensionamento e la riquantizzazione non combacia mai: si guarda
-    se il fondo è CALDO. La moltiplicazione lascia una firma che il
-    bianco non ha — il rosso sopra il blu — e che nessun fondo neutro
-    produce da sé.
-
-    Nel dubbio risponde no: una stampa in più su un disegno che era già a
-    posto si vede, una mancata su uno che ne aveva bisogno anche, ma la
-    prima è irreversibile e la seconda no."""
-    fondo = _fondo_chiaro(immagine)
-    if fondo is None:
-        return False
-    return fondo[0] - fondo[2] >= _CALORE_CARTA
+    Non è una domanda sul colore ma sui fattori: se sono tutti uno, il
+    fondo è già la carta — oppure è più scuro, e allora è una tinta del
+    disegno che non ci riguarda. In entrambi i casi non c'è niente da
+    fare, e dirlo serve al referto: "non ha fatto niente" e "ha fatto la
+    cosa giusta" avevano lo stesso aspetto."""
+    return all(f >= 0.995 for f in fattori_carta(immagine))
 
 
 # Dove possono cominciare le teste, in percentuale dell'altezza. Il
