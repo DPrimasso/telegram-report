@@ -803,7 +803,28 @@ p {{ margin: 0; }}
 }}
 
 .stats {{ background: {NAVY}; color: #fff; padding: 28px 56px; }}
-.stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }}
+/* I quattro numeri, in colonna sulla prima pagina. La cifra in graziato
+   e l'etichetta in bastoni accanto, una riga per numero, separate dai
+   filetti sottili come le righe di «Dentro il giornale» che gli stanno
+   sopra: sono lo stesso tipo di blocco, un elenco di cose brevi in una
+   colonna stretta. */
+.numeri-giorno {{
+  margin-top: 22px; padding-top: 16px; border-top: 2px solid {INK};
+}}
+.numeri-giorno .section-label {{ display: block; margin-bottom: 12px; }}
+.numero-riga {{
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; padding: 9px 0; border-top: 1px solid {RULE};
+}}
+.numero-riga:first-of-type {{ border-top: none; }}
+.numero-riga .cifra {{
+  font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
+}}
+.numero-riga .che-cosa {{
+  font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 13px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: {INK_SOFT}; text-align: right;
+}}
 /* Il grafico e i quattro numeri stanno nella stessa fascia navy perché
    dicono la stessa cosa da due lati: il grafico la forma della giornata,
    i numeri le sue misure. Separarli in due blocchi li faceva leggere
@@ -1561,18 +1582,45 @@ def _stats_html(
         # giornata, e senza i numeri resta una chiusura pulita.
         return f'<div class="stats">{chart}</div>' if chart else ""
 
-    cells = [
+    # I quattro numeri non stanno più qui: sono saliti nella colonna
+    # della prima pagina, dove riempiono il fondo e dove il lettore li
+    # incontra invece di trovarli in coda all'ultima pagina. Qui resta il
+    # grafico, che è la FORMA della giornata; i numeri sono la sua
+    # misura, e la misura sta bene in prima.
+    return f'<div class="stats">{chart}</div>' if chart else ""
+
+
+def _numeri_del_giorno_html(stats: "Stats | None") -> str:
+    """I quattro numeri della giornata, nella colonna della prima pagina.
+
+    Chiudono la colonna dei richiami, che da quando sotto il taglio ci
+    sono tre secondarie finisce a metà: quelle si prendono tre sezioni, e
+    i richiami — uno per sezione — scendono a due.
+
+    Riempirla di marchi sarebbe stata decorazione, e la riga con cui apre
+    docs/grafica.md dice che un elemento grafico sta in pagina solo se
+    dice qualcosa che il testo non dice: tre loghi identici ogni giorno
+    non dicono niente della giornata. Questi quattro numeri sì, e sono
+    l'unica cosa del giornale che parla della conversazione invece che di
+    quello che ci si è detto dentro."""
+    if stats is None:
+        return ""
+    righe = (
         (stats.messages, "messaggi"),
         (stats.participants, "partecipanti"),
         (stats.active_topics, "topic attivi"),
         (stats.peak_hour, "ora di punta"),
-    ]
-    grid = '<div class="stats-grid">' + "".join(
-        f'<div><div class="value">{html.escape(str(v))}</div>'
-        f'<div class="label">{label}</div></div>'
-        for v, label in cells
-    ) + "</div>"
-    return f'<div class="stats">{chart}{grid}</div>'
+    )
+    corpo = "".join(
+        f'<div class="numero-riga"><span class="cifra">{html.escape(str(v))}</span>'
+        f'<span class="che-cosa">{etichetta}</span></div>'
+        for v, etichetta in righe
+    )
+    return (
+        '<div class="numeri-giorno">'
+        '<span class="section-label">I numeri della giornata</span>'
+        f"{corpo}</div>"
+    )
 
 
 def _footer_html(note: str = FOOTER_NOTE) -> str:
@@ -1604,6 +1652,7 @@ _H_CHROME_PRIMA = 284   # testata, data, margini della griglia, piede
 _H_STRILLO = 138        # un richiamo nella colonna di destra
 _H_DENTRO_SIDE = 77     # margine, filetto e titolo del sommario stretto
 _H_DENTRO_SIDE_ROW = 38 # una riga sezione/pagina nella colonna stretta
+_H_NUMERI_COLONNA = 22 + 16 + 2 + 33 + 4 * 41  # i quattro numeri in colonna
 _H_RIMANDO = 58         # "Il servizio a pagina N" in coda a un pezzo
 _H_VIRGOLETTATO = 120   # la citazione dentro il corpo, su una colonna
 _H_DENTRO_HEAD = 62     # titolo del sommario dell'edizione
@@ -1649,6 +1698,7 @@ def _estimate_front_height(
     dentro: list,
     gfx: GraphicsOptions,
     con_vignetta: bool = False,
+    con_numeri: bool = False,
 ) -> int:
     """L'altezza della vetrina.
 
@@ -1657,8 +1707,10 @@ def _estimate_front_height(
     che nessun meccanismo può alleggerire da sé, quindi se cresce troppo
     deve almeno dirlo."""
     colonna_apertura = _estimate_lead_height(lead, con_vignetta=con_vignetta)
-    colonna_richiami = _H_STRILLO * len(strilli) + (
-        _H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0
+    colonna_richiami = (
+        _H_STRILLO * len(strilli)
+        + (_H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0)
+        + (_H_NUMERI_COLONNA if con_numeri else 0)
     )
     return (
         _H_CHROME_PRIMA
@@ -2026,7 +2078,8 @@ def build_pages_html(
     dentro = _righe_dentro(chunks, stats_by_section)
 
     alta = _estimate_front_height(
-        lead, secondarie, strilli, dentro, gfx, con_vignetta=bool(vignetta_html)
+        lead, secondarie, strilli, dentro, gfx,
+        con_vignetta=bool(vignetta_html), con_numeri=stats is not None,
     )
     if alta > MAX_PAGE_HEIGHT:
         print(
@@ -2084,7 +2137,11 @@ def build_pages_html(
         continua_a=pagina_di.get(id(fonte)) if fonte is not None else None,
         vignetta_html=vignetta_html,
     )
-    colonna = _strilli_html(strilli) + _dentro_html(dentro)
+    colonna = (
+        _strilli_html(strilli)
+        + _dentro_html(dentro)
+        + _numeri_del_giorno_html(stats)
+    )
     vetrina = (
         _masthead(logo_uri, newspaper_name)
         + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
