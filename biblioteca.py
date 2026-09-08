@@ -181,7 +181,15 @@ def sulla_carta(immagine: Image.Image) -> Image.Image:
     lo stampi su avorio invece che su bianco. Non è un filtro sul fondo —
     è il disegno intero che cambia supporto, ed è per questo che non
     lascia aloni sui bordi antialiasati.
+
+    Ma proprio perché è una moltiplicazione, darla due volte scurisce due
+    volte, e dal file non te ne accorgi. Quindi prima si guarda: un
+    disegno già stampato sulla carta si riconosce e si lascia stare, e il
+    comando si può ridare quante volte si vuole — che è l'unico modo
+    perché sia sicuro darlo.
     """
+    if gia_sulla_carta(immagine):
+        return immagine
     carta = Image.new("RGB", immagine.size, PAPER)
     if immagine.mode in ("RGBA", "LA") or "transparency" in immagine.info:
         # Il trasparente è già carta: comporlo prima evita che il
@@ -191,6 +199,56 @@ def sulla_carta(immagine: Image.Image) -> Image.Image:
         fondo.paste(rgba, mask=rgba.split()[3])
         immagine = fondo
     return ImageChops.multiply(immagine.convert("RGB"), carta)
+
+
+# Quanto deve essere caldo il fondo perché sia già carta e non più
+# bianco. Sulla carta il rosso supera il blu di diciotto punti; su un
+# disegno passato due volte di trentatré; sul bianco, su un muro grigio e
+# su qualunque fondo neutro la differenza è zero. Dieci sta comodamente
+# in mezzo e non tocca niente che vada ancora stampato.
+_CALORE_CARTA = 10
+
+
+def _fondo_chiaro(immagine: Image.Image) -> tuple[int, int, int] | None:
+    """Il colore medio del fondo, preso dalla fascia alta dell'immagine.
+
+    Lì per costruzione c'è solo sfondo: i prompt chiedono le teste sotto
+    la metà e sopra di loro nient'altro che cielo, muro o acqua. Si
+    tengono i pixel chiari e poco saturi — il fondo — e si lascia fuori
+    tutto il resto, così un cielo azzurro o una tenda colorata non
+    entrano nel conto e non fanno sbagliare la risposta."""
+    alto = immagine.convert("RGB").crop(
+        (0, 0, immagine.width, max(1, immagine.height // 8))
+    )
+    grezzi = alto.tobytes()
+    passo = 3 * max(1, len(grezzi) // (3 * 4000))
+    campioni = [
+        p for i in range(0, len(grezzi) - 2, passo)
+        for p in (grezzi[i:i + 3],)
+        if min(p) >= 170 and max(p) - min(p) <= 45
+    ]
+    if len(campioni) < 20:
+        return None
+    n = len(campioni)
+    return tuple(sum(c[i] for c in campioni) // n for i in range(3))
+
+
+def gia_sulla_carta(immagine: Image.Image) -> bool:
+    """Se questo disegno è già stato stampato sulla carta.
+
+    Non si confronta col colore esatto della carta, perché dopo il
+    ridimensionamento e la riquantizzazione non combacia mai: si guarda
+    se il fondo è CALDO. La moltiplicazione lascia una firma che il
+    bianco non ha — il rosso sopra il blu — e che nessun fondo neutro
+    produce da sé.
+
+    Nel dubbio risponde no: una stampa in più su un disegno che era già a
+    posto si vede, una mancata su uno che ne aveva bisogno anche, ma la
+    prima è irreversibile e la seconda no."""
+    fondo = _fondo_chiaro(immagine)
+    if fondo is None:
+        return False
+    return fondo[0] - fondo[2] >= _CALORE_CARTA
 
 
 # Dove possono cominciare le teste, in percentuale dell'altezza. Il
@@ -278,14 +336,28 @@ def ottimizza(
                 # La tavolozza si decide sull'originale, non sul
                 # ridimensionato: dopo l'interpolazione ogni disegno
                 # sembra sfumato.
+                intatta = True
                 if duotone:
                     immagine = bicromia(immagine)
+                    intatta = False
                 if carta:
-                    immagine = sulla_carta(immagine)
+                    if gia_sulla_carta(immagine):
+                        avvisi.append(
+                            f"  {tono}/{percorso.name}: già stampata sulla "
+                            "carta, la lascio com'è"
+                        )
+                    else:
+                        immagine = sulla_carta(immagine)
+                        intatta = False
+                if immagine.width > larghezza:
+                    intatta = False
                 piatto = not jpeg and _e_disegno_piatto(immagine)
                 immagine = _ridimensiona(immagine, larghezza, piatto)
 
                 destinazione = percorso.with_suffix(".jpg" if jpeg else ".png")
+                if intatta and destinazione == percorso:
+                    dopo += originale
+                    continue
                 if applica:
                     if jpeg:
                         immagine.save(destinazione, "JPEG", quality=88, optimize=True,
