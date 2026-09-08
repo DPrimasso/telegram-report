@@ -154,15 +154,16 @@ class Contatore:
                 "CITAZIONE: " + "x" * 80 + " | Ciro"
             )
         if self.etichetta == "apertura":
-            # 2 capoversi, 350-500 caratteri: idem. Erano quattro e 1200
-            # finché l'apertura doveva riempire anche mezza pagina 2 col
-            # suo seguito; adesso sta tutta in prima e rimanda al pezzo.
+            # Niente TESTO: il corpo dell'apertura non si scrive più. In
+            # prima pagina va l'inizio dell'articolo che sta dentro, e
+            # questa chiamata sceglie solo quale notizia apre, con che
+            # titolo e con quale vignetta. Erano 1200 caratteri quando
+            # doveva riempire anche mezza pagina 2.
             return (
                 "FATTO: il fatto principale\nSEZIONE: Napoli\n"
                 "FONTE: Match Day\n"
                 "TITOLO: " + "x" * 60 + "\n"
                 "SOMMARIO: " + "x" * 150 + "\n"
-                "TESTO: " + "x" * 500 + "\n"
                 "CITAZIONE: " + "x" * 80 + " | Ciro\n"
                 "TONO: battibecco\n"
                 "BATTUTA: " + "x" * 70 + " | Ciro"

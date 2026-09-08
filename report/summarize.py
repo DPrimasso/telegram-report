@@ -474,31 +474,28 @@ VIGNETTA_FORMAT_RULE = (
 )
 
 LEAD_FORMAT_RULE = (
-    "Rispondi SOLO con queste sette righe etichettate, senza markdown e "
+    "Rispondi SOLO con queste sei righe etichettate, senza markdown e "
     "senza aggiungere altro:\n"
     "FATTO: in una riga, il singolo fatto che apre l'edizione (riga di "
     "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
     "scrivere)\n"
     "SEZIONE: {sections}\n"
-    "FONTE: il titolo del tema qui sotto da cui viene questo fatto, "
-    "copiato identico. Se il fatto viene da più temi insieme, lascia la "
-    "riga vuota dopo i due punti\n"
+    "FONTE: il titolo di UNO dei temi qui sotto, copiato identico: "
+    "quello di cui parla il fatto che apre\n"
     "TITOLO: il titolo di quel fatto, massimo 9 parole\n"
     "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
-    "TESTO: 2 capoversi separati da una riga vuota, in tutto fra 350 e "
-    "500 caratteri, tutti su quel fatto\n"
     "CITAZIONE: una frase copiata alla lettera da un messaggio, poi una "
     "barra verticale, poi il nome di chi l'ha scritta — oppure la sola "
     "parola NESSUNA\n\n"
-    # L'apertura sta tutta in prima pagina e non riprende da nessuna
-    # parte: è la notizia del giorno data per intero in poche righe, più
-    # il rimando alla pagina dove sta il pezzo. Se il testo promettesse
-    # un seguito, quel seguito non arriverebbe mai.
-    "Il pezzo di apertura sta TUTTO in prima pagina e non continua "
-    "altrove: due capoversi che danno la notizia per intero, senza "
-    "rimandare niente a un dopo che non c'è. Il lettore che vuole i "
-    "dettagli va all'articolo dentro il giornale, e il giornale glielo "
-    "dice da sé.\n\n"
+    # Il corpo dell'apertura non si scrive: è l'inizio dell'articolo che
+    # sta dentro, stampato in prima e continuato alla sua pagina. Su un
+    # giornale funziona così, e il testo non compare mai due volte.
+    # Scriverne uno nuovo voleva dire raccontare in prima la stessa cosa
+    # che l'articolo racconta dopo, con altre parole.
+    "NON scrivere il corpo del pezzo: in prima pagina va l'inizio "
+    "dell'articolo che hai davanti, e il resto continua alla sua pagina. "
+    "Tu scegli quale notizia apre e le dai il titolo e il sommario che "
+    "merita in prima pagina.\n\n"
     f"{HEADLINE_RULE}\n\n{DECK_RULE}\n\n{ATTACCO_RULE}\n\n{PIRAMIDE_RULE}"
     f"\n\n{QUOTE_RULE}"
 )

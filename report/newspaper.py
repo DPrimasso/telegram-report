@@ -35,7 +35,7 @@ import html
 import mimetypes
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -128,6 +128,12 @@ _MARGINE_CODA = 60
 # vede solo se qualcosa è grande e qualcos'altro è piccolo.
 MAX_FULL_ARTICLES = 5
 
+# Quanti capoversi dell'articolo di apertura restano in prima pagina.
+# Due e non uno: con uno solo il titolone resta sospeso su tre righe e la
+# pagina sembra un manifesto. Con tutti, la prima pagina si mangia il
+# pezzo e dentro non resta niente.
+CAPOVERSI_IN_PRIMA = 2
+
 _IT_WEEKDAYS = [
     "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
 ]
@@ -187,6 +193,12 @@ class Article:
     # simili.
     section: str = ""
     family: str = ""
+    # Vero per il pezzo che apre l'edizione: il suo inizio è stampato in
+    # prima pagina e qui c'è il resto, sotto «segue dalla prima pagina».
+    # È un testo solo spezzato in due, come su un giornale — e non due
+    # testi che raccontano la stessa cosa, che è quello che succedeva
+    # quando l'apertura si scriveva per conto suo.
+    dalla_prima: bool = False
 
 
 @dataclass
@@ -1362,6 +1374,11 @@ def _articles_html(
         if isinstance(a, FamilyBlock):
             blocks.append(_family_html(a))
             continue
+        segue = (
+            '<span class="section-label">Segue dalla prima pagina</span>'
+            if getattr(a, "dalla_prima", False)
+            else ""
+        )
         unit = "messaggio" if a.count == 1 else "messaggi"
         glyph = topic_glyph_svg(a.topic, size=17) if gfx.topic_glyphs else ""
         weight = weight_bar_svg(a.count, top_count) if gfx.weight_bars else ""
@@ -1379,7 +1396,7 @@ def _articles_html(
             '<div class="article"><div class="article-head">'
             f'<span class="topic-tag">{glyph}{html.escape(a.topic)}</span>'
             f'<span class="msg-count">{weight}<span>{a.count} {unit}</span></span></div>'
-            f"<h3>{html.escape(a.headline)}</h3>{body}</div>"
+            f"{segue}<h3>{html.escape(a.headline)}</h3>{body}</div>"
         )
     if not blocks:
         return ""
@@ -1917,6 +1934,27 @@ def build_pages_html(
     # sezioni si aggiungono sopra a quella separazione senza cambiarla —
     # decidono l'ordine e le testate, non chi è grande e chi è piccolo.
     usable = [a for a in articles if a.headline]
+
+    # Il pezzo che apre l'edizione comincia in prima pagina e continua
+    # alla sua: qui gli si tolgono i capoversi che vanno sopra, così la
+    # paginazione lo misura per quello che stamperà davvero. Prima della
+    # paginazione e non dopo, o le pagine risulterebbero più alte di
+    # quello che sono.
+    apertura_paragrafi: list[str] = []
+    if lead_topic:
+        for indice, a in enumerate(usable):
+            if getattr(a, "topic", None) != lead_topic:
+                continue
+            parti = _paragraphs(a.body)
+            if len(parti) > CAPOVERSI_IN_PRIMA:
+                apertura_paragrafi = parti[:CAPOVERSI_IN_PRIMA]
+                usable[indice] = replace(
+                    a,
+                    body="\n\n".join(parti[CAPOVERSI_IN_PRIMA:]),
+                    dalla_prima=True,
+                )
+            break
+
     laid_out, brief = arrange_sections(usable, brief_box=gfx.brief_box)
     sectioned = any(getattr(i, "section", "") for i in laid_out)
     stats_by_section = _section_stats(laid_out, brief) if sectioned else None
@@ -1974,10 +2012,12 @@ def build_pages_html(
             a
             for chunk in chunks
             for a in chunk
-            if getattr(a, "topic", None) == lead_topic
+            if getattr(a, "dalla_prima", False)
         ),
         None,
-    ) if lead_topic else None
+    )
+    if apertura_paragrafi:
+        lead = replace(lead, paragraphs=apertura_paragrafi)
 
     secondarie = _pick_secondarie(chunks, quante=3, escludi=fonte)
     strilli = _pick_strilli(
