@@ -736,6 +736,17 @@ p {{ margin: 0; }}
 .quote .section-label {{ display: block; color: {AZZURRO}; margin-bottom: 14px; }}
 .quote p {{ font-size: 46px; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }}
 .quote .attrib {{ font-size: 20px; font-weight: 700; }}
+/* Dentro l'apertura la frase non è più una fascia che separa due parti
+   del giornale: è un richiamo dentro un pezzo. Quindi niente fondo e
+   niente filetti pieni sopra e sotto — un filetto solo a sinistra, come
+   la citazione staccata di un quotidiano — e un corpo più piccolo,
+   perché la colonna è larga la metà della pagina. */
+.lead .quote.in-apertura {{
+  background: none; padding: 4px 0 4px 26px; margin-bottom: 24px;
+  border: none; border-left: 4px solid {AZZURRO};
+}}
+.lead .quote.in-apertura p {{ font-size: 34px; line-height: 1.18; }}
+.lead .quote.in-apertura .attrib {{ font-size: 17px; color: {INK_SOFT}; }}
 
 /* La vignetta. Il pannello è largo quanto la colonna (1080 meno i due
    margini da 56) e il disegno lo riempie con object-fit: cover, quindi
@@ -1077,18 +1088,20 @@ def _lead_html(
     lead: Lead,
     gfx: GraphicsOptions,
     continua_a: int | None = None,
-    vignetta_html: str = "",
+    contorno_html: str = "",
 ) -> str:
     """L'apertura in prima pagina: la notizia, non tutto il pezzo.
 
     `continua_a` è la pagina su cui riprende il resto. Senza, l'apertura
     esce intera: succede quando l'edizione sta in una pagina sola.
 
-    `vignetta_html` è il disegno del giorno, che entra fra il sommario e
-    l'attacco — dove in un quotidiano sta la foto d'apertura. È anche il
-    solo posto in cui ha senso: la vignetta porta le parole che il gruppo
-    ha scritto sul fatto di apertura, quindi è il contorno di QUELLA
-    notizia, e in fondo all'edizione stava lontana da ciò che illustra."""
+    `contorno_html` è quello che entra fra il sommario e l'attacco, dove
+    in un quotidiano sta la foto d'apertura: la vignetta del giorno,
+    oppure — nei giorni in cui la vignetta non si compone — la frase del
+    giorno. Sono lo stesso elemento in due forme, le parole che il gruppo
+    ha scritto sul fatto di apertura, e questo è il solo posto in cui una
+    delle due ha senso: sono il contorno di QUELLA notizia, e in fondo
+    all'edizione stavano lontane da ciò che commentano."""
     kicker = (
         f'<div class="kicker">Apertura · {html.escape(lead.kicker)}</div>'
         if lead.kicker
@@ -1104,8 +1117,12 @@ def _lead_html(
         testo = lead.paragraphs
         coda = ""
         chiusura = end
-    if not testo:
-        testo = ["Nessun dettaglio disponibile."]
+    # Senza capoversi non si stampa un segnaposto: "Nessun dettaglio
+    # disponibile" era una riga di arredo che occupava il posto della
+    # notizia e non diceva niente. Il titolo e il sommario la notizia la
+    # danno comunque, e _apertura_dal_pezzo fa in modo che questo caso non
+    # si presenti finché in pagina c'è almeno un articolo con due
+    # capoversi.
     body = "".join(
         f"<p>{html.escape(p)}{chiusura if i == len(testo) - 1 else ''}</p>"
         for i, p in enumerate(testo)
@@ -1114,9 +1131,10 @@ def _lead_html(
     # Il capolettera va sul primo paragrafo, che è comunque il primo
     # blocco di testo lungo della pagina.
     body_class = "body dropcap" if gfx.drop_cap else "body"
+    corpo = f'<div class="{body_class}">{body}</div>' if body else ""
     return (
         f'<div class="lead">{kicker}<h2>{headline}</h2>{deck}'
-        f'{vignetta_html}<div class="{body_class}">{body}</div>{coda}</div>'
+        f"{contorno_html}{corpo}{coda}</div>"
     )
 
 
@@ -1503,7 +1521,14 @@ def _brief_html(articles: list[Article], gfx: GraphicsOptions) -> str:
     )
 
 
-def _quote_html(quote: Quote | None) -> str:
+def _quote_html(quote: Quote | None, in_apertura: bool = False) -> str:
+    """La frase del giorno.
+
+    `in_apertura` la mette dentro il pezzo di apertura, nel posto che
+    tiene la vignetta quando c'è: senza filetti sopra e sotto e senza
+    fondo, perché lì non è una fascia che divide due parti del giornale
+    ma un richiamo dentro un articolo — la citazione staccata che i
+    quotidiani mettono in mezzo al testo."""
     if quote is None or not quote.text:
         return ""
     attrib = html.escape(quote.author)
@@ -1512,8 +1537,10 @@ def _quote_html(quote: Quote | None) -> str:
     if quote.time:
         attrib += f", {html.escape(quote.time)}"
     text = quote.text.strip().strip('"').strip("«»")
+    classe = "quote in-apertura" if in_apertura else "quote"
     return (
-        '<div class="quote"><span class="section-label">La frase del giorno</span>'
+        f'<div class="{classe}">'
+        '<span class="section-label">La frase del giorno</span>'
         f"<p>«{html.escape(text)}»</p>"
         f'<div class="attrib">{attrib}</div></div>'
     )
@@ -1666,6 +1693,9 @@ _H_QUOTE = 245
 # Etichetta, pannello, didascalia e i due margini del blocco.
 _H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 4 + 28 + 22   # etichetta, pannello, didascalia
 _H_STATS = 130
+# La frase del giorno nel posto della vignetta: etichetta, due righe
+# di citazione a corpo 34, la riga dell'autore e il margine sotto.
+_H_FRASE_IN_APERTURA = 22 + 2 * 40 + 24 + 24
 # La prima pagina non è più una pila di fasce: l'apertura e i richiami
 # sono due colonne affiancate, e l'altezza della pagina è quella della
 # colonna più alta. Sommarle, come si faceva quando erano sovrapposte,
@@ -1693,8 +1723,45 @@ _H_FAMILY_ROW = 86      # una riga del blocco (due voci affiancate)
 _H_TAIL = _H_QUOTE + _H_STATS
 
 
+def _apertura_dal_pezzo(
+    articoli: list["Article"], lead_topic: str
+) -> tuple[list[str], int, list[str]]:
+    """I capoversi che l'apertura stampa in prima, il pezzo da cui li
+    prende e quello che a quel pezzo resta.
+
+    L'apertura non scrive più il proprio corpo: glielo presta l'articolo
+    da cui nasce, che poi riparte da dove lei si ferma. `lead_topic` è il
+    tema dichiarato da chi l'ha scritta, ma fidarsi e basta lascia la
+    prima pagina senza niente sotto il titolo in tre casi veri: quando il
+    tema è vuoto — l'apertura ne mette insieme più d'uno —, quando nomina
+    un tema che in pagina non c'è, e quando il pezzo che nomina è troppo
+    corto per prestare qualcosa senza restare senza niente.
+
+    Quindi il tema dichiarato apre la fila ma non la chiude: se non può
+    prestare, presta il pezzo dopo, in ordine di rilevanza. Un capoverso
+    resta sempre al pezzo, o dentro ci sarebbe un titolo senza articolo.
+    """
+    ordine = list(range(len(articoli)))
+    if lead_topic:
+        primo = next(
+            (i for i in ordine if getattr(articoli[i], "topic", None) == lead_topic),
+            None,
+        )
+        if primo is not None:
+            ordine = [primo] + [i for i in ordine if i != primo]
+    for i in ordine:
+        parti = _paragraphs(articoli[i].body)
+        if len(parti) >= 2:
+            quanti = min(CAPOVERSI_IN_PRIMA, len(parti) - 1)
+            return parti[:quanti], i, parti[quanti:]
+    return [], -1, []
+
+
 def _estimate_lead_height(
-    lead: Lead, front: bool = True, con_vignetta: bool = False
+    lead: Lead,
+    front: bool = True,
+    con_vignetta: bool = False,
+    con_frase: bool = False,
 ) -> int:
     """L'apertura in prima, che è tutta l'apertura: non riprende dentro."""
     h = 47  # occhiello
@@ -1702,6 +1769,8 @@ def _estimate_lead_height(
     h += _text_height(lead.deck, chars_per_line=54, line_height=36) + 39
     if con_vignetta:
         h += _H_VIGNETTA
+    elif con_frase:
+        h += _H_FRASE_IN_APERTURA
     # I capoversi si contano insieme, non uno per uno: scorrono in un
     # unico flusso a due colonne, e contarli separatamente faceva pagare
     # a ciascuno l'aria di fine blocco che in pagina non c'è.
@@ -1721,6 +1790,7 @@ def _estimate_front_height(
     gfx: GraphicsOptions,
     con_vignetta: bool = False,
     con_numeri: bool = False,
+    con_frase: bool = False,
 ) -> int:
     """L'altezza della vetrina.
 
@@ -1728,7 +1798,9 @@ def _estimate_front_height(
     passare alla successiva — ma a sapere quando sfonda: è l'unica pagina
     che nessun meccanismo può alleggerire da sé, quindi se cresce troppo
     deve almeno dirlo."""
-    colonna_apertura = _estimate_lead_height(lead, con_vignetta=con_vignetta)
+    colonna_apertura = _estimate_lead_height(
+        lead, con_vignetta=con_vignetta, con_frase=con_frase
+    )
     colonna_richiami = (
         _H_STRILLO * len(strilli)
         + (_H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0)
@@ -2021,20 +2093,18 @@ def build_pages_html(
     # paginazione lo misura per quello che stamperà davvero. Prima della
     # paginazione e non dopo, o le pagine risulterebbero più alte di
     # quello che sono.
+    # Solo se l'apertura non porta già un testo suo: chi passa un'apertura
+    # scritta per intero se la vede stampata com'è. In produzione non
+    # succede — la chiamata dell'apertura non chiede più il corpo — ma il
+    # prestito è un ripiego, non una regola che sovrascrive chi lo chiama.
     apertura_paragrafi: list[str] = []
-    if lead_topic:
-        for indice, a in enumerate(usable):
-            if getattr(a, "topic", None) != lead_topic:
-                continue
-            parti = _paragraphs(a.body)
-            if len(parti) > CAPOVERSI_IN_PRIMA:
-                apertura_paragrafi = parti[:CAPOVERSI_IN_PRIMA]
-                usable[indice] = replace(
-                    a,
-                    body="\n\n".join(parti[CAPOVERSI_IN_PRIMA:]),
-                    dalla_prima=True,
-                )
-            break
+    i_fonte, resto = -1, []
+    if not lead.paragraphs:
+        apertura_paragrafi, i_fonte, resto = _apertura_dal_pezzo(usable, lead_topic)
+    if i_fonte >= 0:
+        usable[i_fonte] = replace(
+            usable[i_fonte], body="\n\n".join(resto), dalla_prima=True
+        )
 
     laid_out, brief = arrange_sections(usable, brief_box=gfx.brief_box)
     sectioned = any(getattr(i, "section", "") for i in laid_out)
@@ -2061,6 +2131,18 @@ def build_pages_html(
     vignetta_html = _vignetta_html(vignetta)
     if vignetta_html:
         quote = None
+    # Senza vignetta la frase del giorno sale in prima e prende il posto
+    # che il disegno avrebbe avuto, invece di finire in fondo all'ultima
+    # pagina. Sono lo stesso elemento in due forme — le parole del gruppo
+    # sul fatto di apertura — e finora solo una delle due stava dove
+    # serve: accanto alla notizia che commenta. È anche la risposta al
+    # bianco che restava nella colonna dell'apertura nei giorni senza
+    # disegno, e non costa un'immagine: è testo che il giornale ha già.
+    contorno_html = vignetta_html
+    if not contorno_html:
+        contorno_html = _quote_html(quote, in_apertura=True)
+        if contorno_html:
+            quote = None
     closing_height = (
         _H_TAIL
         - _H_QUOTE
@@ -2108,7 +2190,9 @@ def build_pages_html(
 
     alta = _estimate_front_height(
         lead, secondarie, strilli, dentro, gfx,
-        con_vignetta=bool(vignetta_html), con_numeri=stats is not None,
+        con_vignetta=bool(vignetta_html),
+        con_numeri=stats is not None,
+        con_frase=bool(contorno_html) and not vignetta_html,
     )
     if alta > MAX_PAGE_HEIGHT:
         print(
@@ -2141,8 +2225,11 @@ def build_pages_html(
         )
         return (
             _brief_html(brief, gfx)
-            # La vignetta ora sta in prima, dentro l'apertura: qui resta
-            # solo la frase del giorno, e solo nei giorni senza vignetta.
+            # La vignetta sta in prima, dentro l'apertura, e nei giorni
+            # senza vignetta ci sta la frase del giorno: qui non arriva
+            # più né l'una né l'altra, e `quote` è già stata azzerata.
+            # La riga resta perché chi chiama può passare una frase senza
+            # apertura da illustrare — l'anteprima lo fa.
             + _quote_html(quote)
             + _numeri_html(index_entries, gfx)
             + _stats_html(stats, hourly, gfx, raccontato)
@@ -2164,7 +2251,7 @@ def build_pages_html(
         lead,
         gfx,
         continua_a=pagina_di.get(id(fonte)) if fonte is not None else None,
-        vignetta_html=vignetta_html,
+        contorno_html=contorno_html,
     )
     colonna = (
         _strilli_html(strilli)
