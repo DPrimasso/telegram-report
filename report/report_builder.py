@@ -1,6 +1,6 @@
 import html
 import re
-from datetime import date
+from datetime import date, timedelta
 
 SEPARATOR = "─" * 20
 
@@ -41,7 +41,24 @@ def build_report(
     general_summary: str | None,
     topic_summaries: list[tuple[str, int, str]],
 ) -> str:
-    lines = [_section_header(f"📰 Gazzettino del {day.strftime('%d/%m/%Y')}")]
+    """Il riepilogo in testo semplice, il formato di ripiego.
+
+    `day` è il giorno raccontato, come per il resto della pipeline. In
+    intestazione però ci vanno tutte e due le date, come nel giornale: la
+    data di uscita, perché un'edizione si data con l'edizione, e il
+    giorno raccontato, perché qui — a differenza delle pagine — non ci
+    sono rubriche a dirlo, e senza sparirebbe. Due convenzioni diverse
+    fra i due formati sarebbero il modo più rapido di rendere la data
+    inaffidabile in tutti e due."""
+    from report.newspaper import giorno_e_mese
+
+    uscita = day + timedelta(days=1)
+    lines = [
+        _section_header(
+            f"📰 Gazzettino del {uscita.strftime('%d/%m/%Y')}"
+            f" — la giornata di {giorno_e_mese(day)}"
+        )
+    ]
 
     if general_summary is None:
         lines.append("")

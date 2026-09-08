@@ -60,8 +60,10 @@ python catalogo.py          # scrive catalogo.png
 
 ### Le immagini: nessuna
 
-Il gazzettino non ha immagini. L'unica cosa raster in pagina è il logo
-della testata.
+Il gazzettino non ha fotografie. Le sole cose raster in pagina sono i
+marchi — quello della testata in prima e quello di chi fa il giornale
+nella gerenza, in fondo all'ultima — e il disegno della vignetta, che è
+un disegno, non una foto.
 
 Ci sono voluti tre tentativi per arrivarci, e vale la pena dire come è
 andata perché la conclusione non è ovvia. Prima una foto grande sotto

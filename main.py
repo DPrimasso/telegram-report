@@ -21,12 +21,27 @@ from report.highlights import (
     pick_quote,
     section_entries,
 )
-from report.newspaper import Article, Lead, build_pages_html, render_html_to_png
+from report.newspaper import (
+    Article,
+    Lead,
+    build_pages_html,
+    render_html_to_png,
+    topics_needing_body,
+)
+from report.summarize import campione_citabile, istogramma_lunghezze
+from report.vignetta import (
+    DESCRIZIONI,
+    Biblioteca,
+    componi,
+    leggi_battute,
+    pick_vignetta,
+)
 from report.report_builder import build_report
 from report.sections import load_section_map
 from report.send import send_photo_report, send_report
 from report.summarize import (
     summarize_overall,
+    write_brief_headlines,
     summarize_topic,
     write_lead_story,
     write_topic_article,
@@ -154,7 +169,40 @@ async def _run_newspaper_report(
 
     section_map = load_section_map()
 
+    attivi = [t for t in topics if t.messages]
+    # Come è fatta la giornata, prima di spendere un token. Serve a
+    # tarare la soglia sotto cui un messaggio non porta fatti, e ad
+    # accorgersi se il gruppo cambia abitudini.
+    print(istogramma_lunghezze([m for _, m in all_messages]))
+
+    # Chi merita un pezzo per esteso si decide PRIMA di scriverlo. In
+    # pagina i pezzi pieni sono cinque più i blocchi di famiglia, e tutto
+    # il resto esce come una riga di titolo: scrivere quattordici articoli
+    # interi per pubblicarne cinque significava pagare nove volte
+    # milleottocento token di regole per mostrare otto parole.
+    con_corpo = topics_needing_body(
+        [
+            (t.title, len(t.messages), section_map.family_of(t.title))
+            for t in attivi
+        ]
+    )
+
     articles: list[Article] = []
+
+    def aggiungi(titolo: str, headline: str, deck: str, body: str, quote, n: int) -> None:
+        articles.append(
+            Article(
+                topic=titolo,
+                headline=headline,
+                deck=deck,
+                body=body,
+                count=n,
+                section=section_map.section_of(titolo),
+                family=section_map.family_of(titolo),
+                quote=quote,
+            )
+        )
+
     # Si scrive dal topic più attivo al meno attivo, e l'ordine conta: chi
     # ha discusso di più un argomento se lo tiene, mentre i topic che lo
     # hanno solo sfiorato lo riconoscono come già raccontato e si fermano
@@ -162,11 +210,12 @@ async def _run_newspaper_report(
     # notizia sarebbe finita a chi ne ha parlato meno. La lista esce quindi
     # già ordinata per volume: l'ordine con cui i pezzi si LEGGONO lo
     # decide poi arrange_sections, che è un'altra cosa.
-    for topic in sorted(topics, key=lambda t: len(t.messages), reverse=True):
-        if not topic.messages:
+    ordinati = sorted(attivi, key=lambda t: len(t.messages), reverse=True)
+    for topic in ordinati:
+        if topic.title not in con_corpo:
             continue
         print(f"Scrivo l'articolo per '{topic.title}' ({len(topic.messages)} messaggi)...")
-        headline, deck, body = write_topic_article(
+        headline, deck, body, virgolettato = write_topic_article(
             openai_client,
             config.openai_model,
             topic.title,
@@ -176,17 +225,22 @@ async def _run_newspaper_report(
         if not headline:
             print(f"  '{topic.title}': stesso fatto di un pezzo già in pagina, non lo ripeto.")
             continue
-        articles.append(
-            Article(
-                topic=topic.title,
-                headline=headline,
-                deck=deck,
-                body=body,
-                count=len(topic.messages),
-                section=section_map.section_of(topic.title),
-                family=section_map.family_of(topic.title),
-            )
+        aggiungi(topic.title, headline, deck, body, virgolettato, len(topic.messages))
+
+    # I topic minori, tutti insieme in una chiamata sola.
+    minori = [t for t in ordinati if t.title not in con_corpo]
+    if minori:
+        print(f"Scrivo i titoli delle brevi ({len(minori)} temi) in una chiamata...")
+        titoli = write_brief_headlines(
+            openai_client,
+            config.openai_model,
+            [(t.title, t.messages) for t in minori],
+            written_so_far=[(a.headline, a.body) for a in articles],
         )
+        for topic in minori:
+            headline = titoli.get(topic.title)
+            if headline:
+                aggiungi(topic.title, headline, "", "", None, len(topic.messages))
 
     print("Scrivo l'articolo di apertura...")
     # L'occhiello dell'apertura lo sceglie chi scrive il pezzo, fra le
@@ -198,38 +252,126 @@ async def _run_newspaper_report(
     # più in basso: l'apertura deve nominare le stesse cose.
     sections = section_entries(topics, section_map)
 
-    lead_headline, lead_deck, lead_paragraphs, lead_section = write_lead_story(
+    biblioteca = Biblioteca(config.vignette_dir)
+    (
+        lead_headline,
+        lead_deck,
+        lead_paragraphs,
+        lead_section,
+        lead_quote,
+        lead_tono,
+        lead_battute,
+        lead_fonte,
+    ) = write_lead_story(
         openai_client,
         config.openai_model,
         all_messages,
         page_headlines=[a.headline for a in articles],
         sections=[name for name, _ in sections],
+        # L'apertura legge i pezzi delle pagine interne invece di
+        # rileggersi la giornata: sono gli stessi fatti, già scelti e già
+        # scritti, e costano un ventesimo.
+        articoli=[
+            (a.topic, a.headline, a.deck, a.body, a.count) for a in articles
+        ],
+        # La vignetta esce da questa stessa chiamata: è la stessa testa
+        # che sceglie il fatto del giorno e le due frasi che lo
+        # raccontano. Senza disegni in biblioteca non si chiede nemmeno.
+        toni=[(t, DESCRIZIONI[t]) for t in biblioteca.toni] if biblioteca else None,
     )
     lead = Lead(
         kicker=lead_section,
         headline=lead_headline,
         deck=lead_deck,
         paragraphs=lead_paragraphs,
+        quote=lead_quote,
     )
 
-    print("Scelgo la frase del giorno...")
-    quote = pick_quote(openai_client, config.openai_model, all_messages)
+    # La vignetta e la frase del giorno sono lo stesso elemento in due
+    # forme, e ne esce una sola: si prova prima la vignetta, che dice di
+    # più, e si ripiega sulla frase quando non si può fare — biblioteca
+    # vuota, nessuno scambio adatto, una battuta che non combacia con
+    # nessun messaggio. La frase costa una chiamata, quindi si chiede
+    # solo se serve davvero.
+    #
+    # La vignetta sta in prima pagina accanto all'apertura, quindi deve
+    # raccontare quel fatto: i topic della sezione da cui l'apertura
+    # arriva sono il recinto entro cui le battute possono essere scelte.
+    # Quando l'apertura è trasversale il recinto non c'è, ed è giusto
+    # così: il fatto non appartiene a una sezione sola.
+    topic_apertura = {
+        t.title for t in topics if section_map.section_of(t.title) == lead_section
+    } if lead_section else set()
+
+    vignetta = None
+    if biblioteca:
+        # Prima strada: tono e battute sono già arrivati con l'apertura.
+        # Le verifiche sono le stesse — tono esistente in biblioteca,
+        # battuta presente alla lettera, due autori diversi — perché è la
+        # stessa funzione, con due ingressi.
+        if lead_tono and lead_battute:
+            tono, battute = leggi_battute(lead_tono, lead_battute, biblioteca.toni)
+            vignetta = componi(
+                tono,
+                battute,
+                campione_citabile(all_messages, 10_000, minimo=20, massimo=110),
+                target_date,
+                biblioteca,
+            )
+        # Ripiego: se l'apertura non l'ha prodotta, o se le battute non
+        # hanno superato la verifica, si torna alla chiamata dedicata.
+        if vignetta is None:
+            print("Compongo la vignetta del giorno con una chiamata a parte...")
+            vignetta = pick_vignetta(
+                openai_client,
+                config.openai_model,
+                all_messages,
+                tema=f"{lead.headline} — {lead.deck}",
+                giorno=target_date,
+                topic_sezione=topic_apertura,
+                biblioteca=biblioteca,
+            )
+        if vignetta:
+            print(f"  tono {vignetta.tone}, disegno {vignetta.image_path}")
+
+    quote = None
+    if vignetta is None:
+        print("Scelgo la frase del giorno...")
+        quote = pick_quote(openai_client, config.openai_model, all_messages)
 
     print("Recupero il nome del gruppo per la testata...")
     newspaper_name = config.newspaper_name or await get_group_title(client, config.group_id)
 
+    # Il giornale esce la mattina dopo la giornata che racconta, e in
+    # testata va la data dell'edizione: il Corriere di lunedì è datato
+    # lunedì e racconta la domenica.
+    #
+    # Si calcola dal giorno raccontato e non da date.today(): per
+    # l'edizione notturna sono la stessa cosa — il cron riassume sempre
+    # ieri — ma una riesecuzione con --date deve uscire con la data che
+    # quel giornale AVEVA, non con quella di oggi.
+    giorno_di_uscita = target_date + timedelta(days=1)
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         logo = Path(config.logo_path)
+        firma = Path(config.firma_path)
         pages_html = build_pages_html(
             newspaper_name,
-            target_date,
+            giorno_di_uscita,
             lead,
             articles,
             logo_path=logo if logo.exists() else None,
+            firma_path=firma if firma.exists() else None,
             index_entries=sections,
             stats=build_stats(all_messages),
             quote=quote,
+            vignetta=vignetta,
             hourly=hourly_counts(all_messages),
+            giorno_raccontato=target_date,
+            # Il tema da cui nasce l'apertura: manda il rimando della
+            # prima pagina alla pagina dove quel pezzo sta per intero, e
+            # lo tiene fuori dalla fascia delle secondarie.
+            lead_topic=lead_fonte,
         )
 
         print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")
@@ -240,7 +382,7 @@ async def _run_newspaper_report(
             image_paths.append(image_path)
 
         print("Invio il giornale su Telegram...")
-        caption = f"📰 {newspaper_name} — {target_date.strftime('%d/%m/%Y')}"
+        caption = f"📰 {newspaper_name} — {giorno_di_uscita.strftime('%d/%m/%Y')}"
         await send_photo_report(client, config, image_paths, caption=caption)
 
     print("Fatto.")

@@ -39,6 +39,12 @@ class Config:
     newspaper_name: str | None
     youtube_channel_id: str
     logo_path: str
+    # Il marchio di chi fa il giornale, nella gerenza in fondo
+    # all'ultima pagina. Se il file non c'è la fascia esce senza.
+    firma_path: str
+    # La biblioteca dei disegni della vignetta. Se la cartella non c'è o è
+    # vuota il gazzettino esce con la frase del giorno, come prima.
+    vignette_dir: str
     scribe_names: tuple[str, ...]
     scribe_summary_markers: tuple[str, ...]
 
@@ -74,7 +80,9 @@ def load_config() -> Config:
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",
         newspaper_name=os.environ.get("NEWSPAPER_NAME") or None,
         youtube_channel_id=os.environ.get("YOUTUBE_CHANNEL_ID") or "UCrXpaY2E4glX7Syy9xQiDIg",
-        logo_path=os.environ.get("LOGO_PATH") or "assets/logo-azzurro.png",
+        logo_path=os.environ.get("LOGO_PATH") or "assets/logo-carta.png",
+        firma_path=os.environ.get("FIRMA_PATH") or "assets/logo-dprimo17-gerenza.png",
+        vignette_dir=os.environ.get("VIGNETTE_DIR") or "assets/vignette",
         scribe_names=_csv("SCRIBE_BOT_NAMES", scribe.DEFAULT_BOT_NAMES),
         scribe_summary_markers=_csv(
             "SCRIBE_SUMMARY_MARKERS", scribe.DEFAULT_SUMMARY_MARKERS

@@ -18,6 +18,14 @@ on:
         options:
           - newspaper
           - text
+      vignetta:
+        description: "Vignetta in prima pagina, o frase del giorno al suo posto."
+        required: false
+        default: "con"
+        type: choice
+        options:
+          - con
+          - senza
 
 jobs:
   prova:
@@ -68,8 +76,18 @@ jobs:
           # puo' diventare un comando.
           INPUT_DATE: ${{ inputs.date }}
           INPUT_FORMAT: ${{ inputs.format }}
+          INPUT_VIGNETTA: ${{ inputs.vignetta }}
         run: |
           FORMAT="${INPUT_FORMAT:-newspaper}"
+
+          # "senza" punta la biblioteca a una cartella che non esiste. Il
+          # gazzettino sa gia' cavarsela: senza disegni la vignetta non si
+          # compone e al suo posto torna la frase del giorno, che e' lo
+          # stesso elemento in un'altra forma. Non serve un interruttore
+          # nuovo nel codice per vedere quella pagina.
+          if [ "$INPUT_VIGNETTA" = "senza" ]; then
+            export VIGNETTE_DIR="assets/vignette-che-non-c-e"
+          fi
           if [ -n "$INPUT_DATE" ]; then
             python main.py --date "$INPUT_DATE" --format "$FORMAT"
           else
