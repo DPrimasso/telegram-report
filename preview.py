@@ -42,26 +42,21 @@ SAMPLE_LEAD = Lead(
         "Dodici milioni il diritto di riscatto, visite mediche mercoledì "
         "mattina: per liberare lo slot in lista deve uscire Càlvaro"
     ),
+    # Due capoversi, 350-500 caratteri: l'apertura sta tutta in prima
+    # pagina e non riprende dentro, quindi deve dare la notizia per
+    # intero e mandare il lettore all'articolo. Erano quattro e 1200
+    # caratteri finché metà pezzo continuava a pagina 2, e un'anteprima
+    # con l'apertura vecchia mostrerebbe una pagina che il giornale non
+    # stampa più.
     paragraphs=[
-        # L'attacco: sta in prima pagina e deve reggere da solo. Risponde
-        # a chi, che cosa, quando, dove — nomi compresi — senza rimandare
-        # niente ai capoversi dopo.
         "Matteo Ferrante, centrocampista del Valdarno, arriverà in "
         "prestito con diritto di riscatto fissato a dodici milioni. La "
         "trattativa si è chiusa nella tarda serata di lunedì, le visite "
         "mediche sono in programma mercoledì mattina a Villa Stabia e la "
         "firma è attesa entro giovedì.",
         "A sbloccare l'operazione è stata la decisione del Valdarno di "
-        "scendere dai quindici milioni chiesti fino a domenica. Restano da "
-        "limare le commissioni, l'ultimo dettaglio ancora aperto: le parti "
-        "si sono date appuntamento a mercoledì, subito dopo le visite.",
-        "Con Ferrante il centrocampo sale a sei, uno in più di quanti la "
-        "lista ne ammetta, e a uscire dovrebbe essere Càlvaro, fuori dalle "
-        "convocazioni dalla seconda giornata. Il nome però non è ancora "
-        "stato confermato dal club, e in gruppo circola anche quello di "
-        "Restelli.",
-        "L'annuncio ufficiale è atteso nel pomeriggio di giovedì e "
-        "chiuderebbe la settimana più movimentata della sessione estiva.",
+        "scendere dai quindici milioni chiesti fino a domenica: restano "
+        "da limare solo le commissioni.",
     ],
     quote=Quote(
         text="Se prendiamo Ferrante giovedì mi metto la maglia anche per andare a lavoro",

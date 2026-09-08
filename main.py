@@ -261,6 +261,7 @@ async def _run_newspaper_report(
         lead_quote,
         lead_tono,
         lead_battute,
+        lead_fonte,
     ) = write_lead_story(
         openai_client,
         config.openai_model,
@@ -365,6 +366,10 @@ async def _run_newspaper_report(
             vignetta=vignetta,
             hourly=hourly_counts(all_messages),
             giorno_raccontato=target_date,
+            # Il tema da cui nasce l'apertura: manda il rimando della
+            # prima pagina alla pagina dove quel pezzo sta per intero, e
+            # lo tiene fuori dalla fascia delle secondarie.
+            lead_topic=lead_fonte,
         )
 
         print(f"Genero le immagini del giornale ({len(pages_html)} pagine)...")

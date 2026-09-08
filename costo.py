@@ -154,12 +154,15 @@ class Contatore:
                 "CITAZIONE: " + "x" * 80 + " | Ciro"
             )
         if self.etichetta == "apertura":
-            # 4 capoversi, 900-1200 caratteri: idem.
+            # 2 capoversi, 350-500 caratteri: idem. Erano quattro e 1200
+            # finché l'apertura doveva riempire anche mezza pagina 2 col
+            # suo seguito; adesso sta tutta in prima e rimanda al pezzo.
             return (
                 "FATTO: il fatto principale\nSEZIONE: Napoli\n"
+                "FONTE: Match Day\n"
                 "TITOLO: " + "x" * 60 + "\n"
                 "SOMMARIO: " + "x" * 150 + "\n"
-                "TESTO: " + "x" * 1200 + "\n"
+                "TESTO: " + "x" * 500 + "\n"
                 "CITAZIONE: " + "x" * 80 + " | Ciro\n"
                 "TONO: battibecco\n"
                 "BATTUTA: " + "x" * 70 + " | Ciro"
