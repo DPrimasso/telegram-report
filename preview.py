@@ -377,7 +377,7 @@ async def main() -> None:
         print(f"vignetta: tono {tono}, disegno {vignetta.image_path}")
 
     logo = Path("assets/logo-carta.png")
-    firma = Path("assets/logo-firma.png")
+    firma = Path("assets/logo-dprimo17-gerenza.png")
     pages = build_pages_html(
         "Azzurro Fluido",
         SAMPLE_DATE,

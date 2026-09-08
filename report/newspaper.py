@@ -853,7 +853,11 @@ p {{ margin: 0; }}
   align-items: center;
   font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
 }}
-.footer .firma img {{ height: 22px; width: auto; display: block; }}
+/* Il marchio è quadrato, la riga che gli sta accanto è lunga: alto
+   quanto il testo diventava un puntino. A 32px pesa quanto la riga senza
+   diventare un'insegna, ed è la misura sotto cui il «17» non si legge
+   più — che è l'unica cosa che questo segno ha da dire. */
+.footer .firma img {{ height: 32px; width: auto; display: block; }}
 .footer-continue {{
   background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
   padding: 20px 56px; display: flex; justify-content: space-between; align-items: baseline;
