@@ -480,21 +480,22 @@ LEAD_FORMAT_RULE = (
     "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
     "scrivere)\n"
     "SEZIONE: {sections}\n"
+    "FONTE: il titolo di UNO dei temi qui sotto, copiato identico: "
+    "quello di cui parla il fatto che apre\n"
     "TITOLO: il titolo di quel fatto, massimo 9 parole\n"
     "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
-    "TESTO: 4 capoversi separati da una riga vuota, in tutto fra 900 e "
-    "1200 caratteri, tutti su quel fatto\n"
     "CITAZIONE: una frase copiata alla lettera da un messaggio, poi una "
     "barra verticale, poi il nome di chi l'ha scritta — oppure la sola "
     "parola NESSUNA\n\n"
-    # Il primo capoverso dell'apertura va da solo in prima pagina, sotto
-    # il titolone: è l'unico pezzo di testo che il lettore incontra prima
-    # di decidere se girare pagina, e se non basta a sé stesso la prima
-    # pagina promette una notizia senza darla.
-    "Il primo capoverso dell'apertura viene stampato DA SOLO in prima "
-    "pagina, e il resto del pezzo riprende alla pagina seguente: deve "
-    "quindi contenere la notizia per intero e non rimandare niente ai "
-    "capoversi dopo.\n\n"
+    # Il corpo dell'apertura non si scrive: è l'inizio dell'articolo che
+    # sta dentro, stampato in prima e continuato alla sua pagina. Su un
+    # giornale funziona così, e il testo non compare mai due volte.
+    # Scriverne uno nuovo voleva dire raccontare in prima la stessa cosa
+    # che l'articolo racconta dopo, con altre parole.
+    "NON scrivere il corpo del pezzo: in prima pagina va l'inizio "
+    "dell'articolo che hai davanti, e il resto continua alla sua pagina. "
+    "Tu scegli quale notizia apre e le dai il titolo e il sommario che "
+    "merita in prima pagina.\n\n"
     f"{HEADLINE_RULE}\n\n{DECK_RULE}\n\n{ATTACCO_RULE}\n\n{PIRAMIDE_RULE}"
     f"\n\n{QUOTE_RULE}"
 )
@@ -596,8 +597,8 @@ MAX_DECK_CHARS = 190
 # come etichette, altrimenti il parser le accoderebbe al blocco precedente
 # e il testo di lavoro finirebbe stampato dentro il pezzo.
 _LABELS = (
-    "FATTO", "SEZIONE", "TITOLO", "SOMMARIO", "OCCHIELLO", "TESTO",
-    "CITAZIONE", "TONO", "BATTUTA",
+    "FATTO", "SEZIONE", "FONTE", "TITOLO", "SOMMARIO", "OCCHIELLO",
+    "TESTO", "CITAZIONE", "TONO", "BATTUTA",
 )
 
 # Le stesse soglie della frase del giorno: sotto, una citazione non dice
@@ -1281,8 +1282,10 @@ def write_brief_headlines(
     return out
 
 
-def _split_lead(raw: str) -> tuple[str, str, list[str], str, str, str, list[str]]:
-    """(titolo, sommario, paragrafi, sezione, citazione, tono, battute).
+def _split_lead(
+    raw: str,
+) -> tuple[str, str, list[str], str, str, str, list[str], str]:
+    """(titolo, sommario, paragrafi, sezione, citazione, tono, battute, fonte).
 
     Stessa logica degli articoli, con in più la divisione del corpo in
     paragrafi sulle righe vuote e la sezione dichiarata dal modello, che
@@ -1295,6 +1298,10 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str, str, list[str]
     citazione = parts.get("CITAZIONE", "")
     tono = _clean(parts.get("TONO", ""))
     battute = [r.strip() for r in parts.get("BATTUTA", "").splitlines() if r.strip()]
+    # Da quale pezzo nasce l'apertura. Serve a mandare il rimando della
+    # prima pagina alla pagina giusta; vuota quando il fatto viene da più
+    # temi insieme, che nelle giornate grosse è la norma.
+    fonte = _clean(parts.get("FONTE", ""))
 
     if not headline:
         # Nessuna etichetta: si ricade sul vecchio formato posizionale,
@@ -1302,7 +1309,7 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str, str, list[str]
         blocks = [b for b in "\n".join(_unlabeled_lines(raw)).split("\n\n") if b.strip()]
         first_lines = [l.strip() for l in blocks[0].splitlines() if l.strip()] if blocks else []
         if not first_lines:
-            return "", "", [], section, citazione, tono, battute
+            return "", "", [], section, citazione, tono, battute, fonte
         headline = _clean(first_lines[0])
         deck = deck or (first_lines[1] if len(first_lines) > 1 else "")
         rest = blocks[1:]
@@ -1321,7 +1328,10 @@ def _split_lead(raw: str) -> tuple[str, str, list[str], str, str, str, list[str]
         " ".join(l.strip() for l in block.splitlines() if l.strip())
         for block in text.split("\n\n")
     ]
-    return headline, deck, [p for p in paragraphs if p], section, citazione, tono, battute
+    return (
+        headline, deck, [p for p in paragraphs if p], section, citazione,
+        tono, battute, fonte,
+    )
 
 
 def _match_section(declared: str, sections: list[str]) -> str:
@@ -1356,13 +1366,15 @@ def write_lead_story(
     sections: list[str] | None = None,
     articoli: list[tuple[str, str, str, str, int]] | None = None,
     toni: list[tuple[str, str]] | None = None,
-) -> tuple[str, str, list[str], str, "Quote | None", str, list[str]]:
+) -> tuple[str, str, list[str], str, "Quote | None", str, list[str], str]:
     """Genera (titolo, sommario, paragrafi, sezione, virgolettato) per
     l'articolo di apertura, basato sui temi più rilevanti/trasversali
-    della giornata. Il primo capoverso resta in prima pagina e gli altri
-    riprendono dentro, quindi il pezzo va scritto perché quel primo
-    capoverso basti da solo: la regola sta in LEAD_FORMAT_RULE. Per
-    giornate molto attive riusa summarize_overall come fonte condensata
+    della giornata. Sta tutto in prima pagina e non riprende dentro:
+    l'ultimo elemento è il TEMA da cui nasce, che serve a mandare il
+    rimando della prima pagina alla pagina dove quel pezzo sta per
+    intero. Vuoto quando l'apertura mette insieme più temi.
+
+    Per giornate molto attive riusa summarize_overall come fonte condensata
     invece di rifare da zero il map-reduce sui messaggi grezzi.
     `page_headlines` sono i titoli degli articoli già in pagina: servono a
     dare all'apertura un taglio diverso invece di ripetere un pezzo che il
@@ -1371,7 +1383,7 @@ def write_lead_story(
     finché lo decideva il codice (il topic più attivo) poteva annunciare
     una sezione che con la notizia non c'entrava."""
     if not messages_with_topic:
-        return "", "", [], "", None, "", []
+        return "", "", [], "", None, "", [], ""
 
     ordered = sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
 
@@ -1455,8 +1467,17 @@ def write_lead_story(
         + source_text
     )
     raw = _call_openai(client, model, prompt, temperature=PROSE_TEMPERATURE)
-    headline, deck, paragraphs, declared, citazione, tono, battute = _split_lead(raw)
+    (
+        headline, deck, paragraphs, declared, citazione, tono, battute, fonte,
+    ) = _split_lead(raw)
     _segnala_se_generico("apertura", headline, " ".join(paragraphs))
+    # La fonte vale solo se è davvero uno dei temi che abbiamo passato:
+    # un titolo storpiato manderebbe il rimando della prima pagina su una
+    # pagina a caso, ed è meglio nessun rimando che uno sbagliato.
+    noti = {t for t, *_ in (articoli or [])}
+    if fonte and fonte not in noti:
+        vicini = [t for t in noti if t.lower() == fonte.lower()]
+        fonte = vicini[0] if vicini else ""
     return (
         headline,
         deck,
@@ -1465,4 +1486,5 @@ def write_lead_story(
         _verify_quote(citazione, ordered),
         tono,
         battute,
+        fonte,
     )

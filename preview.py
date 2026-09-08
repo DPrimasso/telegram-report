@@ -35,41 +35,33 @@ SAMPLE_DATE = date(2026, 8, 5)
 # Nomi e squadre dell'esempio sono inventati di sana pianta. Il gazzettino
 # vero userà quelli che il gruppo scrive davvero; qui servono nomi finti
 # perché nessuno scambi un'anteprima per una notizia.
+# L'apertura non ha un corpo suo: in prima pagina va l'INIZIO
+# dell'articolo che apre l'edizione, e il resto continua alla sua pagina.
+# Qui l'apertura è la presentazione del pezzo su Match Day (vedi
+# SAMPLE_LEAD_TOPIC più sotto): titolo e sommario sono scritti per la
+# prima pagina, il testo lo mette build_pages_html prendendolo dal pezzo.
+#
+# Un'anteprima con un corpo scritto a mano mostrerebbe una pagina che il
+# giornale non stampa più, ed è esattamente il modo di non accorgersi che
+# la stessa notizia usciva due volte.
 SAMPLE_LEAD = Lead(
-    kicker="Calcio",
-    headline="Ferrante arriva in prestito, la firma attesa entro giovedì",
+    kicker="Napoli",
+    headline="Ruggiero al 90' ribalta una partita archiviata",
     deck=(
-        "Dodici milioni il diritto di riscatto, visite mediche mercoledì "
-        "mattina: per liberare lo slot in lista deve uscire Càlvaro"
+        "Il pareggio era dato per buono da venti minuti: sul secondo "
+        "giallo a Marino le opinioni restano distanti anche a fine serata"
     ),
-    paragraphs=[
-        # L'attacco: sta in prima pagina e deve reggere da solo. Risponde
-        # a chi, che cosa, quando, dove — nomi compresi — senza rimandare
-        # niente ai capoversi dopo.
-        "Matteo Ferrante, centrocampista del Valdarno, arriverà in "
-        "prestito con diritto di riscatto fissato a dodici milioni. La "
-        "trattativa si è chiusa nella tarda serata di lunedì, le visite "
-        "mediche sono in programma mercoledì mattina a Villa Stabia e la "
-        "firma è attesa entro giovedì.",
-        "A sbloccare l'operazione è stata la decisione del Valdarno di "
-        "scendere dai quindici milioni chiesti fino a domenica. Restano da "
-        "limare le commissioni, l'ultimo dettaglio ancora aperto: le parti "
-        "si sono date appuntamento a mercoledì, subito dopo le visite.",
-        "Con Ferrante il centrocampo sale a sei, uno in più di quanti la "
-        "lista ne ammetta, e a uscire dovrebbe essere Càlvaro, fuori dalle "
-        "convocazioni dalla seconda giornata. Il nome però non è ancora "
-        "stato confermato dal club, e in gruppo circola anche quello di "
-        "Restelli.",
-        "L'annuncio ufficiale è atteso nel pomeriggio di giovedì e "
-        "chiuderebbe la settimana più movimentata della sessione estiva.",
-    ],
     quote=Quote(
-        text="Se prendiamo Ferrante giovedì mi metto la maglia anche per andare a lavoro",
-        author="Ciro",
-        topic="CalcioMercato",
-        time="23:41",
+        text="Ho urlato così forte che si è svegliata mezza palazzina",
+        author="Peppe",
+        topic="Match Day",
+        time="22:52",
     ),
 )
+
+# Il tema da cui l'apertura nasce: il suo articolo comincia in prima e
+# continua dentro.
+SAMPLE_LEAD_TOPIC = "Match Day"
 
 SAMPLE_ARTICLES = [
     Article(
@@ -249,66 +241,57 @@ SAMPLE_STATS = Stats(
     messages=800, participants=41, active_topics=14, peak_hour="22:00"
 )
 
-# Le battute della vignetta, una coppia per tono. Sono scritte come le
-# scrive il gruppo — minuscole, senza punteggiatura finale, con gli errori
-# — perché in pagina ci finiscono copiate alla lettera: una battuta
-# ripulita si riconosce subito e fa sembrare finto anche il resto.
 # Le battute della vignetta, una coppia per tono. Tutte sullo STESSO
 # fatto — quello dell'apertura — perché è il punto: a cambiare da un
 # giorno all'altro non è l'argomento della vignetta, che è sempre la
-# notizia principale, ma il tono con cui il gruppo l'ha presa. Sono
-# scritte come le scrive il gruppo (minuscole, senza punteggiatura
+# notizia principale, ma il tono con cui il gruppo l'ha presa.
+#
+# Sono scritte come le scrive il gruppo (minuscole, senza punteggiatura
 # finale, con gli errori) perché in pagina ci finiscono copiate alla
-# lettera: una battuta ripulita si riconosce subito.
-# Le battute della vignetta, una coppia per tono. Tutte sullo STESSO
-# fatto — quello dell'apertura — perché è il punto: a cambiare da un
-# giorno all'altro non è l'argomento della vignetta, che è sempre la
-# notizia principale, ma il tono con cui il gruppo l'ha presa. Sono
-# scritte come le scrive il gruppo (minuscole, senza punteggiatura
-# finale, con gli errori) perché in pagina ci finiscono copiate alla
-# lettera: una battuta ripulita si riconosce subito.
+# lettera: una battuta ripulita si riconosce subito e fa sembrare finto
+# anche il resto.
 SAMPLE_BATTUTE = {
     "battibecco": [
-        ("Dodici milioni per Ferrante che l'anno scorso ha fatto due gol", "Ciro", "23:14"),
-        ("Due gol da mediano, e sei assist, guardati le partite prima di parlare", "Gennaro", "23:16"),
+        ("Il secondo giallo a Marino non c'era manco a pagarlo", "Ciro", "23:14"),
+        ("Era entrato con i tacchetti alti, dai, guardatela un'altra volta", "Gennaro", "23:16"),
     ],
     "esultanza": [
-        ("Ragazzi Ferrante è fatta, visite mercoledì e giovedì firma", "Peppe", "22:51"),
-        ("Era da giugno che lo chiedevo, finalmente uno che sa fare due passaggi", "Ugo", "22:53"),
+        ("Ruggiero al novantesimo, mi sono messo a urlare da solo in cucina", "Peppe", "22:51"),
+        ("Tre punti che ieri sera nessuno di noi avrebbe firmato", "Ugo", "22:53"),
     ],
     "sconforto": [
-        ("Prestito con diritto, cioè fra un anno stiamo di nuovo qua a parlare di Ferrante", "Salvo", "23:02"),
+        ("Venti minuti in dieci per un giallo che non c'era, ogni domenica uguale", "Salvo", "23:02"),
     ],
     "complotto": [
-        ("Visite mercoledì mattina, quindi con Ferrante era già tutto fatto da domenica", "Rino", "23:20"),
-        ("Certo che era fatta, aspettavano solo di piazzare Càlvaro", "Tonino", "23:22"),
+        ("Il secondo giallo a Marino al settanta, poi guarda caso il recupero era di sei minuti", "Rino", "23:20"),
+        ("Certo, l'espulsione la danno sempre a noi e mai a loro", "Tonino", "23:22"),
     ],
     "spiegone": [
-        ("Allora, il diritto di riscatto funziona che se non lo eserciti Ferrante torna al Valdarno", "Mimmo", "21:40"),
-        ("Mimmo lo sappiamo tutti come funziona il diritto di riscatto", "Ciro", "21:41"),
+        ("Allora, il secondo giallo si dà se il fallo è tattico, e quello sul pallone non lo era", "Mimmo", "21:40"),
+        ("Mimmo lo sappiamo tutti quando si dà il secondo giallo", "Ciro", "21:41"),
     ],
     "attesa": [
-        ("Le visite di Ferrante sono mercoledì mattina, prima di quello non si sa niente", "Gennaro", "20:12"),
-        ("Io il telefono me lo tengo in mano fino a giovedì", "Peppe", "20:15"),
+        ("Se il replay lo fanno vedere da dietro si capisce, prima di quello non si sa", "Gennaro", "20:12"),
+        ("Io aspetto la moviola di stasera e poi ne riparliamo", "Peppe", "20:15"),
     ],
 }
 
 # La didascalia dice dove è stato detto e quando: il CHE COSA lo dice già
 # il titolo sopra, ed è la stessa notizia.
 SAMPLE_VIGNETTA_TOPIC = {
-    "battibecco": "CalcioMercato — sul riscatto di Ferrante, dopo le undici di sera",
-    "esultanza": "CalcioMercato — alla notizia delle visite mediche",
-    "sconforto": "CalcioMercato — sulla formula del prestito",
-    "complotto": "CalcioMercato — sulle date, in tarda serata",
-    "spiegone": "CalcioMercato — sul diritto di riscatto",
-    "attesa": "CalcioMercato — in attesa delle visite di Ferrante",
+    "battibecco": "Match Day — sul secondo giallo a Marino, dopo le undici di sera",
+    "esultanza": "Match Day — al gol di Ruggiero al novantesimo",
+    "sconforto": "Match Day — sui venti minuti in dieci",
+    "complotto": "Match Day — sul recupero, in tarda serata",
+    "spiegone": "Match Day — su quando si dà il secondo giallo",
+    "attesa": "Match Day — in attesa della moviola",
 }
 
 SAMPLE_QUOTE = Quote(
-    text="Se prendiamo Ferrante giovedì mi metto la maglia anche per andare a lavoro",
+    text="Il secondo giallo a Marino non c'era manco a pagarlo, è entrato sul pallone",
     author="Ciro",
-    topic="CalcioMercato",
-    time="23:41",
+    topic="Match Day",
+    time="23:14",
 )
 
 # Distribuzione oraria di esempio: 24 valori, uno per ora. Fa la stessa
@@ -394,18 +377,21 @@ async def main() -> None:
         print(f"vignetta: tono {tono}, disegno {vignetta.image_path}")
 
     logo = Path("assets/logo-carta.png")
+    firma = Path("assets/logo-firma.png")
     pages = build_pages_html(
         "Azzurro Fluido",
         SAMPLE_DATE,
         SAMPLE_LEAD,
         SAMPLE_ARTICLES,
         logo_path=logo if logo.exists() else None,
+        firma_path=firma if firma.exists() else None,
         index_entries=SAMPLE_INDEX,
         stats=SAMPLE_STATS,
         quote=SAMPLE_QUOTE,
         vignetta=vignetta,
         hourly=None if args.plain else SAMPLE_HOURS,
         graphics=gfx,
+        lead_topic=SAMPLE_LEAD_TOPIC,
     )
 
     for number, page_html in enumerate(pages, start=1):
