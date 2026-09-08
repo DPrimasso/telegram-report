@@ -841,11 +841,19 @@ p {{ margin: 0; }}
   color: {AZZURRO_PALE}; margin-top: 6px;
 }}
 
+/* La gerenza: su un quotidiano la firma di chi lo fa non sta nella
+   colonna delle notizie, sta nel blocchetto in fondo insieme alla testata
+   e all'indirizzo. Qui quel blocchetto è questa fascia, e il marchio ci
+   entra alto quanto la riga di testo che gli sta accanto — una firma, non
+   un'insegna. Esce una volta per edizione, in ultima pagina, quando il
+   giornale ha finito di parlare. */
 .footer {{
   background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
   padding: 18px 56px; display: flex; justify-content: space-between;
+  align-items: center;
   font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
 }}
+.footer .firma img {{ height: 22px; width: auto; display: block; }}
 .footer-continue {{
   background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
   padding: 20px 56px; display: flex; justify-content: space-between; align-items: baseline;
@@ -1623,9 +1631,19 @@ def _numeri_del_giorno_html(stats: "Stats | None") -> str:
     )
 
 
-def _footer_html(note: str = FOOTER_NOTE) -> str:
+def _footer_html(note: str = FOOTER_NOTE, firma_uri: str | None = None) -> str:
+    """La fascia di chiusura. `firma_uri` è il marchio di chi fa il
+    giornale: sta in mezzo fra la nota e l'indirizzo, che è il posto in cui
+    un lettore lo cerca quando lo cerca, e l'unico in cui non ruba spazio a
+    una notizia. Senza il file la fascia resta quella di prima."""
+    firma = (
+        f'<span class="firma"><img src="{firma_uri}" alt=""></span>'
+        if firma_uri
+        else ""
+    )
     return (
         f'<div class="footer"><span>{html.escape(note)}</span>'
+        f"{firma}"
         f"<span>{CHANNEL_LINK}</span></div>"
     )
 
@@ -1935,6 +1953,7 @@ def build_pages_html(
     articles: list[Article],
     *,
     logo_path: str | Path | None = None,
+    firma_path: str | Path | None = None,
     index_entries: list[tuple[str, int]] | None = None,
     stats: Stats | None = None,
     quote: Quote | None = None,
@@ -1969,6 +1988,11 @@ def build_pages_html(
     gazzettino esce la mattina dopo — e così chi chiama per un'anteprima
     o un controllo non deve saperne niente.
 
+    `firma_path` è il marchio di chi fa il giornale: esce piccolo nella
+    fascia di chiusura dell'ultima pagina, la gerenza. Va passato già
+    pronto per quel fondo, che è blu quasi nero: un marchio di inchiostro
+    nero lì dentro non si vedrebbe.
+
     `lead_topic` è il tema da cui nasce l'apertura, dichiarato da chi
     l'ha scritta. Serve a due cose: mandare il rimando della prima
     pagina alla pagina dove quel pezzo sta per intero, e tenerlo fuori
@@ -1978,6 +2002,7 @@ def build_pages_html(
     esce senza rimando."""
     gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
+    firma_uri = data_uri(firma_path) if firma_path else None
     index_entries = index_entries or []
     raccontato = giorno_raccontato or day - timedelta(days=1)
 
@@ -2117,7 +2142,7 @@ def build_pages_html(
             + _quote_html(quote)
             + _numeri_html(index_entries, gfx)
             + _stats_html(stats, hourly, gfx, raccontato)
-            + _footer_html(note)
+            + _footer_html(note, firma_uri)
         )
 
     def continua(numero: int) -> str:

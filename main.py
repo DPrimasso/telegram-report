@@ -354,12 +354,14 @@ async def _run_newspaper_report(
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         logo = Path(config.logo_path)
+        firma = Path(config.firma_path)
         pages_html = build_pages_html(
             newspaper_name,
             giorno_di_uscita,
             lead,
             articles,
             logo_path=logo if logo.exists() else None,
+            firma_path=firma if firma.exists() else None,
             index_entries=sections,
             stats=build_stats(all_messages),
             quote=quote,
