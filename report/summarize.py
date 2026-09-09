@@ -1489,9 +1489,18 @@ def write_lead_story(
     # La fonte vale solo se è davvero uno dei temi che abbiamo passato:
     # un titolo storpiato manderebbe il rimando della prima pagina su una
     # pagina a caso, ed è meglio nessun rimando che uno sbagliato.
-    noti = {t for t, *_ in (articoli or [])}
+    # Il confronto passa dalla stessa normalizzazione con cui si verificano
+    # i virgolettati: accenti composti in due modi, spazi doppi, apostrofi
+    # tipografici. Sono differenze che l'occhio non vede e che qui
+    # costavano care — una fonte buttata via significa una prima pagina
+    # senza attacco, e il gruppo ha titoli come "Ko-Fi (SUPPORTO CANALE)"
+    # e "Seri eCcí", fatti apposta per non essere ricopiati identici.
+    noti = [t for t, *_ in (articoli or [])]
     if fonte and fonte not in noti:
-        vicini = [t for t in noti if t.lower() == fonte.lower()]
+        cercata = _normalizza(fonte)
+        vicini = [t for t in noti if _normalizza(t) == cercata]
+        if not vicini:
+            print(f"  fonte dell'apertura non riconosciuta: {fonte!r}")
         fonte = vicini[0] if vicini else ""
     return (
         headline,

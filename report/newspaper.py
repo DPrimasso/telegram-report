@@ -1120,9 +1120,8 @@ def _lead_html(
     # Senza capoversi non si stampa un segnaposto: "Nessun dettaglio
     # disponibile" era una riga di arredo che occupava il posto della
     # notizia e non diceva niente. Il titolo e il sommario la notizia la
-    # danno comunque, e _apertura_dal_pezzo fa in modo che questo caso non
-    # si presenti finché in pagina c'è almeno un articolo con due
-    # capoversi.
+    # danno comunque, e nel posto sotto il sommario c'è il disegno o la
+    # frase del giorno: l'apertura senza attacco è corta, non vuota.
     body = "".join(
         f"<p>{html.escape(p)}{chiusura if i == len(testo) - 1 else ''}</p>"
         for i, p in enumerate(testo)
@@ -1730,31 +1729,40 @@ def _apertura_dal_pezzo(
     prende e quello che a quel pezzo resta.
 
     L'apertura non scrive più il proprio corpo: glielo presta l'articolo
-    da cui nasce, che poi riparte da dove lei si ferma. `lead_topic` è il
-    tema dichiarato da chi l'ha scritta, ma fidarsi e basta lascia la
-    prima pagina senza niente sotto il titolo in tre casi veri: quando il
-    tema è vuoto — l'apertura ne mette insieme più d'uno —, quando nomina
-    un tema che in pagina non c'è, e quando il pezzo che nomina è troppo
-    corto per prestare qualcosa senza restare senza niente.
+    da cui nasce, che poi riparte da dove lei si ferma. Il pezzo è
+    SOLTANTO quello che l'apertura dichiara con `lead_topic`, e questa è
+    la regola che conta: il titolo, il sommario e la vignetta escono tutti
+    dalla stessa chiamata e parlano dello stesso fatto, quindi l'attacco
+    stampato sotto deve parlare di quello. Prendere l'attacco da un altro
+    pezzo — perché il tema dichiarato manca o è troppo corto — riempie lo
+    spazio e fa contraddire la pagina con sé stessa: un titolone su una
+    notizia e sotto, in corpo testo, un'altra.
 
-    Quindi il tema dichiarato apre la fila ma non la chiude: se non può
-    prestare, presta il pezzo dopo, in ordine di rilevanza. Un capoverso
-    resta sempre al pezzo, o dentro ci sarebbe un titolo senza articolo.
-    """
-    ordine = list(range(len(articoli)))
-    if lead_topic:
-        primo = next(
-            (i for i in ordine if getattr(articoli[i], "topic", None) == lead_topic),
-            None,
-        )
-        if primo is not None:
-            ordine = [primo] + [i for i in ordine if i != primo]
-    for i in ordine:
-        parti = _paragraphs(articoli[i].body)
-        if len(parti) >= 2:
-            quanti = min(CAPOVERSI_IN_PRIMA, len(parti) - 1)
-            return parti[:quanti], i, parti[quanti:]
-    return [], -1, []
+    Quando il prestito non si può fare l'apertura resta titolo, sommario
+    e vignetta. È una prima pagina magra ma vera, e la colonna non resta
+    vuota: quel posto lo tiene già il disegno, o la frase del giorno.
+
+    Un capoverso resta sempre al pezzo, o dentro ci sarebbe un titolo
+    senza articolo."""
+    if not lead_topic:
+        return [], -1, []
+    i = next(
+        (
+            n
+            for n, a in enumerate(articoli)
+            if getattr(a, "topic", None) == lead_topic
+        ),
+        None,
+    )
+    if i is None:
+        return [], -1, []
+    parti = _paragraphs(articoli[i].body)
+    if len(parti) < 2:
+        # Il pezzo c'è ma non può prestare senza restare senza niente:
+        # meglio l'apertura corta che il pezzo svuotato.
+        return [], -1, []
+    quanti = min(CAPOVERSI_IN_PRIMA, len(parti) - 1)
+    return parti[:quanti], i, parti[quanti:]
 
 
 def _estimate_lead_height(
