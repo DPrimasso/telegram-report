@@ -1366,7 +1366,9 @@ def write_lead_story(
     sections: list[str] | None = None,
     articoli: list[tuple[str, str, str, str, int]] | None = None,
     toni: list[tuple[str, str]] | None = None,
-) -> tuple[str, str, list[str], str, "Quote | None", str, list[str], str]:
+) -> tuple[
+    str, str, list[str], str, "Quote | None", str, list[str], str, list
+]:
     """Genera (titolo, sommario, paragrafi, sezione, virgolettato) per
     l'articolo di apertura, basato sui temi più rilevanti/trasversali
     della giornata. Sta tutto in prima pagina e non riprende dentro:
@@ -1381,11 +1383,21 @@ def write_lead_story(
     lettore ha già sotto. `sections` sono i topic attivi oggi, fra cui il
     modello sceglie quello da cui l'apertura arriva: è l'occhiello, e
     finché lo decideva il codice (il topic più attivo) poteva annunciare
-    una sezione che con la notizia non c'entrava."""
+    una sezione che con la notizia non c'entrava.
+
+    L'ultimo elemento è il campione di frasi che il modello ha davanti:
+    esce di qui perché chi verifica le battute della vignetta deve
+    cercarle esattamente lì dentro. Finché il campione veniva rifatto
+    fuori con altri parametri, una battuta autentica presa da una frase
+    che il secondo campione non conteneva risultava inventata e finiva
+    scartata — il 7 settembre è successo con una riga di 114 caratteri,
+    dentro la fascia mostrata (fino a 130) e fuori da quella ricostruita
+    per la verifica (fino a 110)."""
     if not messages_with_topic:
-        return "", "", [], "", None, "", [], ""
+        return "", "", [], "", None, "", [], "", []
 
     ordered = sorted(messages_with_topic, key=lambda pair: pair[1].timestamp)
+    citabili: list = []
 
     if articoli:
         # L'apertura si scrive leggendo i pezzi delle pagine interne, che
@@ -1405,7 +1417,10 @@ def write_lead_story(
         # Con la vignetta nella stessa chiamata il campione serve a due
         # cose, quindi si allarga e si apre alla fascia più stretta delle
         # battute: una frase da balloon può essere più corta di una da
-        # virgolettato.
+        # virgolettato. La fascia è l'unione delle due — dal minimo della
+        # battuta al massimo del virgolettato — e questo elenco esce dalla
+        # funzione: chi verifica le battute cerca qui dentro, non in un
+        # campione ricostruito con altri numeri.
         citabili = campione_citabile(
             ordered,
             _CITABILI_CON_VIGNETTA if toni else _CITABILI_PER_APERTURA,
@@ -1487,4 +1502,5 @@ def write_lead_story(
         tono,
         battute,
         fonte,
+        citabili,
     )

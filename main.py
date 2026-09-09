@@ -28,7 +28,7 @@ from report.newspaper import (
     render_html_to_png,
     topics_needing_body,
 )
-from report.summarize import campione_citabile, istogramma_lunghezze
+from report.summarize import istogramma_lunghezze
 from report.vignetta import (
     DESCRIZIONI,
     Biblioteca,
@@ -262,6 +262,7 @@ async def _run_newspaper_report(
         lead_tono,
         lead_battute,
         lead_fonte,
+        lead_citabili,
     ) = write_lead_story(
         openai_client,
         config.openai_model,
@@ -314,7 +315,14 @@ async def _run_newspaper_report(
             vignetta = componi(
                 tono,
                 battute,
-                campione_citabile(all_messages, 10_000, minimo=20, massimo=110),
+                # Lo STESSO elenco che il modello aveva davanti quando ha
+                # scelto le battute. Rifarlo qui con altri parametri
+                # significava dichiarare inventata una battuta autentica
+                # ogni volta che la sua frase cadeva fuori dalla fascia
+                # ricostruita: il 7 settembre è successo con una riga di
+                # 114 caratteri, mostrata (fino a 130) e poi cercata in un
+                # campione che si fermava a 110.
+                lead_citabili,
                 target_date,
                 biblioteca,
             )
