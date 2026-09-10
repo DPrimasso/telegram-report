@@ -46,6 +46,15 @@ riepilogo. Due formati disponibili:
   alla ricompressione di Telegram vengono renderizzate a risoluzione doppia.
   Se Telegram rifiuta l'immagine perché troppo grande, l'invio ripiega
   automaticamente sul documento.
+- **Il conto dell'edizione**: subito dopo il gazzettino arriva un secondo
+  messaggio, privato, con quanto è costato scriverlo — dollari, token in
+  ingresso e in uscita, quanti di quelli in ingresso sono stati riletti
+  dalla cache, e la spesa divisa per voce (articoli, brevi, apertura,
+  vignetta). Non è una stima: i token sono quelli che l'API dichiara a
+  ogni risposta, contati mentre il giornale si scrive (`report/spesa.py`).
+  Va in una chat sua e non in coda al giornale, così il gazzettino può
+  uscire nel topic del gruppo mentre il conto resta nei Messaggi salvati
+  di chi lo paga: si sceglie con `SPESA_DESTINATION`, e `off` lo spegne.
 - **Scheduling**: GitHub Actions, con un cron giornaliero e un trigger
   manuale (`workflow_dispatch`) per i run on-demand — gira anche a PC spento.
 
@@ -111,6 +120,17 @@ personalizzare i default:
 - `REPORT_SECTION_FAMILIES` (gruppi di topic con la stessa forma, che
   vanno impaginati in un blocco compatto invece che come articoli
   separati; default: le otto leghe di fantacalcio). Stessa sintassi.
+- `SPESA_DESTINATION` (dove arriva il conto di quanto è costata
+  l'edizione; default `me`, cioè i Messaggi salvati). Accetta anche
+  `group`, l'ID di un'altra chat, oppure `off` per non riceverlo. Non
+  segue `REPORT_DESTINATION` apposta: il giornale può uscire nel gruppo
+  mentre il conto resta privato.
+- `PREZZO_INPUT` e `PREZZO_OUTPUT` (listino del modello, in dollari per
+  milione di token; default: quello di `report/spesa.py`, `0.20` e `1.20`
+  per `gpt-5.6-luna`). Servono se i prezzi cambiano o se `OPENAI_MODEL`
+  punta a un altro modello: i token restano contati veri in ogni caso, ma
+  il cambio in dollari lo diamo noi — e se non combaciano il conto lo
+  scrive da sé, invece di dare un numero sbagliato con aria sicura.
 
 ### 5. Primo test manuale
 
@@ -133,7 +153,14 @@ due script che girano offline su dati finti:
 ```bash
 python preview.py     # le pagine del gazzettino in preview_out/
 python catalogo.py    # campionario degli elementi grafici in catalogo.png
+python costo.py       # quanto costerebbe un'edizione, prima di pagarla
 ```
+
+`costo.py` e il conto che arriva su Telegram guardano lo stesso numero da
+due parti: il primo lo stima a tavolino su una giornata inventata — serve a
+capire se una modifica ai prompt conviene, prima di farla — il secondo lo
+misura sull'edizione vera. Il listino è scritto una volta sola, in
+`report/spesa.py`, così stima e conto non possono divergere.
 
 ## Passare all'invio nel topic del gruppo
 

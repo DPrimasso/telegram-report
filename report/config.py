@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
-from report import scribe
+from report import scribe, spesa
 
 load_dotenv()
 
@@ -23,6 +23,23 @@ def _csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     raw = os.environ.get(name) or ""
     values = tuple(part.strip() for part in raw.split(",") if part.strip())
     return values or default
+
+
+def _prezzo(name: str, default: float) -> float:
+    """Un prezzo in dollari per milione di token, dall'ambiente.
+
+    Un valore scritto male non ferma il gazzettino: si torna al listino di
+    report/spesa.py e lo si dice. Il conto della serata è una nota a
+    margine, e far fallire l'edizione notturna per una virgola di troppo in
+    una variabile sarebbe la reazione sbagliata."""
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        return float(raw.replace(",", "."))
+    except ValueError:
+        print(f"{name}={raw!r} non è un numero: uso il listino di default ({default}).")
+        return default
 
 
 @dataclass(frozen=True)
@@ -47,6 +64,14 @@ class Config:
     vignette_dir: str
     scribe_names: tuple[str, ...]
     scribe_summary_markers: tuple[str, ...]
+    # Dove arriva il conto di quanto è costata l'edizione, e con che
+    # listino si calcola. La destinazione è una variabile sua e non segue
+    # quella del report perché sono due cose diverse: il gazzettino può
+    # uscire nel topic del gruppo, ma quanto è costato scriverlo riguarda
+    # chi lo paga. None = non si manda niente a nessuno.
+    spesa_destination: str | None
+    prezzo_input: float
+    prezzo_output: float
 
 
 def load_config() -> Config:
@@ -68,6 +93,14 @@ def load_config() -> Config:
     elif destination == "group":
         destination = str(group_id)
 
+    # Il conto va di default nei Messaggi salvati, che è il posto privato
+    # che questo programma ha già. "off" lo spegne del tutto.
+    conto = (os.environ.get("SPESA_DESTINATION") or "me").strip()
+    if conto.lower() in ("off", "no", "none", "0"):
+        conto = None
+    elif conto == "group":
+        conto = str(group_id)
+
     return Config(
         api_id=int(_require("TELEGRAM_API_ID")),
         api_hash=_require("TELEGRAM_API_HASH"),
@@ -87,4 +120,7 @@ def load_config() -> Config:
         scribe_summary_markers=_csv(
             "SCRIBE_SUMMARY_MARKERS", scribe.DEFAULT_SUMMARY_MARKERS
         ),
+        spesa_destination=conto,
+        prezzo_input=_prezzo("PREZZO_INPUT", spesa.PREZZO_INPUT),
+        prezzo_output=_prezzo("PREZZO_OUTPUT", spesa.PREZZO_OUTPUT),
     )

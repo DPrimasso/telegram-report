@@ -53,7 +53,7 @@ jobs:
           TELEGRAM_GROUP_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-          # Le due variabili che decidono la destinazione sono scritte qui e
+          # Le variabili che decidono le destinazioni sono scritte qui e
           # NON lette da "vars": e' cio' che impedisce a questo workflow di
           # postare nel gruppo, qualunque cosa dicano le variabili del repo.
           # "me" = Messaggi salvati dell'account di TELEGRAM_SESSION.
@@ -62,6 +62,9 @@ jobs:
           # prescindere dalla destinazione, e in Messaggi salvati quell'ID
           # di messaggio non esiste.
           REPORT_TOPIC_ID: ""
+          # Anche il conto dell'edizione: una prova non deve poter dire al
+          # gruppo quanto costa il giornale.
+          SPESA_DESTINATION: me
 
           # Queste non toccano la destinazione: restano quelle del repo, cosi
           # la prova somiglia al report vero.
@@ -70,6 +73,8 @@ jobs:
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
           REPORT_SECTIONS: ${{ vars.REPORT_SECTIONS }}
           REPORT_SECTION_FAMILIES: ${{ vars.REPORT_SECTION_FAMILIES }}
+          PREZZO_INPUT: ${{ vars.PREZZO_INPUT }}
+          PREZZO_OUTPUT: ${{ vars.PREZZO_OUTPUT }}
 
           # Gli input passano da env e non vengono interpolati dentro lo
           # script: cosi' quello che scrivi nel campo resta un dato e non

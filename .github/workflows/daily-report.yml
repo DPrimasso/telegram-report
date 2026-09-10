@@ -55,6 +55,11 @@ jobs:
           REPORT_TOPIC_ID: ${{ vars.REPORT_TOPIC_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
           NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
+          # Dove arriva il conto dell'edizione, e con che listino. Vuote =
+          # i Messaggi salvati e i prezzi di report/spesa.py.
+          SPESA_DESTINATION: ${{ vars.SPESA_DESTINATION }}
+          PREZZO_INPUT: ${{ vars.PREZZO_INPUT }}
+          PREZZO_OUTPUT: ${{ vars.PREZZO_OUTPUT }}
           # Mappa topic -> sezione. Vuote = i valori di report/sections.py:
           # servono solo per correggere una sezione senza toccare il codice.
           REPORT_SECTIONS: ${{ vars.REPORT_SECTIONS }}

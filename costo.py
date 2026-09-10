@@ -22,13 +22,14 @@ from __future__ import annotations
 import random
 from datetime import date, datetime, timedelta
 
-from report import llm, summarize, vignetta
+from report import llm, spesa, summarize, vignetta
 from report.newspaper import topics_needing_body
 from report.vignetta import Biblioteca
 
-# Prezzi del modello in uso (gpt-5.6-luna), dollari per milione di token.
-# Sono quelli che avevamo assunto: se cambiano, si cambiano qui.
-P_IN, P_OUT = 0.20, 1.20
+# Il listino sta in report/spesa.py, che è anche quello con cui viene
+# fatturata l'edizione vera: una stima che usa prezzi diversi dal conto non
+# serve a decidere niente.
+P_IN, P_OUT = spesa.PREZZO_INPUT, spesa.PREZZO_OUTPUT
 
 # La cache dei prompt. Su gpt-5.6 il prefisso già visto costa il 10% del
 # normale, la prima volta che lo si stabilisce costa il 125%, e sotto i
@@ -37,7 +38,7 @@ P_IN, P_OUT = 0.20, 1.20
 # quindi dentro una run tutte le chiamate si trovano quella di prima.
 CACHE_MINIMA = 1024
 CACHE_SCATTO = 128
-CACHE_LETTURA = 0.10
+CACHE_LETTURA = spesa.SCONTO_CACHE
 CACHE_SCRITTURA = 1.25
 
 # Lunghezza media di un messaggio di chat, in caratteri. Presa alta di
