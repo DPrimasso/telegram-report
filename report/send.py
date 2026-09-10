@@ -32,14 +32,14 @@ def _split_message(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
     return chunks
 
 
-def _resolve_target(config: Config):
-    if config.report_destination == "me":
+def _resolve_target(destination: str):
+    if destination == "me":
         return "me"
-    return int(config.report_destination)
+    return int(destination)
 
 
 async def send_report(client: TelegramClient, config: Config, text: str) -> None:
-    target = _resolve_target(config)
+    target = _resolve_target(config.report_destination)
 
     kwargs = {"parse_mode": "html"}
     if config.report_topic_id:
@@ -57,7 +57,7 @@ async def send_photo_report(
     raggruppa in un album, quindi arrivano come un unico blocco sfogliabile.
     Telegram ricomprime le foto: le pagine vanno renderizzate a risoluzione
     doppia (vedi newspaper.py) perché il testo resti leggibile."""
-    target = _resolve_target(config)
+    target = _resolve_target(config.report_destination)
 
     kwargs = {"parse_mode": "html"}
     if caption:
@@ -78,3 +78,18 @@ async def send_photo_report(
             "ripiego sull'invio come documento."
         )
         await client.send_file(target, image_paths, force_document=True, **kwargs)
+
+
+async def send_spesa(client: TelegramClient, config: Config, text: str) -> None:
+    """Il conto dell'edizione, in una chat sua.
+
+    Non è in coda al gazzettino e non porta mai il `reply_to` del topic:
+    quando il giornale esce nel gruppo, il conto deve poter restare nei
+    Messaggi salvati di chi lo paga. È corto per costruzione — una decina
+    di righe di numeri — quindi non passa dallo spezzettamento, che fra
+    l'altro taglierebbe a metà il blocco <pre> della tabella."""
+    if not config.spesa_destination:
+        return
+    await client.send_message(
+        _resolve_target(config.spesa_destination), text, parse_mode="html"
+    )

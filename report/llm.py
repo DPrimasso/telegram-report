@@ -11,6 +11,8 @@ la regola — e qui si decide se ha senso spedirla davvero.
 
 from openai import BadRequestError
 
+from report import spesa
+
 # Prefissi dei modelli che accettano solo la temperatura di default. Il
 # confronto è per prefisso perché i nomi portano suffissi di ogni tipo
 # (gpt-5.6-luna, o4-mini, ...). Sbagliare per eccesso qui non fa danni: si
@@ -57,4 +59,9 @@ def complete(
             raise
         _rejected_temperature.add(model.strip().lower())
         response = _create(client, model, prompt, None)
+    # Qui passa ogni chiamata del gazzettino, ed è l'unico posto in cui la
+    # risposta esiste ancora intera: da lì in su torna solo il testo, e i
+    # token che è costato si perderebbero. Il 400 di sopra non si registra
+    # perché una chiamata rifiutata non si paga.
+    spesa.registra(model, response)
     return (response.choices[0].message.content or "").strip()

@@ -36,9 +36,10 @@ from report.vignetta import (
     leggi_battute,
     pick_vignetta,
 )
+from report import spesa
 from report.report_builder import build_report
 from report.sections import load_section_map
-from report.send import send_photo_report, send_report
+from report.send import send_photo_report, send_report, send_spesa
 from report.summarize import (
     summarize_overall,
     write_brief_headlines,
@@ -115,6 +116,34 @@ def _dump_topic(topics: list[TopicMessages], needle: str) -> None:
             print(f"[{m.timestamp:%H:%M}] {m.author}: {m.text}")
 
 
+async def _manda_il_conto(client, config: Config, giorno: date) -> None:
+    """Quanto è costata questa edizione, in privato e dopo il gazzettino.
+
+    Arriva sempre dopo il giornale e mai insieme, e un suo problema non
+    diventa un problema del giornale: se la chat in SPESA_DESTINATION è
+    sbagliata, o se Telegram fa i capricci proprio adesso, il gazzettino è
+    già partito e sarebbe assurdo far fallire la run notturna per la nota
+    a margine che la commenta. Il conto resta comunque nei log."""
+    if spesa.tassametro.vuoto:
+        return
+
+    listino = spesa.Listino(config.prezzo_input, config.prezzo_output)
+    print(spesa.riga_di_log(spesa.tassametro, listino))
+    if not config.spesa_destination:
+        return
+
+    try:
+        await send_spesa(
+            client,
+            config,
+            spesa.riepilogo(
+                spesa.tassametro, listino, giorno, config.openai_model
+            ),
+        )
+    except Exception as errore:  # noqa: BLE001 - vedi docstring
+        print(f"Il conto dell'edizione non è partito ({errore}).")
+
+
 async def _run_text_report(
     client,
     config: Config,
@@ -128,6 +157,7 @@ async def _run_text_report(
         report_text = build_report(target_date, None, [])
     else:
         topic_summaries = []
+        spesa.fase("riassunti")
         for topic in topics:
             if not topic.messages:
                 continue
@@ -141,6 +171,7 @@ async def _run_text_report(
             topic_summaries.append((topic.title, len(topic.messages), summary))
 
         print("Individuo i punti salienti trasversali della giornata...")
+        spesa.fase("salienti")
         general_summary = summarize_overall(
             openai_client, config.openai_model, all_messages
         )
@@ -149,6 +180,7 @@ async def _run_text_report(
 
     print("Invio il report su Telegram...")
     await send_report(client, config, report_text)
+    await _manda_il_conto(client, config, target_date)
     print("Fatto.")
 
 
@@ -211,6 +243,10 @@ async def _run_newspaper_report(
     # già ordinata per volume: l'ordine con cui i pezzi si LEGGONO lo
     # decide poi arrange_sections, che è un'altra cosa.
     ordinati = sorted(attivi, key=lambda t: len(t.messages), reverse=True)
+    # Le voci del conto sono le stesse tappe che il programma già annuncia
+    # mentre lavora: chi legge i log e chi legge il conto vedono la stessa
+    # edizione divisa allo stesso modo.
+    spesa.fase("articoli")
     for topic in ordinati:
         if topic.title not in con_corpo:
             continue
@@ -231,6 +267,7 @@ async def _run_newspaper_report(
     minori = [t for t in ordinati if t.title not in con_corpo]
     if minori:
         print(f"Scrivo i titoli delle brevi ({len(minori)} temi) in una chiamata...")
+        spesa.fase("brevi")
         titoli = write_brief_headlines(
             openai_client,
             config.openai_model,
@@ -243,6 +280,7 @@ async def _run_newspaper_report(
                 aggiungi(topic.title, headline, "", "", None, len(topic.messages))
 
     print("Scrivo l'articolo di apertura...")
+    spesa.fase("apertura")
     # L'occhiello dell'apertura lo sceglie chi scrive il pezzo, fra le
     # sezioni davvero attive oggi: prima lo decideva il codice prendendo
     # il topic più attivo, che è un'altra cosa — la notizia di apertura
@@ -322,6 +360,7 @@ async def _run_newspaper_report(
         # hanno superato la verifica, si torna alla chiamata dedicata.
         if vignetta is None:
             print("Compongo la vignetta del giorno con una chiamata a parte...")
+            spesa.fase("vignetta")
             vignetta = pick_vignetta(
                 openai_client,
                 config.openai_model,
@@ -337,6 +376,7 @@ async def _run_newspaper_report(
     quote = None
     if vignetta is None:
         print("Scelgo la frase del giorno...")
+        spesa.fase("frase")
         quote = pick_quote(openai_client, config.openai_model, all_messages)
 
     print("Recupero il nome del gruppo per la testata...")
@@ -385,6 +425,7 @@ async def _run_newspaper_report(
         caption = f"📰 {newspaper_name} — {giorno_di_uscita.strftime('%d/%m/%Y')}"
         await send_photo_report(client, config, image_paths, caption=caption)
 
+    await _manda_il_conto(client, config, target_date)
     print("Fatto.")
 
 
