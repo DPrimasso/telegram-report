@@ -498,7 +498,7 @@ p {{ margin: 0; }}
   flex: 1;
   padding-top: 16px; border-top: 2px solid {INK};
   display: flex; flex-direction: column; align-items: center;
-  justify-content: space-evenly;
+  justify-content: space-evenly; gap: 14px;
 }}
 /* I segni si prendono l'aria che trovano, ma non oltre il tetto: un
    marchio alto mezza colonna non è più una firma, è un manifesto. 118px
