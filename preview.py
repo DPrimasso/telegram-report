@@ -28,6 +28,7 @@ from report.newspaper import (
     build_pages_html,
     render_html_to_png,
 )
+from report.config import DEFAULT_MARCHI
 from report.vignetta import Biblioteca
 
 SAMPLE_DATE = date(2026, 8, 5)
@@ -340,6 +341,13 @@ async def main() -> None:
         action="store_true",
         help="una voce sola invece dello scambio a due",
     )
+    parser.add_argument(
+        "--marchi",
+        nargs="*",
+        default=list(DEFAULT_MARCHI),
+        help="i marchi in fondo alla colonna dei richiami, in ordine; "
+             "senza argomenti la riga non esce",
+    )
     args = parser.parse_args()
 
     out = Path(args.out)
@@ -385,6 +393,7 @@ async def main() -> None:
         SAMPLE_ARTICLES,
         logo_path=logo if logo.exists() else None,
         firma_path=firma if firma.exists() else None,
+        marchi_paths=list(args.marchi),
         index_entries=SAMPLE_INDEX,
         stats=SAMPLE_STATS,
         quote=SAMPLE_QUOTE,

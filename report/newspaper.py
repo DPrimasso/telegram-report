@@ -319,9 +319,6 @@ def italian_date(day: date) -> str:
     return f"{_IT_WEEKDAYS[day.weekday()]} {day.day} {_IT_MONTHS[day.month - 1]} {day.year}"
 
 
-def short_italian_date(day: date) -> str:
-    return f"{_IT_WEEKDAYS[day.weekday()][:3]} {day.day} {_IT_MONTHS[day.month - 1][:3]} {day.year}"
-
 
 def giorno_e_mese(day: date) -> str:
     """Il giorno per le rubriche: senza l'anno e in minuscolo.
@@ -363,7 +360,7 @@ p {{ margin: 0; }}
 .kicker, .section-label, .dateline, .rimando, .folio, .chip,
 .strillo .sez, .strillo .pag, .dentro-row .sez, .dentro-row .pag,
 .band, .brief-head, .footer, .stats, .numero,
-.continuation, .vignetta .didascalia, .balloon .chi {{
+.vignetta .didascalia, .balloon .chi {{
   font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
 }}
 /* Nessun angolo arrotondato in tutto il documento: la struttura la fanno
@@ -476,6 +473,41 @@ p {{ margin: 0; }}
 .vetrina-side {{
   flex: none; width: 292px; padding-left: 30px;
   border-left: 1px solid {INK};
+  display: flex; flex-direction: column;
+}}
+/* I marchi che chiudono la colonna dei richiami.
+
+   Nei giorni con la vignetta l'apertura è molto più alta della colonna e
+   sotto i richiami restava mezzo palmo di bianco. Il blocco prende tutto
+   quel resto (`flex: 1`) e ci distribuisce dentro i tre segni invece di
+   accucciarsi a piedi di colonna: il bianco lo coprono, che è il motivo
+   per cui stanno lì. Siccome è spazio già stirato, nei giorni con la
+   vignetta non costano un pixel di pagina in più.
+
+   In pila e non in riga: tre segni affiancati stanno su una striscia
+   alta quanto uno solo e il bianco sotto resta; impilati e spaziati
+   occupano la colonna per quello che è, una colonna.
+
+   `space-evenly` e non `space-between`: l'aria sopra il primo segno e
+   quella sotto l'ultimo valgono come quella fra i tre, altrimenti il
+   primo si incolla al filetto e l'ultimo al bordo della pagina. */
+.marchi {{
+  flex: 1;
+  padding-top: 16px; border-top: 2px solid {INK};
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: space-evenly; gap: 14px;
+}}
+/* I segni si prendono l'aria che trovano, ma non oltre il tetto: un
+   marchio alto mezza colonna non è più una firma, è un manifesto. 118px
+   è la misura in cui i tre riempiono il bianco di un giorno con la
+   vignetta senza diventare un'insegna. Nei giorni senza vignetta il
+   bianco è meno e la pila diventa lei la misura della colonna: la prima
+   pagina cresce di un palmo, che è il prezzo di non lasciare più il
+   buco. */
+.marchi img {{
+  flex: 0 0 auto;
+  max-height: 118px; max-width: 82%;
+  width: auto; height: auto; object-fit: contain; display: block;
 }}
 /* Dentro la griglia l'apertura non ha più margini suoi: i margini li dà
    la colonna. */
@@ -880,21 +912,6 @@ p {{ margin: 0; }}
    cercare. */
 .footer .folio {{ color: #fff; font-weight: 800; letter-spacing: 0.06em; }}
 
-/* Testatina della seconda pagina: più bassa della prima, così si capisce a
-   colpo d'occhio che è la continuazione e non un secondo giornale. */
-/* Le pagine interne non ripetono il marchio: portano una riga di folio,
-   nome del giornale a sinistra e pagina a destra, come si usa. Ripetere
-   la testata intera a ogni pagina faceva sembrare ogni pagina l'inizio di
-   un giornale nuovo. */
-.continuation {{
-  background: {PAPER}; padding: 14px 56px; display: flex;
-  align-items: baseline; justify-content: space-between; gap: 24px;
-  border-top: 3px solid {INK}; border-bottom: 1px solid {INK};
-  font-size: 15px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase;
-}}
-.continuation .testata {{ color: {INK}; }}
-.continuation .folio {{ color: {AZZURRO}; font-size: 15px; }}
 """
 
 
@@ -1663,6 +1680,34 @@ def _numeri_del_giorno_html(stats: "Stats | None") -> str:
     )
 
 
+def _dateline_html(day: date, edition: str, numero: int, total: int) -> str:
+    """La barra sotto la testata, uguale su ogni pagina.
+
+    Le pagine interne portavano una riga loro — nome del giornale a
+    sinistra, data corta e pagina a destra — ed erano due barre diverse
+    nello stesso giornale, che è il modo più veloce per far sembrare la
+    pagina 2 l'inizio di un altro giornale. Il nome non serve a ripeterlo
+    qui: la prima pagina ce l'ha in testata grande, e queste sono fogli
+    dello stesso giornale, non volantini sciolti."""
+    folio = f"{edition} · {numero}/{total}" if total > 1 else edition
+    return (
+        '<div class="dateline">'
+        f"<span>{html.escape(italian_date(day))}</span>"
+        f'<span class="folio">{html.escape(folio)}</span></div>'
+    )
+
+
+def _marchi_html(uris: list[str]) -> str:
+    """La riga dei marchi a piedi della colonna dei richiami.
+
+    Senza nemmeno un file la riga non esce affatto: meglio il bianco di
+    prima che un filetto che non tiene niente."""
+    if not uris:
+        return ""
+    segni = "".join(f'<img src="{u}" alt="">' for u in uris)
+    return f'<div class="marchi">{segni}</div>'
+
+
 def _footer_html(
     numero: int,
     total: int,
@@ -1695,7 +1740,9 @@ def _footer_html(
 # pagina che sfonda il tetto proprio quando è più piena, perché è lì che
 # si accumulano tutti i blocchi fissi insieme.
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
-_H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
+# Le pagine interne portano la stessa barra della prima, quindi la stessa
+# altezza: quello che non hanno è la testata col marchio.
+_H_CONT_CHROME = 60 + 120           # dateline + footer
 _H_QUOTE = 245
 # Etichetta, pannello, didascalia e i due margini del blocco.
 _H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 4 + 28 + 22   # etichetta, pannello, didascalia
@@ -1712,6 +1759,12 @@ _H_STRILLO = 138        # un richiamo nella colonna di destra
 _H_DENTRO_SIDE = 77     # margine, filetto e titolo del sommario stretto
 _H_DENTRO_SIDE_ROW = 38 # una riga sezione/pagina nella colonna stretta
 _H_NUMERI_COLONNA = 22 + 16 + 2 + 33 + 4 * 41  # i quattro numeri in colonna
+# Il blocco dei marchi: filetto, stacco e i segni al loro tetto. Pesa solo
+# quando la colonna dei richiami è la più alta delle due — nei giorni con
+# la vignetta l'apertura la supera di molto e i marchi stanno nel bianco
+# che c'era già, e allora non pesa niente.
+_H_MARCHI_CHROME = 2 + 16
+_H_MARCHIO = 118
 _H_RIMANDO = 58         # "Il servizio a pagina N" in coda a un pezzo
 _H_VIRGOLETTATO = 120   # la citazione dentro il corpo, su una colonna
 _H_DENTRO_HEAD = 62     # titolo del sommario dell'edizione
@@ -1798,6 +1851,7 @@ def _estimate_front_height(
     con_vignetta: bool = False,
     con_numeri: bool = False,
     con_frase: bool = False,
+    n_marchi: int = 0,
 ) -> int:
     """L'altezza della vetrina.
 
@@ -1812,6 +1866,7 @@ def _estimate_front_height(
         _H_STRILLO * len(strilli)
         + (_H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0)
         + (_H_NUMERI_COLONNA if con_numeri else 0)
+        + (_H_MARCHI_CHROME + _H_MARCHIO * n_marchi if n_marchi else 0)
     )
     return (
         _H_CHROME_PRIMA
@@ -2037,6 +2092,7 @@ def build_pages_html(
     *,
     logo_path: str | Path | None = None,
     firma_path: str | Path | None = None,
+    marchi_paths: "list[str | Path] | None" = None,
     index_entries: list[tuple[str, int]] | None = None,
     stats: Stats | None = None,
     quote: Quote | None = None,
@@ -2071,6 +2127,10 @@ def build_pages_html(
     gazzettino esce la mattina dopo — e così chi chiama per un'anteprima
     o un controllo non deve saperne niente.
 
+    `marchi_paths` sono i segni che chiudono la colonna dei richiami in
+    prima pagina, in riga a piedi di colonna. I file che non esistono si
+    saltano; senza nessun file la riga non esce.
+
     `firma_path` è il marchio di chi fa il giornale: esce piccolo nella
     fascia di chiusura dell'ultima pagina, la gerenza. Va passato già
     pronto per quel fondo, che è blu quasi nero: un marchio di inchiostro
@@ -2086,6 +2146,11 @@ def build_pages_html(
     gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
     firma_uri = data_uri(firma_path) if firma_path else None
+    # I file che non ci sono si saltano uno per uno: se domani ne manca
+    # uno solo la riga esce con gli altri due, non sparisce tutta.
+    marchi_uris = [
+        data_uri(m) for m in (marchi_paths or []) if Path(m).exists()
+    ]
     index_entries = index_entries or []
     raccontato = giorno_raccontato or day - timedelta(days=1)
 
@@ -2200,6 +2265,7 @@ def build_pages_html(
         con_vignetta=bool(vignetta_html),
         con_numeri=stats is not None,
         con_frase=bool(contorno_html) and not vignetta_html,
+        n_marchi=len(marchi_uris),
     )
     if alta > MAX_PAGE_HEIGHT:
         print(
@@ -2222,7 +2288,6 @@ def build_pages_html(
         if edition_number
         else f"La giornata di {giorno_e_mese(raccontato)}"
     )
-    testatina = f'<span class="testata">{html.escape(newspaper_name)}</span>'
 
     def chiusura(numero: int) -> str:
         return (
@@ -2241,7 +2306,6 @@ def build_pages_html(
     def continua(numero: int) -> str:
         return _footer_html(numero, total, firma_uri)
 
-    folio_prima = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
     # L'ordine è quello di una prima pagina vera: testata, data, e poi la
     # griglia a due colonne — l'apertura sulla larga, i richiami e il
     # sommario sulla stretta. Sotto il taglio, la seconda notizia.
@@ -2255,11 +2319,11 @@ def build_pages_html(
         _strilli_html(strilli)
         + _dentro_html(dentro)
         + _numeri_del_giorno_html(stats)
+        + _marchi_html(marchi_uris)
     )
     vetrina = (
         _masthead(logo_uri, newspaper_name)
-        + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
-        f'<span class="folio">{html.escape(folio_prima)}</span></div>'
+        + _dateline_html(day, edition, 1, total)
         + '<div class="vetrina">'
         f'<div class="vetrina-main">{apertura}</div>'
         f'<div class="vetrina-side">{colonna}</div>'
@@ -2272,12 +2336,7 @@ def build_pages_html(
 
     for indice, chunk in enumerate(chunks):
         numero = indice + 2
-        testa = (
-            f'<div class="continuation">{testatina}'
-            f'<span class="folio">{html.escape(short_italian_date(day))} · '
-            f"Pagina {numero} di {total}</span>"
-            "</div>"
-        )
+        testa = _dateline_html(day, edition, numero, total)
         # Una sezione può finire a cavallo di due pagine: la testata si
         # ripete in cima alla successiva con "(segue)".
         precedente = chunks[indice - 1][-1] if indice > 0 and chunks[indice - 1] else None

@@ -402,6 +402,7 @@ async def _run_newspaper_report(
             articles,
             logo_path=logo if logo.exists() else None,
             firma_path=firma if firma.exists() else None,
+            marchi_paths=list(config.marchi_paths),
             index_entries=sections,
             stats=build_stats(all_messages),
             quote=quote,
