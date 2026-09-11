@@ -476,7 +476,28 @@ p {{ margin: 0; }}
 .vetrina-side {{
   flex: none; width: 292px; padding-left: 30px;
   border-left: 1px solid {INK};
+  display: flex; flex-direction: column;
 }}
+/* I marchi in fondo alla colonna dei richiami.
+
+   Il `margin-top: auto` non è un vezzo: è quello che li fa stare a piedi
+   della colonna invece che attaccati all'ultimo richiamo. Nei giorni con
+   la vignetta l'apertura è molto più alta della colonna e sotto i
+   richiami restava mezzo palmo di bianco — questo è il posto che quel
+   bianco stava tenendo. E siccome riempiono spazio già stirato, nei
+   giorni con la vignetta non costano un pixel di pagina in più.
+
+   In riga e non in pila: tre segni impilati diventano una colonnina di
+   pubblicità, tre affiancati sono la riga dei marchi che un giornale
+   porta in fondo alla prima. */
+.marchi {{
+  margin-top: auto; padding-top: 16px; border-top: 2px solid {INK};
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px;
+}}
+/* 54px è la misura in cui il «17» e la «CF» si leggono ancora: sotto
+   diventano tre macchie di colore che non dicono chi sono. */
+.marchi img {{ height: 54px; width: auto; display: block; }}
 /* Dentro la griglia l'apertura non ha più margini suoi: i margini li dà
    la colonna. */
 .vetrina .lead {{ padding: 0; background: transparent; border: none; }}
@@ -1663,6 +1684,17 @@ def _numeri_del_giorno_html(stats: "Stats | None") -> str:
     )
 
 
+def _marchi_html(uris: list[str]) -> str:
+    """La riga dei marchi a piedi della colonna dei richiami.
+
+    Senza nemmeno un file la riga non esce affatto: meglio il bianco di
+    prima che un filetto che non tiene niente."""
+    if not uris:
+        return ""
+    segni = "".join(f'<img src="{u}" alt="">' for u in uris)
+    return f'<div class="marchi">{segni}</div>'
+
+
 def _footer_html(
     numero: int,
     total: int,
@@ -1712,6 +1744,11 @@ _H_STRILLO = 138        # un richiamo nella colonna di destra
 _H_DENTRO_SIDE = 77     # margine, filetto e titolo del sommario stretto
 _H_DENTRO_SIDE_ROW = 38 # una riga sezione/pagina nella colonna stretta
 _H_NUMERI_COLONNA = 22 + 16 + 2 + 33 + 4 * 41  # i quattro numeri in colonna
+# La riga dei marchi: filetto, stacco e l'altezza dei segni. Pesa solo
+# quando la colonna dei richiami è la più alta delle due — nei giorni con
+# la vignetta l'apertura la supera di molto e i marchi stanno nel bianco
+# che c'era già.
+_H_MARCHI = 2 + 16 + 54
 _H_RIMANDO = 58         # "Il servizio a pagina N" in coda a un pezzo
 _H_VIRGOLETTATO = 120   # la citazione dentro il corpo, su una colonna
 _H_DENTRO_HEAD = 62     # titolo del sommario dell'edizione
@@ -1798,6 +1835,7 @@ def _estimate_front_height(
     con_vignetta: bool = False,
     con_numeri: bool = False,
     con_frase: bool = False,
+    con_marchi: bool = False,
 ) -> int:
     """L'altezza della vetrina.
 
@@ -1812,6 +1850,7 @@ def _estimate_front_height(
         _H_STRILLO * len(strilli)
         + (_H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0)
         + (_H_NUMERI_COLONNA if con_numeri else 0)
+        + (_H_MARCHI if con_marchi else 0)
     )
     return (
         _H_CHROME_PRIMA
@@ -2037,6 +2076,7 @@ def build_pages_html(
     *,
     logo_path: str | Path | None = None,
     firma_path: str | Path | None = None,
+    marchi_paths: "list[str | Path] | None" = None,
     index_entries: list[tuple[str, int]] | None = None,
     stats: Stats | None = None,
     quote: Quote | None = None,
@@ -2071,6 +2111,10 @@ def build_pages_html(
     gazzettino esce la mattina dopo — e così chi chiama per un'anteprima
     o un controllo non deve saperne niente.
 
+    `marchi_paths` sono i segni che chiudono la colonna dei richiami in
+    prima pagina, in riga a piedi di colonna. I file che non esistono si
+    saltano; senza nessun file la riga non esce.
+
     `firma_path` è il marchio di chi fa il giornale: esce piccolo nella
     fascia di chiusura dell'ultima pagina, la gerenza. Va passato già
     pronto per quel fondo, che è blu quasi nero: un marchio di inchiostro
@@ -2086,6 +2130,11 @@ def build_pages_html(
     gfx = graphics if graphics is not None else GraphicsOptions()
     logo_uri = data_uri(logo_path) if logo_path else None
     firma_uri = data_uri(firma_path) if firma_path else None
+    # I file che non ci sono si saltano uno per uno: se domani ne manca
+    # uno solo la riga esce con gli altri due, non sparisce tutta.
+    marchi_uris = [
+        data_uri(m) for m in (marchi_paths or []) if Path(m).exists()
+    ]
     index_entries = index_entries or []
     raccontato = giorno_raccontato or day - timedelta(days=1)
 
@@ -2200,6 +2249,7 @@ def build_pages_html(
         con_vignetta=bool(vignetta_html),
         con_numeri=stats is not None,
         con_frase=bool(contorno_html) and not vignetta_html,
+        con_marchi=bool(marchi_uris),
     )
     if alta > MAX_PAGE_HEIGHT:
         print(
@@ -2255,6 +2305,7 @@ def build_pages_html(
         _strilli_html(strilli)
         + _dentro_html(dentro)
         + _numeri_del_giorno_html(stats)
+        + _marchi_html(marchi_uris)
     )
     vetrina = (
         _masthead(logo_uri, newspaper_name)

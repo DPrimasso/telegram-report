@@ -25,6 +25,14 @@ def _csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return values or default
 
 
+# I tre segni della riga dei marchi, nell'ordine in cui escono in pagina.
+DEFAULT_MARCHI = (
+    "assets/logo-dprimo17.png",
+    "assets/logo-azzurro-marchio.png",
+    "assets/logo-cf.png",
+)
+
+
 def _prezzo(name: str, default: float) -> float:
     """Un prezzo in dollari per milione di token, dall'ambiente.
 
@@ -59,6 +67,10 @@ class Config:
     # Il marchio di chi fa il giornale, nella gerenza in fondo
     # all'ultima pagina. Se il file non c'è la fascia esce senza.
     firma_path: str
+    # I marchi in fondo alla colonna dei richiami, in prima pagina. In
+    # riga, nell'ordine in cui stanno qui. I file che non esistono si
+    # saltano: la riga esce con quelli che ci sono.
+    marchi_paths: tuple[str, ...]
     # La biblioteca dei disegni della vignetta. Se la cartella non c'è o è
     # vuota il gazzettino esce con la frase del giorno, come prima.
     vignette_dir: str
@@ -115,6 +127,7 @@ def load_config() -> Config:
         youtube_channel_id=os.environ.get("YOUTUBE_CHANNEL_ID") or "UCrXpaY2E4glX7Syy9xQiDIg",
         logo_path=os.environ.get("LOGO_PATH") or "assets/logo-carta.png",
         firma_path=os.environ.get("FIRMA_PATH") or "assets/logo-dprimo17-gerenza.png",
+        marchi_paths=_csv("MARCHI_PATHS", DEFAULT_MARCHI),
         vignette_dir=os.environ.get("VIGNETTE_DIR") or "assets/vignette",
         scribe_names=_csv("SCRIBE_BOT_NAMES", scribe.DEFAULT_BOT_NAMES),
         scribe_summary_markers=_csv(
