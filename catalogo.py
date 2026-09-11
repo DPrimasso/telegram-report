@@ -15,9 +15,8 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from preview import SAMPLE_HOURS, SAMPLE_INDEX, _sample_hero
+from preview import SAMPLE_HOURS, SAMPLE_INDEX
 from report.graphics import (
-    DUOTONE_FILTER,
     _GLYPHS,
     hourly_chart_svg,
     share_bar_svg,
@@ -32,7 +31,6 @@ from report.newspaper import (
     INK,
     NAVY,
     PAGE_WIDTH,
-    data_uri,
     render_html_to_png,
 )
 
@@ -65,12 +63,6 @@ p {{ margin: 0; }}
 
 .demo {{ padding: 24px; background: #fff; border: 2px solid {NAVY}; }}
 .demo.dark {{ background: {NAVY}; }}
-.pair {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }}
-.shot {{ height: 200px; overflow: hidden; }}
-.shot img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
-.shot.mono img {{ filter: grayscale(1) contrast(1.08); }}
-.shot.duotone img {{ filter: url(#duotone) contrast(1.04); }}
-.shot.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
 .shot-label {{
   font-size: 14px; font-weight: 800; letter-spacing: 0.12em;
   text-transform: uppercase; color: {AZZURRO_DEEP}; margin-top: 10px;
@@ -129,34 +121,8 @@ def _item(title: str, verdict: str, cls: str, why: str, demo: str) -> str:
     )
 
 
-def build_html(hero_uri: str) -> str:
+def build_html() -> str:
     items = []
-
-    shots = "".join(
-        f'<div><div class="shot {cls}"><img src="{hero_uri}" alt=""></div>'
-        f'<div class="shot-label">{label}</div></div>'
-        for cls, label in (
-            ("mono", "Bianco e nero (attuale)"),
-            ("duotone-soft", "Bicromia morbida"),
-            ("duotone", "Bicromia piena"),
-        )
-    ) if hero_uri else (
-        '<p class="why">Serve Pillow per generare la foto di prova: '
-        "<code>pip install pillow</code>.</p>"
-    )
-    items.append(_item(
-        "Trattamento delle fotografie",
-        "consigliato",
-        "si",
-        "È la scelta che conta di più, perché è quella che permette di mettere in "
-        "pagina una foto qualsiasi senza che la pagina si sfaldi. Il bianco e nero "
-        "uniforma ma spegne; la bicromia uniforma e lega la foto alla testata. "
-        "La <b>morbida</b> tiene i mezzitoni sul grigio-blu — resta una fotografia, "
-        "l'appartenenza la danno le ombre — ed è quella di default. La <b>piena</b> "
-        "porta i mezzitoni sull'azzurro del marchio: si riconosce anche in miniatura, "
-        "ma è una scelta forte e su un ritratto si vede parecchio.",
-        f'<div class="demo"><div class="pair">{shots}</div></div>',
-    ))
 
     items.append(_item(
         "Capolettera e fine pezzo",
@@ -263,7 +229,6 @@ def build_html(hero_uri: str) -> str:
 <style>{CSS}</style>
 </head>
 <body>
-{DUOTONE_FILTER}
 <div class="head">
   <h1>Campionario grafico</h1>
   <p>Ogni elemento è mostrato alla dimensione che avrebbe in pagina, con il motivo
@@ -284,10 +249,7 @@ async def main() -> None:
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    hero = _sample_hero(out.parent if str(out.parent) != "" else Path("."))
-    hero_uri = data_uri(hero.path) if hero else ""
-
-    await render_html_to_png(build_html(hero_uri), str(out), scale=args.scale)
+    await render_html_to_png(build_html(), str(out), scale=args.scale)
     print(f"scritto {out}")
 
 

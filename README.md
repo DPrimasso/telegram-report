@@ -19,14 +19,15 @@ riepilogo. Due formati disponibili:
 - **Testi**: OpenAI API (modello configurabile, default `gpt-4o-mini`).
 - **Pagine**: template HTML/CSS in stile giornale, trasformato in immagini
   PNG con [Playwright](https://playwright.dev/python/) (Chromium headless).
-  Il giornale si divide su due pagine quando ci sono almeno 4 articoli, con
-  gli articoli ripartiti in modo da bilanciare il volume di testo; sotto
-  quella soglia resta una pagina sola.
-- **Grafica**: foto in bicromia, capolettera, barrette di peso accanto ai
-  contatori e grafico dell'andamento orario, tutti generati in SVG dentro
-  la pagina (nessuna libreria, nessun asset scaricato). Il criterio con cui
-  sono stati scelti — e quelli scartati, illustrazioni generate dall'IA
-  comprese — sta in [`docs/grafica.md`](docs/grafica.md).
+  Le pagine sono quante ne servono, con gli articoli ridistribuiti perché
+  vengano tutte di altezza simile.
+- **Grafica**: nessuna immagine (l'unica in pagina è il logo della
+  testata). Il peso visivo lo fanno la tipografia e i dati — dato grande,
+  capolettera, barrette di peso, box «In breve», grafico dell'andamento
+  orario — generati in SVG dentro la pagina, senza librerie né asset
+  scaricati. Il criterio con cui sono stati scelti, e perché le foto del
+  gruppo sono state provate e poi tolte, sta in
+  [`docs/grafica.md`](docs/grafica.md).
 - **Invio**: per ora il report arriva in DM privato (Saved Messages, cioè
   messaggio a "te stesso"). In futuro, quando validato, si può spostare in un
   topic dedicato del gruppo cambiando solo configurazione (vedi sotto). Le

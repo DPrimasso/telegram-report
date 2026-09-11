@@ -30,11 +30,10 @@ come consigli.
 4. **Mai le emoji nel layout.** Hanno colore, volume e stile propri, e non
    sono le tue: sono la via più rapida al pacchiano. Se serve un segno,
    si disegna (vedi i pittogrammi).
-5. **Meglio niente che mediocre.** Se la fonte non regge — foto sotto i
-   600px, topic senza un'icona sensata, giornata senza dati per il
-   grafico — l'elemento non va in pagina. Una pagina tipografica pulita è
-   sempre una pagina valida; una pagina con dentro un'immagine sgranata
-   non lo è.
+5. **Meglio niente che mediocre.** Se la fonte non regge — un topic senza
+   un'icona sensata, una giornata senza dati per il grafico — l'elemento
+   non va in pagina. È la regola che alla fine ha portato a togliere del
+   tutto le immagini: vedi sotto.
 
 ## Cosa c'è in pagina
 
@@ -50,116 +49,172 @@ python catalogo.py          # scrive catalogo.png
 
 | Elemento | Cosa dice | Dove sta |
 |---|---|---|
-| **Bicromia sulle foto** | niente, ma *uniforma*: rende usabile una foto qualsiasi da chat | foto di apertura |
+| **Dato grande** | quanto ha dominato il topic principale | sotto l'indice |
 | **Capolettera** | dove comincia il pezzo principale | primo paragrafo dell'apertura |
 | **Quadratino di fine pezzo** | dove finisce un articolo | ultima riga di ogni pezzo |
 | **Barretta di peso** | quanto pesa quel topic rispetto al più discusso | riga del contatore messaggi |
+| **Pittogrammi dei topic** | distingue i topic a colpo d'occhio | tag dei pezzi e indice |
+| **Barra delle proporzioni** | quanto ha pesato ogni topic sulla giornata | sotto l'indice |
+| **Box «In breve»** | i topic minori, senza fingere che siano notizie | ultima pagina |
 | **Andamento orario** | *quando* è successo: la forma della giornata | fascia navy di chiusura |
 
-Il **trattamento delle fotografie** è la scelta che conta di più, perché è
-quella che permette di mettere in pagina una foto qualsiasi senza che la
-pagina si sfaldi. Tre opzioni (`photo_treatment`):
+### Le immagini: nessuna
 
-- `mono` — bianco e nero. Uniforma ma spegne. Era il comportamento
-  precedente.
-- `duotone-soft` — **default**. Ombre navy, mezzitoni grigio-blu. La foto
-  resta una fotografia; l'appartenenza alla testata la danno le ombre.
-- `duotone` — mezzitoni sull'azzurro del marchio. Si riconosce anche in
-  miniatura nello scroll della chat, ma è una scelta forte: su un
-  ritratto si vede parecchio.
+Il gazzettino non ha immagini. L'unica cosa raster in pagina è il logo
+della testata.
 
-L'**andamento orario** è l'elemento che aggiunge di più, perché è l'unico
-che porta in pagina un'informazione che il testo non ha: il gazzettino
-racconta cosa si è detto, il grafico racconta che se n'è parlato tutto
-d'un fiato dopo cena. Sta nella stessa fascia navy dei quattro numeri e li
-completa invece di ripeterli.
+Ci sono voluti tre tentativi per arrivarci, e vale la pena dire come è
+andata perché la conclusione non è ovvia. Prima una foto grande sotto
+l'apertura, poi anche nei pezzi, poi solo un provino piccolo in fondo:
+ogni giro sembrava il problema fosse *come* l'immagine veniva messa in
+pagina — ritaglio, proporzioni, trattamento cromatico, cornice.
 
-### Spenti di default
+Non era quello. Su una giornata reale del gruppo le immagini scelte erano
+un fermo immagine di un video con i sottotitoli impressi, lo screenshot
+di un articolo di giornale e uno scarabocchio con un logo sopra. Non sono
+fotografie editoriali: sono **artefatti di conversazione**, che
+funzionano a dimensione chat e dentro il contesto dei messaggi che li
+spiegano. Fuori di lì non dicono niente, a nessuna scala — e un elemento
+che non dice niente non sta in pagina, che è la regola con cui questo
+documento comincia.
 
-- **Pittogrammi dei topic** (`topic_glyphs`) — set disegnato a mano, nove
-  segni sulla stessa griglia e sullo stesso tratto: è l'omogeneità a
-  salvarlo, non il singolo disegno. L'abbinamento topic → segno lo fa un
-  elenco di parole chiave in `report/graphics.py`, **mai il modello**: un
-  topic che cambia icona da un giorno all'altro è il modo migliore per
-  non sembrare una testata. Restano spenti perché con i tag già colorati
-  aggiungono un secondo segnale nello stesso punto, e perché un topic che
-  non c'entra con nessuna icona ricade sui tre puntini, cioè su niente.
-- **Barra delle proporzioni** (`share_bar`) — corretta e leggibile, ma
-  l'indice a chip dice già i numeri. Nelle giornate con un topic
-  dominante aggiunge poco; in quelle equilibrate diventa una fila di
-  segmenti tutti uguali.
+Il codice per gestirle (proporzioni dal messaggio, cornice invece del
+taglio, colonnino per le miniature dei video, bicromia, provenienza delle
+anteprime dei link) è in `git log`, se un giorno il gruppo pubblicasse
+foto vere.
 
-## Illustrazione generata: com'è incorniciata
+**Quindi cosa riempie la pagina?** La tipografia e i dati: il dato
+grande, i tre gradini di ogni articolo, il box «In breve», il capolettera,
+il grafico orario, la barra delle proporzioni. Una pagina fatta di questi
+non ha buchi da tappare.
 
-È l'idea che viene per prima quando si dice "aggiungiamo grafica", ed è
-anche quella con il rapporto rischio/resa peggiore: **un'illustrazione
-generata non dice niente che il testo non dica già**, e viola quindi il
-principio alla radice. Per questo è **spenta di default**
-(`ILLUSTRATION_FALLBACK=1` per accenderla) e sta all'ultimo posto della
-catena, dopo la foto del gruppo e la copertina YouTube — cioè entra in
-gioco solo nei casi in cui oggi l'apertura resta tipografica, che è
-comunque una pagina valida.
+### Titolo, sommario, testo
 
-Se la si vuole, il modo in cui è incorniciata in `report/illustration.py`
-è quello che la rende sopportabile in una testata. Tre difese, in ordine:
+Un articolo ha tre gradini: **titolo, sommario, testo**. Senza il gradino
+di mezzo la pagina è un elenco di blocchi, non un giornale — ed è quello
+che si vedeva sull'edizione vera, dove parecchi pezzi uscivano come un
+unico paragrafo in grassetto senza corpo.
 
-1. **Uno stile solo, bloccato in una costante.** `ART_DIRECTION` non si
-   compone a runtime e non dipende dalla notizia. Una testata che cambia
-   registro grafico ogni giorno non sembra una testata, ed è esattamente
-   quello che succede lasciando scegliere lo stile al modello.
-2. **Il soggetto lo decide un passaggio separato.** Prima un modello di
-   testo riduce il titolo a un soggetto visivo semplice — un oggetto o
-   una natura morta, mai una scena con persone — poi quel soggetto entra
-   nel prompt dell'immagine. Buttare il titolo dentro il generatore
-   significa ritrovarsi scritte sbagliate, volti di giocatori veri e
-   stemmi in prima pagina, che è il caso in cui l'immagine generata si
-   nota di più ed è anche quello con i problemi di diritti.
-3. **Passa dallo stesso filtro duotone delle foto vere.** Non entra in
-   pagina una seconda tavolozza, e l'illustrazione si accorda con le
-   giornate in cui al suo posto c'è una fotografia. Una sorgente già a un
-   solo inchiostro attraversa quel passaggio senza dominanti impreviste:
-   è il motivo per cui lo stile chiesto è una linoleografia monocroma e
-   non un'illustrazione a colori.
+La causa non era il layout ma il formato chiesto al modello. Era
+posizionale — «RIGA 1: il titolo, dalla RIGA 2 il corpo» — e falliva nel
+modo peggiore: quando il modello rispondeva in un blocco unico, il parser
+prendeva **tutto il testo come titolo** e l'articolo usciva senza corpo,
+con un paragrafo intero stampato a 40px.
 
-La didascalia dice sempre che è generata. Un'immagine finta senza
-etichetta dentro un riepilogo di cose vere è l'unica cosa qui dentro che
-sarebbe un problema anche fuori dalla grafica.
+Ora il formato è a etichette (`TITOLO:` / `SOMMARIO:` / `TESTO:`), che
+sono molto più difficili da sbagliare, e il parser le riconosce anche
+fuori ordine, senza due punti e su più righe. Ma la difesa vera è
+l'invariante finale (`_enforce_lengths` in `report/summarize.py`):
+**qualunque cosa risponda il modello, quello che esce sono un titolo
+corto e un sommario di una frase**. L'eccedenza scala sempre verso il
+basso — dal titolo al sommario, dal sommario al corpo — perché è l'unica
+direzione che non perde testo. Serve a entrambi i livelli: appena tappato
+il titolo, il difetto si è ripresentato un gradino più giù, con il
+sommario che si prendeva tutto l'articolo e sotto restava «Nessun
+dettaglio disponibile». Un h3 con dentro un paragrafo
+non è un difetto di stile: è una pagina rotta, e il layout non può essere
+l'unico posto in cui ce ne accorgiamo.
 
-### Provarla
+### Gli orari sono nel fuso del report, non in UTC
 
-```bash
-python illustrazione.py                        # 3 varianti sul titolo di esempio
-python illustrazione.py --titolo "..." --n 1   # un titolo tuo, una sola immagine
-python illustrazione.py --pagina               # anche la prima pagina completa
-python illustrazione.py --qualita low          # bozze rapide e più economiche
-python illustrazione.py --finto                # prova a secco, nessuna spesa
-```
+Il grafico del ritmo della giornata è stato per un po' **ruotato di due
+ore**, e la cosa peggiore è che sembrava plausibile lo stesso: le
+colonne c'erano, la forma era credibile, semplicemente il picco non
+cadeva dove era successo il fatto.
 
-Ogni variante è una chiamata a pagamento al modello di immagini; lo
-script stampa quante ne sta per fare prima di partire. Il confronto
-mostra ogni variante grezza, in bicromia morbida e in bicromia piena,
-perché un'immagine generata non si giudica da sola ma nello slot in cui
-finisce, dopo il trattamento.
+La causa: Telethon consegna `message.date` in UTC, e `SimpleMessage` se lo
+teneva così. I confini del giorno erano giusti (il confronto fra datetime
+consapevoli funziona), ma **ogni ora mostrata** era quella di Greenwich:
+il grafico, l'ora di punta nelle statistiche, l'orario della frase del
+giorno, e gli orari nel transcript dato al modello — che quindi scriveva
+i pezzi leggendo orari sfalsati.
 
-Sul formato: lo slot dell'apertura è un 2.57:1, quindi si chiede
-`1600x624` e non un 16:9 — con il 16:9 si perde quasi un terzo
-dell'altezza nel ritaglio, e su una composizione centrata il taglio
-mangia il soggetto. Con `gpt-image-1`, che accetta solo misure fisse, va
-impostato `OPENAI_IMAGE_SIZE=1536x1024` accettando un ritaglio più
-aggressivo.
+Non era un semplice scostamento ma una rotazione: nella finestra
+[00:00, 24:00) ora italiana, un messaggio dell'una di notte finiva nella
+colonna delle 23. Su una partita delle 18:30 il picco si leggeva alle
+16:00.
+
+La conversione si fa **una volta sola in `fetch.py`**, dove il fuso è
+noto: `SimpleMessage.timestamp` è per contratto nel fuso configurato.
+Farla a valle avrebbe significato passare il fuso a chiunque legga
+un'ora, e bastava dimenticarne uno per riavere il difetto.
+
+### L'impaginazione bilancia le pagine
+
+Il riempimento avido decide bene *quante* pagine servono e male *come*
+riempirle: caricando ogni pagina fino al tetto, l'ultima si prende gli
+avanzi. Misurate su tre pagine: 1875, 999 e 2084 px — una piena, una
+vuota, una piena. Dopo il ribilanciamento verso un'altezza obiettivo:
+1875, 1314, 1769. Il numero di pagine non cambia mai, e se la
+redistribuzione sfondasse il tetto si tiene il risultato avido.
+
+Nella stessa occasione è caduta un'assunzione diventata falsa: «sotto le
+quattro notizie basta una pagina sola». Valeva quando la chiusura pesava
+340px; ora che porta anche il box «In breve» ne pesa molto di più, e tre
+trafiletti bastavano a mandare la pagina unica oltre il tetto. La soglia ora è una condizione sulla *altezza*, non solo sul
+numero.
+
+### Il dato grande e il box «In breve»
+
+Due elementi nati dallo stesso problema: **tredici topic attivi
+producevano tredici articoli della stessa forma**, cioè quattro pagine
+senza gerarchia — una schedina, non un giornale.
+
+- **Il dato grande** (`number_block`) sta sotto l'indice: il numero di
+  messaggi del topic più discusso, alla scala a cui i numeri si guardano
+  invece di leggerli, più la sua quota sulla giornata. Dà peso visivo
+  alla testa della pagina riempiendo lo spazio di informazione, che è
+  l'unico modo onesto di riempirlo.
+- **Il box «In breve»** (`brief_box`) raccoglie i topic oltre il quinto
+  (`MAX_FULL_ARTICLES`) in due colonne di soli titoli. Un trafiletto di
+  quattro righe per un topic da sei messaggi è una promessa che il
+  contenuto non mantiene; una riga di titolo la mantiene. La gerarchia si
+  vede solo se qualcosa è grande e qualcos'altro è piccolo.
 
 ## Cosa è stato scartato (e perché)
 
-### Foto sui pezzi secondari
+### Illustrazioni generate dall'IA
 
-Tentazione ovvia, visto che la seconda pagina è cinque blocchi di testo
-uguali. Scartata perché le foto buone in un gruppo Telegram sono poche:
-una per l'apertura si trova quasi sempre, cinque no. Il risultato reale
-sarebbe stato un pezzo con la foto e quattro senza, cioè una gerarchia
-falsa — sembrerebbe che quel pezzo conti di più, quando invece era solo
-l'unico con un'immagine sopra i 600px. La barretta di peso risolve lo
-stesso problema (spezzare la monotonia, dare una gerarchia) con
-un'informazione vera.
+È l'idea che viene per prima quando si dice "aggiungiamo grafica". È
+stata implementata per intero, provata, e poi rimossa: il codice sta
+nella storia di git (`git log --diff-filter=D -- report/illustration.py`)
+per chi volesse ripartire da lì, ma la prova ha confermato l'obiezione di
+principio invece di smentirla.
+
+**Cosa è successo.** L'implementazione era incorniciata bene: uno stile
+unico bloccato in una costante e indipendente dalla notizia, il soggetto
+ricavato da un passaggio di testo separato che escludeva volti, maglie,
+stemmi e scritte, l'immagine passata dallo stesso filtro duotone delle
+foto vere, la didascalia sempre esplicita. Su un titolo di mercato —
+prestito, firma attesa entro giovedì, slot in lista da liberare — è
+uscita una linoleografia pulita e ben fatta: un pallone appoggiato su un
+contratto, con una penna accanto.
+
+**Perché non basta.** Quell'immagine illustra *la categoria, non la
+notizia*. Andrebbe identica su qualunque titolo di mercato, oggi e fra
+due anni; del titolo specifico non raccoglie niente. Ed è un esito
+strutturale, non un sorteggio sfortunato: sono proprio i vincoli
+necessari — niente persone, niente scritte, niente stemmi, che senza si
+finisce con volti di giocatori veri e testo sbagliato in prima pagina — a
+lasciare disponibili solo oggetti di scena generici. Stringere il prompt
+per renderla più specifica porta a immagini più strane, non più
+pertinenti.
+
+Torna quindi il principio: **un'illustrazione generata non dice niente
+che il testo non dica già**. Con una foto vera del gruppo il problema non
+si pone — quella *è* la giornata, non una rappresentazione della
+giornata.
+
+**E il caso senza foto?** Non è un buco da riempire. La prima pagina
+senza immagine regge da sola — titolo, occhiello e capolettera fanno il
+lavoro — e ci guadagna: i 420px liberati fanno salire un secondo pezzo
+sopra il taglio. Confrontabile con `python preview.py --no-hero`.
+
+Se un giorno la si volesse riprendere, le tre difese dell'impianto
+rimosso restano quelle giuste (stile bloccato, soggetto da un passaggio
+separato, stesso trattamento cromatico delle foto vere). Quello che
+manca, e che nessuna di quelle difese risolve, è un modo di legare
+l'immagine al fatto e non all'argomento.
 
 ### Classifica dei partecipanti
 
@@ -177,18 +232,11 @@ toccare né Telegram né OpenAI:
 ```bash
 python preview.py                          # pagine con dati finti
 python preview.py --plain                  # com'era prima di questo modulo
-python preview.py --foto duotone           # bicromia piena invece che morbida
-python preview.py --glyphs --share         # con gli elementi opzionali accesi
-python preview.py --no-hero                # giornata senza foto
+python preview.py --no-glyphs              # spegne un singolo elemento
 python catalogo.py                         # campionario di tutti gli elementi
 ```
 
-Servono le dipendenze di sviluppo (`pip install -r requirements-dev.txt`):
-oltre a quelle di produzione c'è Pillow, usato solo per generare la foto
-di prova con cui si giudica il trattamento cromatico. Senza, l'anteprima
-gira lo stesso e mostra la variante senza foto.
-
-Serve anche Chromium. Se l'ambiente ne ha già uno con una revisione
+Serve Chromium. Se l'ambiente ne ha già uno con una revisione
 diversa da quella che Playwright si aspetta, si indica con
 `CHROMIUM_EXECUTABLE_PATH=/percorso/al/chrome`.
 

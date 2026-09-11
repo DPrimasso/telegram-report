@@ -1,19 +1,19 @@
-"""Composizione della prima pagina del gazzettino in stile "Azzurro Fluido".
+"""Composizione del gazzettino in stile "Azzurro Fluido".
 
-Sostituisce integralmente il vecchio report/newspaper.py. Differenze
-principali rispetto alla versione a quotidiano di carta:
+Scelte che reggono tutto il resto del file:
 
-- una colonna sola a 1080px invece di due colonne a 1100px: dopo la
-  ricompressione JPEG di Telegram un corpo a 17px su colonne da 500px era
-  al limite della leggibilità su telefono. Qui il corpo sta a 28-30px.
-- palette e marchio del canale (navy #0c2340 / azzurro #17a3e0) al posto
-  della carta avorio, così il report si riconosce nello scroll della chat.
-- blocchi nuovi: indice dei topic con i contatori, barra statistiche,
-  frase del giorno, foto di apertura.
-- le pagine non sono più al massimo due: le notizie si distribuiscono su
-  quante pagine servono, ognuna sotto la stessa altezza utile, perché con
-  molti topic attivi l'ultima pagina raccoglieva tutto il resto e
-  diventava una striscia illeggibile.
+- una colonna sola a 1080px: dopo la ricompressione JPEG di Telegram un
+  corpo a 17px su colonne da 500px era al limite della leggibilità su
+  telefono. Qui il corpo sta a 28-30px.
+- palette e marchio del canale (navy #0c2340 / azzurro #17a3e0), così il
+  report si riconosce nello scroll della chat.
+- **nessuna immagine** oltre al logo della testata: il peso visivo lo
+  fanno la tipografia e i dati. Il perché sta in docs/grafica.md.
+- ogni pezzo ha tre gradini — titolo, sommario, testo — e i topic minori
+  finiscono nel box "In breve" invece di avere un articolo ciascuno: con
+  tredici topic attivi, tredici pezzi uguali sono una schedina.
+- le pagine sono quante ne servono, sotto la stessa altezza utile e
+  ridistribuite perché vengano simili fra loro.
 """
 
 import base64
@@ -25,7 +25,6 @@ from datetime import date
 from pathlib import Path
 
 from report.graphics import (
-    DUOTONE_FILTER,
     hourly_chart_svg,
     share_bar_svg,
     topic_glyph_svg,
@@ -53,8 +52,15 @@ MAX_PAGE_HEIGHT = 2400
 MAX_ARTICLES_FIRST_PAGE = 3
 
 # Sotto questa soglia una pagina in più conterrebbe un trafiletto in mezzo
-# al bianco: meglio una pagina sola, anche un po' più lunga.
+# al bianco: meglio una pagina sola, anche un po' più lunga. Vale solo se
+# quella pagina ci sta davvero — vedi paginate_articles.
 MIN_ARTICLES_FOR_SPLIT = 4
+
+# Oltre questa posizione in classifica un topic non ha un articolo suo ma
+# una riga nel box "In breve". Con tredici topic attivi, tredici articoli
+# della stessa forma sono una schedina, non un giornale: la gerarchia si
+# vede solo se qualcosa è grande e qualcos'altro è piccolo.
+MAX_FULL_ARTICLES = 5
 
 _IT_WEEKDAYS = [
     "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica"
@@ -87,6 +93,11 @@ class Article:
     headline: str
     body: str
     count: int
+    # Sommario: la riga fra titolo e testo che aggiunge informazione
+    # invece di riformulare il titolo. Senza, un pezzo è titolo e blocco
+    # di testo — che è quello che rende una pagina un elenco invece di un
+    # giornale.
+    deck: str = ""
 
 
 @dataclass
@@ -106,15 +117,6 @@ class Quote:
 
 
 @dataclass
-class Hero:
-    """Foto di apertura. `path` è un file locale (già scaricato); `caption`
-    dice da dove arriva, perché una foto senza provenienza in un report
-    automatico sembra decorazione."""
-    path: str
-    caption: str = ""
-
-
-@dataclass
 class GraphicsOptions:
     """Quali elementi grafici accendere.
 
@@ -126,32 +128,28 @@ class GraphicsOptions:
     pagina di solo testo.
     """
 
-    # "mono" (bianco e nero), "duotone" (navy/azzurro pieno) o
-    # "duotone-soft" (navy/grigio-blu). Vedi report.graphics.
-    photo_treatment: str = "duotone-soft"
     drop_cap: bool = True       # capolettera sull'apertura
     end_mark: bool = True       # quadratino di fine articolo
     hourly_chart: bool = True   # andamento orario nella fascia di chiusura
     weight_bars: bool = True    # barretta di peso accanto al contatore messaggi
-    topic_glyphs: bool = False  # pittogramma nei tag e nell'indice
-    share_bar: bool = False     # barra delle proporzioni sotto l'indice
+    topic_glyphs: bool = True   # pittogramma nei tag e nell'indice
+    share_bar: bool = True      # barra delle proporzioni sotto l'indice
+    number_block: bool = True   # il dato grande sotto l'indice
+    brief_box: bool = True      # i topic minori raccolti in un box "In breve"
 
     @classmethod
     def none(cls) -> "GraphicsOptions":
         """Il gazzettino com'era prima di questo modulo."""
         return cls(
-            photo_treatment="mono",
             drop_cap=False,
             end_mark=False,
             hourly_chart=False,
             weight_bars=False,
             topic_glyphs=False,
             share_bar=False,
+            number_block=False,
+            brief_box=False,
         )
-
-    @property
-    def needs_duotone_filter(self) -> bool:
-        return self.photo_treatment.startswith("duotone")
 
 
 def italian_date(day: date) -> str:
@@ -249,19 +247,6 @@ p {{ margin: 0; }}
   background: {AZZURRO}; position: relative; top: 1px;
 }}
 
-/* Le fotografie non entrano in pagina come sono: arrivano da una chat,
-   con luci e dominanti tutte diverse, e accanto al navy pieno sembrano
-   ritagli. Il duotone navy/azzurro le uniforma e le lega alla testata. */
-.hero {{ width: 100%; height: 420px; overflow: hidden; margin-bottom: 12px; }}
-.hero img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
-.hero.mono img {{ filter: grayscale(1) contrast(1.08); }}
-.hero.duotone img {{ filter: url(#duotone) contrast(1.04); }}
-.hero.duotone-soft img {{ filter: url(#duotone-soft) contrast(1.04); }}
-.hero-caption {{
-  font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase; color: #5a5a5a;
-  border-bottom: 2px solid {NAVY}; padding-bottom: 14px; margin-bottom: 22px;
-}}
-
 .articles {{ background: {GROUND}; padding: 0 56px; }}
 .articles > .section-label {{ display: block; padding: 24px 0 4px 0; }}
 .article {{ border-top: 2px solid {NAVY}; padding: 26px 0; }}
@@ -280,8 +265,44 @@ p {{ margin: 0; }}
   display: inline-flex; align-items: center; gap: 12px;
   font-size: 16px; font-weight: 700; color: #5a5a5a; white-space: nowrap;
 }}
-.article h3 {{ font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 10px; }}
+.article h3 {{ font-size: 40px; line-height: 1.08; letter-spacing: -0.02em; margin-bottom: 10px; }}
+/* Sommario del pezzo: stessa funzione dell'occhiello dell'apertura, una
+   scala sotto. È il gradino che mancava — titolo, sommario, testo — e
+   senza il quale ogni articolo era un blocco unico. */
+.article .deck {{
+  font-size: 25px; line-height: 1.3; color: {AZZURRO_DEEP};
+  font-weight: 600; margin-bottom: 12px;
+}}
 .article .body {{ font-size: 28px; line-height: 1.45; }}
+
+/* Il dato grande: il numero che descrive la giornata, alla scala a cui i
+   numeri si guardano invece di leggerli. È l'elemento che dà peso visivo
+   alla testa della pagina senza chiedere niente a un'immagine. */
+.number {{
+  background: {NAVY}; color: #fff; padding: 26px 56px;
+  display: flex; align-items: baseline; gap: 26px;
+}}
+.number .big {{
+  font-size: 92px; font-weight: 800; letter-spacing: -0.04em;
+  line-height: 0.9; color: {AZZURRO};
+}}
+.number .said {{ font-size: 26px; line-height: 1.25; font-weight: 600; max-width: 620px; }}
+.number .said b {{ color: {AZZURRO_PALE}; }}
+
+/* In breve: i topic minori in due colonne, titolo e basta. Un trafiletto
+   di quattro righe per un topic da sei messaggi è una promessa che il
+   contenuto non mantiene. */
+.brief {{ background: #fff; padding: 26px 56px 30px 56px; border-top: 6px solid {NAVY}; }}
+.brief > .section-label {{ display: block; margin-bottom: 16px; }}
+.brief-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }}
+.brief-item {{ border-top: 2px solid {NAVY}; padding: 14px 0; }}
+.brief-item .head {{
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+  font-size: 14px; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+.brief-item .head .n {{ color: #8a8a8a; }}
+.brief-item p {{ font-size: 25px; line-height: 1.22; font-weight: 700; letter-spacing: -0.015em; }}
 
 .quote {{ background: {AZZURRO}; color: {NAVY}; padding: 34px 56px; }}
 .quote .section-label {{ display: block; color: {NAVY}; margin-bottom: 14px; }}
@@ -335,11 +356,7 @@ p {{ margin: 0; }}
 """
 
 
-def _wrap_page(inner: str, *, duotone: bool = False) -> str:
-    # Il filtro duotone è un <filter> SVG referenziato dal CSS: deve stare
-    # nel documento, non nel foglio di stile. Lo includiamo solo quando
-    # serve davvero, per non lasciare un nodo inerte in ogni pagina.
-    defs = DUOTONE_FILTER if duotone else ""
+def _wrap_page(inner: str) -> str:
     return f"""<!doctype html>
 <html lang="it">
 <head>
@@ -349,7 +366,6 @@ def _wrap_page(inner: str, *, duotone: bool = False) -> str:
 <style>{CSS}</style>
 </head>
 <body>
-{defs}
 {inner}
 </body>
 </html>"""
@@ -385,22 +401,7 @@ def _index_html(entries: list[tuple[str, int]], gfx: GraphicsOptions) -> str:
     )
 
 
-def _hero_html(hero: Hero | None, gfx: GraphicsOptions) -> str:
-    if hero is None:
-        return ""
-    caption = (
-        f'<div class="hero-caption">{html.escape(hero.caption)}</div>'
-        if hero.caption
-        else ""
-    )
-    treatment = gfx.photo_treatment
-    return (
-        f'<div class="hero {treatment}"><img src="{data_uri(hero.path)}" alt="">'
-        f"</div>{caption}"
-    )
-
-
-def _lead_html(lead: Lead, hero: Hero | None, gfx: GraphicsOptions) -> str:
+def _lead_html(lead: Lead, gfx: GraphicsOptions) -> str:
     kicker = (
         f'<div class="kicker">Apertura · {html.escape(lead.kicker)}</div>'
         if lead.kicker
@@ -419,7 +420,7 @@ def _lead_html(lead: Lead, hero: Hero | None, gfx: GraphicsOptions) -> str:
     body_class = "body dropcap" if gfx.drop_cap else "body"
     return (
         f'<div class="lead">{kicker}<h2>{headline}</h2>{deck}'
-        f'{_hero_html(hero, gfx)}<div class="{body_class}">{body}</div></div>'
+        f'<div class="{body_class}">{body}</div></div>'
     )
 
 
@@ -436,12 +437,20 @@ def _articles_html(
         glyph = topic_glyph_svg(a.topic, size=17) if gfx.topic_glyphs else ""
         weight = weight_bar_svg(a.count, top_count) if gfx.weight_bars else ""
         end = END_MARK if gfx.end_mark else ""
+        deck = f'<p class="deck">{html.escape(a.deck)}</p>' if a.deck else ""
+        # Senza corpo il segno di fine pezzo va sul sommario, o resterebbe
+        # appeso a un paragrafo vuoto.
+        if a.body:
+            body = deck + f'<p class="body">{html.escape(a.body)}{end}</p>'
+        elif a.deck:
+            body = f'<p class="deck">{html.escape(a.deck)}{end}</p>'
+        else:
+            body = ""
         blocks.append(
             '<div class="article"><div class="article-head">'
             f'<span class="topic-tag">{glyph}{html.escape(a.topic)}</span>'
             f'<span class="msg-count">{weight}<span>{a.count} {unit}</span></span></div>'
-            f"<h3>{html.escape(a.headline)}</h3>"
-            f'<p class="body">{html.escape(a.body)}{end}</p></div>'
+            f"<h3>{html.escape(a.headline)}</h3>{body}</div>"
         )
     if not blocks:
         return ""
@@ -449,6 +458,53 @@ def _articles_html(
         f'<div class="articles"><span class="section-label">{html.escape(label)}</span>'
         + "".join(blocks)
         + "</div>"
+    )
+
+
+def _number_html(entries: list[tuple[str, int]]) -> str:
+    """Il dato grande della giornata.
+
+    Non è una statistica in più — quelle stanno già nella fascia navy in
+    fondo. È l'unico modo di dare peso visivo alla testa della pagina
+    senza un'immagine: un numero grande occupa lo spazio e lo giustifica,
+    perché quello spazio lo riempie di informazione."""
+    if not entries:
+        return ""
+    topic, count = entries[0]
+    total = sum(c for _, c in entries)
+    share = (
+        f" — <b>{round(100 * count / total)}%</b> di tutto quello che si è detto"
+        if total > 0
+        else ""
+    )
+    return (
+        '<div class="number">'
+        f'<span class="big">{count}</span>'
+        f'<span class="said">messaggi su <b>{html.escape(topic)}</b>{share}</span>'
+        "</div>"
+    )
+
+
+def _brief_html(articles: list[Article], gfx: GraphicsOptions) -> str:
+    """I topic minori: tag, contatore e titolo, su due colonne."""
+    if not articles:
+        return ""
+    items = []
+    for a in articles:
+        if not a.headline:
+            continue
+        glyph = topic_glyph_svg(a.topic, size=15) if gfx.topic_glyphs else ""
+        items.append(
+            '<div class="brief-item"><div class="head">'
+            f"{glyph}<span>{html.escape(a.topic)}</span>"
+            f'<span class="n">{a.count}</span></div>'
+            f"<p>{html.escape(a.headline)}</p></div>"
+        )
+    if not items:
+        return ""
+    return (
+        '<div class="brief"><span class="section-label">In breve</span>'
+        f'<div class="brief-grid">{"".join(items)}</div></div>'
     )
 
 
@@ -514,10 +570,12 @@ def _footer_html(note: str = FOOTER_NOTE) -> str:
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
 _H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
 _H_INDEX_ROW = 46
-_H_HERO = 460
 _H_QUOTE = 220
 _H_STATS = 120
 _H_CHART = 200          # titolo + grafico orario + regolo di separazione
+_H_NUMBER = 145         # blocco del dato grande
+_H_BRIEF_HEAD = 70      # titolo del box "In breve"
+_H_BRIEF_ROW = 108      # una riga del box (due voci affiancate)
 _H_SHARE = 48           # barra delle proporzioni sotto l'indice
 
 # Frase del giorno e statistiche stanno sempre in ultima pagina: chi
@@ -525,12 +583,10 @@ _H_SHARE = 48           # barra delle proporzioni sotto l'indice
 _H_TAIL = _H_QUOTE + _H_STATS
 
 
-def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
+def _estimate_lead_height(lead: Lead) -> int:
     h = 120  # kicker + padding
     h += _text_height(lead.headline, chars_per_line=26, line_height=68)
     h += _text_height(lead.deck, chars_per_line=52, line_height=41)
-    if hero is not None:
-        h += _H_HERO
     for p in lead.paragraphs:
         h += _text_height(p, chars_per_line=58, line_height=45) + 16
     return h
@@ -539,6 +595,7 @@ def _estimate_lead_height(lead: Lead, hero: Hero | None) -> int:
 def _estimate_article_height(a: Article) -> int:
     h = 90  # tag + contatore + regolo + padding
     h += _text_height(a.headline, chars_per_line=40, line_height=44)
+    h += _text_height(a.deck, chars_per_line=62, line_height=33) + (12 if a.deck else 0)
     h += _text_height(a.body, chars_per_line=62, line_height=41)
     return h
 
@@ -553,7 +610,6 @@ def _text_height(text: str, chars_per_line: int, line_height: int) -> int:
 def paginate_articles(
     articles: list[Article],
     lead: Lead,
-    hero: Hero | None,
     index_rows: int,
     *,
     tail_height: int = _H_TAIL,
@@ -573,15 +629,28 @@ def paginate_articles(
     allunga la chiusura di circa 200px, e ignorarlo faceva sfondare
     l'ultima pagina proprio nel caso in cui era più piena."""
     usable = [a for a in articles if a.headline]
-    if len(usable) < MIN_ARTICLES_FOR_SPLIT:
-        return [usable]
-
-    height = (
+    first_base = (
         _H_CHROME
         + index_rows * _H_INDEX_ROW
         + index_extra
-        + _estimate_lead_height(lead, hero)
+        + _estimate_lead_height(lead)
     )
+
+    # Con poche notizie una pagina sola è meglio di due, ma solo se ci
+    # stanno davvero: da quando la chiusura porta anche il box "In breve"
+    # e il provino, la coda pesa quasi mille pixel e tre trafiletti
+    # bastavano a mandare la pagina unica ben oltre il tetto. La soglia
+    # non è più l'unica condizione: conta anche l'altezza.
+    if len(usable) < MIN_ARTICLES_FOR_SPLIT:
+        single = (
+            first_base
+            + sum(_estimate_article_height(a) for a in usable)
+            + tail_height
+        )
+        if single <= MAX_PAGE_HEIGHT or len(usable) < 2:
+            return [usable]
+
+    height = first_base
     first: list[Article] = []
     for a in usable:
         if len(first) >= MAX_ARTICLES_FIRST_PAGE:
@@ -628,7 +697,65 @@ def paginate_articles(
         elif len(pages[-2]) > 1:
             pages[-1].insert(0, pages[-2].pop())
 
-    return pages
+    return _balance_pages(pages, first_base, tail_height)
+
+
+def _balance_pages(
+    pages: list[list[Article]], first_base: int, tail_height: int
+) -> list[list[Article]]:
+    """Ridistribuisce le notizie perché le pagine vengano simili fra loro.
+
+    Il riempimento avido decide bene *quante* pagine servono e male *come*
+    riempirle: caricando ogni pagina fino al tetto, l'ultima si prende gli
+    avanzi e in mezzo restano pagine mezze bianche — misurate 1875, 999 e
+    2084 px su tre pagine, cioè una pagina piena, una vuota e una piena.
+    A parità di numero di pagine, distribuire verso un'altezza obiettivo
+    non costa niente e si vede subito.
+
+    Il numero di pagine non cambia mai: se il ribilanciamento sfonda il
+    tetto si tiene il risultato avido, che almeno è sicuro."""
+    total_pages = len(pages)
+    if total_pages < 2:
+        return pages
+
+    flat = [a for page in pages for a in page]
+    heights = {id(a): _estimate_article_height(a) for a in flat}
+    fixed = first_base + _H_CONT_CHROME * (total_pages - 1) + tail_height
+    target = (fixed + sum(heights.values())) / total_pages
+
+    balanced: list[list[Article]] = []
+    index = 0
+    for page_number in range(total_pages):
+        base = first_base if page_number == 0 else _H_CONT_CHROME
+        if page_number == total_pages - 1:
+            balanced.append(flat[index:])
+            break
+        current: list[Article] = []
+        height = base
+        # Ogni pagina lascia almeno una notizia a ciascuna di quelle dopo.
+        available = len(flat) - index - (total_pages - page_number - 1)
+        limit = MAX_ARTICLES_FIRST_PAGE if page_number == 0 else available
+        while index < len(flat) and len(current) < min(limit, available):
+            h = heights[id(flat[index])]
+            # Si supera l'obiettivo solo se la notizia ci sta più dentro
+            # che fuori: senza questo, un pezzo lungo apre sempre la
+            # pagina dopo e l'obiettivo non viene mai raggiunto.
+            if current and height + h > target and height + h / 2 > target:
+                break
+            current.append(flat[index])
+            height += h
+            index += 1
+        balanced.append(current)
+
+    if any(not page for page in balanced):
+        return pages
+    for number, page in enumerate(balanced):
+        base = first_base if number == 0 else _H_CONT_CHROME
+        if number == len(balanced) - 1:
+            base += tail_height
+        if base + sum(heights[id(a)] for a in page) > MAX_PAGE_HEIGHT:
+            return pages
+    return balanced
 
 
 def build_pages_html(
@@ -638,7 +765,6 @@ def build_pages_html(
     articles: list[Article],
     *,
     logo_path: str | Path | None = None,
-    hero: Hero | None = None,
     index_entries: list[tuple[str, int]] | None = None,
     stats: Stats | None = None,
     quote: Quote | None = None,
@@ -660,18 +786,39 @@ def build_pages_html(
     index_entries = index_entries or []
     index_rows = -(-len(index_entries) // 4) if index_entries else 0
 
+    # I topic minori escono dalla colonna e diventano righe del box "In
+    # breve": è la separazione che rende visibile la gerarchia.
+    usable = [a for a in articles if a.headline]
+    brief: list[Article] = []
+    if gfx.brief_box and len(usable) > MAX_FULL_ARTICLES:
+        brief = usable[MAX_FULL_ARTICLES:]
+        articles = usable[:MAX_FULL_ARTICLES]
+
     # Il contatore più alto fa da fondoscala alle barrette di peso: il
     # confronto è fra i topic della giornata, non con una soglia fissa.
     top_count = max((a.count for a in articles), default=0)
 
-    closing_height = _H_TAIL + (_H_CHART if gfx.hourly_chart and hourly else 0)
+    closing_height = (
+        _H_TAIL
+        + (_H_CHART if gfx.hourly_chart and hourly else 0)
+        + (_H_BRIEF_HEAD + _H_BRIEF_ROW * -(-len(brief) // 2) if brief else 0)
+    )
+    index_extra = (_H_SHARE if gfx.share_bar and index_entries else 0) + (
+        _H_NUMBER if gfx.number_block and index_entries else 0
+    )
     chunks = paginate_articles(
         articles,
         lead,
-        hero,
         index_rows,
         tail_height=closing_height,
-        index_extra=_H_SHARE if gfx.share_bar and index_entries else 0,
+        index_extra=index_extra,
+    )
+
+    first_used = (
+        _H_CHROME
+        + index_rows * _H_INDEX_ROW
+        + index_extra
+        + _estimate_lead_height(lead)
     )
     total = len(chunks)
     edition = f"Edizione n. {edition_number}" if edition_number else "Edizione quotidiana"
@@ -691,7 +838,8 @@ def build_pages_html(
                 + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
                 f'<span class="folio">{html.escape(folio)}</span></div>'
                 + _index_html(index_entries, gfx)
-                + _lead_html(lead, hero, gfx)
+                + (_number_html(index_entries) if gfx.number_block else "")
+                + _lead_html(lead, gfx)
             )
             label = "Il resto della giornata"
         else:
@@ -712,7 +860,8 @@ def build_pages_html(
                 else f"Fine dell'edizione · pagina {number} di {total}"
             )
             tail = (
-                _quote_html(quote)
+                _brief_html(brief, gfx)
+                + _quote_html(quote)
                 + _stats_html(stats, hourly, gfx)
                 + _footer_html(note)
             )
@@ -724,10 +873,7 @@ def build_pages_html(
             )
 
         body = head + _articles_html(chunk, label, gfx, top_count) + tail
-        # Il filtro serve solo dove c'è la foto, cioè in prima pagina.
-        pages.append(
-            _wrap_page(body, duotone=gfx.needs_duotone_filter and hero is not None)
-        )
+        pages.append(_wrap_page(body))
 
     return pages
 

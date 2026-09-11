@@ -1,8 +1,8 @@
 """Elementi grafici del gazzettino.
 
 Tutto quello che sta qui dentro è SVG scritto a mano e incorporato nella
-pagina: niente librerie di grafici, niente immagini scaricate, niente
-font di icone. Il motivo è che il gazzettino viene renderizzato da
+pagina: niente librerie di grafici, niente immagini, niente font di
+icone. Il motivo è che il gazzettino viene renderizzato da
 Chromium headless dentro una GitHub Action, e ogni dipendenza esterna è
 un modo in più di ritrovarsi con una pagina rotta alle tre di notte senza
 nessuno che guarda.
@@ -29,62 +29,6 @@ NAVY = "#0c2340"
 AZZURRO = "#17a3e0"
 AZZURRO_DEEP = "#0f6fa8"
 AZZURRO_PALE = "#8fc9e8"
-
-# --- Trattamento delle fotografie ---------------------------------------
-#
-# Le foto arrivano da una chat: risoluzioni diverse, luci diverse, filtri
-# di Instagram già applicati sopra. Messe in pagina così come sono,
-# accanto al navy pieno della testata, sembrano ritagli incollati. Il
-# bianco e nero le uniformava ma le spegneva; il duotone le uniforma e le
-# lega alla testata, che è l'effetto che vogliamo: una foto qualunque
-# diventa "una foto del gazzettino".
-#
-# Ogni filtro desatura e poi rimappa i toni su tre fermate — ombre,
-# mezzitoni, alte luci — invece delle due classiche: con due fermate i
-# volti finivano tutti in un blu piatto.
-#
-# Le due varianti servono a scegliere quanto marcare. `duotone` porta i
-# mezzitoni sull'azzurro del marchio: la foto si riconosce come del
-# gazzettino anche in miniatura, ma è una scelta forte e su un ritratto si
-# vede. `duotone-soft` tiene i mezzitoni su un grigio-blu: la foto resta
-# una fotografia, e l'appartenenza la danno le ombre navy.
-PHOTO_TREATMENTS = ("mono", "duotone", "duotone-soft")
-
-_GREY_MATRIX = """<feColorMatrix type="matrix" values="
-      0.2126 0.7152 0.0722 0 0
-      0.2126 0.7152 0.0722 0 0
-      0.2126 0.7152 0.0722 0 0
-      0      0      0      1 0"/>"""
-
-
-def _duotone_filter(name: str, r: str, g: str, b: str) -> str:
-    return (
-        f'<filter id="{name}" color-interpolation-filters="sRGB">'
-        f"{_GREY_MATRIX}"
-        "<feComponentTransfer>"
-        f'<feFuncR type="table" tableValues="{r}"/>'
-        f'<feFuncG type="table" tableValues="{g}"/>'
-        f'<feFuncB type="table" tableValues="{b}"/>'
-        "</feComponentTransfer></filter>"
-    )
-
-
-DUOTONE_FILTER = (
-    '<svg width="0" height="0" style="position:absolute" aria-hidden="true">'
-    + _duotone_filter(
-        "duotone",
-        "0.047 0.176 0.933",
-        "0.137 0.478 0.968",
-        "0.251 0.741 1.000",
-    )
-    + _duotone_filter(
-        "duotone-soft",
-        "0.047 0.350 0.960",
-        "0.137 0.440 0.972",
-        "0.251 0.520 0.984",
-    )
-    + "</svg>"
-)
 
 
 def hourly_chart_svg(
