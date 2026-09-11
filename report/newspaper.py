@@ -860,10 +860,16 @@ p {{ margin: 0; }}
    è la riga che tiene insieme i fogli. */
 .footer {{
   background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
-  padding: 18px 56px; display: flex; justify-content: space-between;
-  align-items: center;
+  padding: 18px 56px; display: flex; align-items: center;
   font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
 }}
+/* Il marchio va al centro della PAGINA, non a metà fra due scritte di
+   lunghezza diversa: con space-between la riga lunga a sinistra lo
+   spingeva a destra e si vedeva. Le due estremità prendono la stessa
+   quota di spazio e spingono da pari a pari, così il segno cade sull'asse
+   del foglio qualunque cosa ci sia scritto ai lati. */
+.footer > span:first-child {{ flex: 1; text-align: left; }}
+.footer > span:last-child {{ flex: 1; text-align: right; }}
 /* Il marchio è quadrato, la riga che gli sta accanto è lunga: alto
    quanto il testo diventava un puntino. A 32px pesa quanto la riga senza
    diventare un'insegna, ed è la misura sotto cui il «17» non si legge
