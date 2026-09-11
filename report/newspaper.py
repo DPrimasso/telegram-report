@@ -2306,7 +2306,10 @@ def build_pages_html(
     def continua(numero: int) -> str:
         return _footer_html(numero, total, firma_uri)
 
-    folio_prima = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
+    # Il folio si scrive come in fondo alla pagina, «1/4»: è la stessa
+    # cosa detta nello stesso posto della pagina, e scriverla in due modi
+    # diversi faceva sembrare che contassero due cose diverse.
+    folio_prima = f"{edition} · 1/{total}" if total > 1 else edition
     # L'ordine è quello di una prima pagina vera: testata, data, e poi la
     # griglia a due colonne — l'apertura sulla larga, i richiami e il
     # sommario sulla stretta. Sotto il taglio, la seconda notizia.
@@ -2341,7 +2344,7 @@ def build_pages_html(
         testa = (
             f'<div class="continuation">{testatina}'
             f'<span class="folio">{html.escape(short_italian_date(day))} · '
-            f"Pagina {numero} di {total}</span>"
+            f"{numero}/{total}</span>"
             "</div>"
         )
         # Una sezione può finire a cavallo di due pagine: la testata si
