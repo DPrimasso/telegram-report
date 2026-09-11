@@ -478,26 +478,40 @@ p {{ margin: 0; }}
   border-left: 1px solid {INK};
   display: flex; flex-direction: column;
 }}
-/* I marchi in fondo alla colonna dei richiami.
+/* I marchi che chiudono la colonna dei richiami.
 
-   Il `margin-top: auto` non è un vezzo: è quello che li fa stare a piedi
-   della colonna invece che attaccati all'ultimo richiamo. Nei giorni con
-   la vignetta l'apertura è molto più alta della colonna e sotto i
-   richiami restava mezzo palmo di bianco — questo è il posto che quel
-   bianco stava tenendo. E siccome riempiono spazio già stirato, nei
-   giorni con la vignetta non costano un pixel di pagina in più.
+   Nei giorni con la vignetta l'apertura è molto più alta della colonna e
+   sotto i richiami restava mezzo palmo di bianco. Il blocco prende tutto
+   quel resto (`flex: 1`) e ci distribuisce dentro i tre segni invece di
+   accucciarsi a piedi di colonna: il bianco lo coprono, che è il motivo
+   per cui stanno lì. Siccome è spazio già stirato, nei giorni con la
+   vignetta non costano un pixel di pagina in più.
 
-   In riga e non in pila: tre segni impilati diventano una colonnina di
-   pubblicità, tre affiancati sono la riga dei marchi che un giornale
-   porta in fondo alla prima. */
+   In pila e non in riga: tre segni affiancati stanno su una striscia
+   alta quanto uno solo e il bianco sotto resta; impilati e spaziati
+   occupano la colonna per quello che è, una colonna.
+
+   `space-evenly` e non `space-between`: l'aria sopra il primo segno e
+   quella sotto l'ultimo valgono come quella fra i tre, altrimenti il
+   primo si incolla al filetto e l'ultimo al bordo della pagina. */
 .marchi {{
-  margin-top: auto; padding-top: 16px; border-top: 2px solid {INK};
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 14px;
+  flex: 1;
+  padding-top: 16px; border-top: 2px solid {INK};
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: space-evenly;
 }}
-/* 54px è la misura in cui il «17» e la «CF» si leggono ancora: sotto
-   diventano tre macchie di colore che non dicono chi sono. */
-.marchi img {{ height: 54px; width: auto; display: block; }}
+/* I segni si prendono l'aria che trovano, ma non oltre il tetto: un
+   marchio alto mezza colonna non è più una firma, è un manifesto. 118px
+   è la misura in cui i tre riempiono il bianco di un giorno con la
+   vignetta senza diventare un'insegna. Nei giorni senza vignetta il
+   bianco è meno e la pila diventa lei la misura della colonna: la prima
+   pagina cresce di un palmo, che è il prezzo di non lasciare più il
+   buco. */
+.marchi img {{
+  flex: 0 0 auto;
+  max-height: 118px; max-width: 82%;
+  width: auto; height: auto; object-fit: contain; display: block;
+}}
 /* Dentro la griglia l'apertura non ha più margini suoi: i margini li dà
    la colonna. */
 .vetrina .lead {{ padding: 0; background: transparent; border: none; }}
@@ -1744,11 +1758,12 @@ _H_STRILLO = 138        # un richiamo nella colonna di destra
 _H_DENTRO_SIDE = 77     # margine, filetto e titolo del sommario stretto
 _H_DENTRO_SIDE_ROW = 38 # una riga sezione/pagina nella colonna stretta
 _H_NUMERI_COLONNA = 22 + 16 + 2 + 33 + 4 * 41  # i quattro numeri in colonna
-# La riga dei marchi: filetto, stacco e l'altezza dei segni. Pesa solo
+# Il blocco dei marchi: filetto, stacco e i segni al loro tetto. Pesa solo
 # quando la colonna dei richiami è la più alta delle due — nei giorni con
 # la vignetta l'apertura la supera di molto e i marchi stanno nel bianco
-# che c'era già.
-_H_MARCHI = 2 + 16 + 54
+# che c'era già, e allora non pesa niente.
+_H_MARCHI_CHROME = 2 + 16
+_H_MARCHIO = 118
 _H_RIMANDO = 58         # "Il servizio a pagina N" in coda a un pezzo
 _H_VIRGOLETTATO = 120   # la citazione dentro il corpo, su una colonna
 _H_DENTRO_HEAD = 62     # titolo del sommario dell'edizione
@@ -1835,7 +1850,7 @@ def _estimate_front_height(
     con_vignetta: bool = False,
     con_numeri: bool = False,
     con_frase: bool = False,
-    con_marchi: bool = False,
+    n_marchi: int = 0,
 ) -> int:
     """L'altezza della vetrina.
 
@@ -1850,7 +1865,7 @@ def _estimate_front_height(
         _H_STRILLO * len(strilli)
         + (_H_DENTRO_SIDE + _H_DENTRO_SIDE_ROW * len(dentro) if dentro else 0)
         + (_H_NUMERI_COLONNA if con_numeri else 0)
-        + (_H_MARCHI if con_marchi else 0)
+        + (_H_MARCHI_CHROME + _H_MARCHIO * n_marchi if n_marchi else 0)
     )
     return (
         _H_CHROME_PRIMA
@@ -2249,7 +2264,7 @@ def build_pages_html(
         con_vignetta=bool(vignetta_html),
         con_numeri=stats is not None,
         con_frase=bool(contorno_html) and not vignetta_html,
-        con_marchi=bool(marchi_uris),
+        n_marchi=len(marchi_uris),
     )
     if alta > MAX_PAGE_HEIGHT:
         print(
