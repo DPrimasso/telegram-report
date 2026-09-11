@@ -319,9 +319,6 @@ def italian_date(day: date) -> str:
     return f"{_IT_WEEKDAYS[day.weekday()]} {day.day} {_IT_MONTHS[day.month - 1]} {day.year}"
 
 
-def short_italian_date(day: date) -> str:
-    return f"{_IT_WEEKDAYS[day.weekday()][:3]} {day.day} {_IT_MONTHS[day.month - 1][:3]} {day.year}"
-
 
 def giorno_e_mese(day: date) -> str:
     """Il giorno per le rubriche: senza l'anno e in minuscolo.
@@ -363,7 +360,7 @@ p {{ margin: 0; }}
 .kicker, .section-label, .dateline, .rimando, .folio, .chip,
 .strillo .sez, .strillo .pag, .dentro-row .sez, .dentro-row .pag,
 .band, .brief-head, .footer, .stats, .numero,
-.continuation, .vignetta .didascalia, .balloon .chi {{
+.vignetta .didascalia, .balloon .chi {{
   font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
 }}
 /* Nessun angolo arrotondato in tutto il documento: la struttura la fanno
@@ -915,21 +912,6 @@ p {{ margin: 0; }}
    cercare. */
 .footer .folio {{ color: #fff; font-weight: 800; letter-spacing: 0.06em; }}
 
-/* Testatina della seconda pagina: più bassa della prima, così si capisce a
-   colpo d'occhio che è la continuazione e non un secondo giornale. */
-/* Le pagine interne non ripetono il marchio: portano una riga di folio,
-   nome del giornale a sinistra e pagina a destra, come si usa. Ripetere
-   la testata intera a ogni pagina faceva sembrare ogni pagina l'inizio di
-   un giornale nuovo. */
-.continuation {{
-  background: {PAPER}; padding: 14px 56px; display: flex;
-  align-items: baseline; justify-content: space-between; gap: 24px;
-  border-top: 3px solid {INK}; border-bottom: 1px solid {INK};
-  font-size: 15px; font-weight: 800; letter-spacing: 0.14em;
-  text-transform: uppercase;
-}}
-.continuation .testata {{ color: {INK}; }}
-.continuation .folio {{ color: {AZZURRO}; font-size: 15px; }}
 """
 
 
@@ -1698,6 +1680,23 @@ def _numeri_del_giorno_html(stats: "Stats | None") -> str:
     )
 
 
+def _dateline_html(day: date, edition: str, numero: int, total: int) -> str:
+    """La barra sotto la testata, uguale su ogni pagina.
+
+    Le pagine interne portavano una riga loro — nome del giornale a
+    sinistra, data corta e pagina a destra — ed erano due barre diverse
+    nello stesso giornale, che è il modo più veloce per far sembrare la
+    pagina 2 l'inizio di un altro giornale. Il nome non serve a ripeterlo
+    qui: la prima pagina ce l'ha in testata grande, e queste sono fogli
+    dello stesso giornale, non volantini sciolti."""
+    folio = f"{edition} · {numero}/{total}" if total > 1 else edition
+    return (
+        '<div class="dateline">'
+        f"<span>{html.escape(italian_date(day))}</span>"
+        f'<span class="folio">{html.escape(folio)}</span></div>'
+    )
+
+
 def _marchi_html(uris: list[str]) -> str:
     """La riga dei marchi a piedi della colonna dei richiami.
 
@@ -1741,7 +1740,9 @@ def _footer_html(
 # pagina che sfonda il tetto proprio quando è più piena, perché è lì che
 # si accumulano tutti i blocchi fissi insieme.
 _H_CHROME = 150 + 60 + 120          # testata + dateline + footer
-_H_CONT_CHROME = 90 + 120           # testatina di continuazione + footer
+# Le pagine interne portano la stessa barra della prima, quindi la stessa
+# altezza: quello che non hanno è la testata col marchio.
+_H_CONT_CHROME = 60 + 120           # dateline + footer
 _H_QUOTE = 245
 # Etichetta, pannello, didascalia e i due margini del blocco.
 _H_VIGNETTA = 40 + _VIGNETTA_HEIGHT + 4 + 28 + 22   # etichetta, pannello, didascalia
@@ -2287,7 +2288,6 @@ def build_pages_html(
         if edition_number
         else f"La giornata di {giorno_e_mese(raccontato)}"
     )
-    testatina = f'<span class="testata">{html.escape(newspaper_name)}</span>'
 
     def chiusura(numero: int) -> str:
         return (
@@ -2306,10 +2306,6 @@ def build_pages_html(
     def continua(numero: int) -> str:
         return _footer_html(numero, total, firma_uri)
 
-    # Il folio si scrive come in fondo alla pagina, «1/4»: è la stessa
-    # cosa detta nello stesso posto della pagina, e scriverla in due modi
-    # diversi faceva sembrare che contassero due cose diverse.
-    folio_prima = f"{edition} · 1/{total}" if total > 1 else edition
     # L'ordine è quello di una prima pagina vera: testata, data, e poi la
     # griglia a due colonne — l'apertura sulla larga, i richiami e il
     # sommario sulla stretta. Sotto il taglio, la seconda notizia.
@@ -2327,8 +2323,7 @@ def build_pages_html(
     )
     vetrina = (
         _masthead(logo_uri, newspaper_name)
-        + f'<div class="dateline"><span>{html.escape(italian_date(day))}</span>'
-        f'<span class="folio">{html.escape(folio_prima)}</span></div>'
+        + _dateline_html(day, edition, 1, total)
         + '<div class="vetrina">'
         f'<div class="vetrina-main">{apertura}</div>'
         f'<div class="vetrina-side">{colonna}</div>'
@@ -2341,12 +2336,7 @@ def build_pages_html(
 
     for indice, chunk in enumerate(chunks):
         numero = indice + 2
-        testa = (
-            f'<div class="continuation">{testatina}'
-            f'<span class="folio">{html.escape(short_italian_date(day))} · '
-            f"{numero}/{total}</span>"
-            "</div>"
-        )
+        testa = _dateline_html(day, edition, numero, total)
         # Una sezione può finire a cavallo di due pagine: la testata si
         # ripete in cima alla successiva con "(segue)".
         precedente = chunks[indice - 1][-1] if indice > 0 and chunks[indice - 1] else None
