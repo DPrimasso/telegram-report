@@ -142,7 +142,7 @@ _IT_MONTHS = [
     "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
 ]
 
-FOOTER_NOTE = "Azzurro Fluido · gazzettino automatico del gruppo"
+FOOTER_NOTE = "Azzurro Fluido · DPrimo17"
 CHANNEL_LINK = "youtube.com/@AzzurroFluido"
 
 # Lo spazio unificatore lega il quadratino all'ultima parola: senza, quando
@@ -362,7 +362,7 @@ p {{ margin: 0; }}
    che è scritto da quello che è segnaletica. */
 .kicker, .section-label, .dateline, .rimando, .folio, .chip,
 .strillo .sez, .strillo .pag, .dentro-row .sez, .dentro-row .pag,
-.band, .brief-head, .footer, .footer-continue, .stats, .numero,
+.band, .brief-head, .footer, .stats, .numero,
 .continuation, .vignetta .didascalia, .balloon .chi {{
   font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
 }}
@@ -856,28 +856,29 @@ p {{ margin: 0; }}
    colonna delle notizie, sta nel blocchetto in fondo insieme alla testata
    e all'indirizzo. Qui quel blocchetto è questa fascia, e il marchio ci
    entra alto quanto la riga di testo che gli sta accanto — una firma, non
-   un'insegna. Esce una volta per edizione, in ultima pagina, quando il
-   giornale ha finito di parlare. */
+   un'insegna. Chiude ogni pagina uguale a se stessa, col folio a destra:
+   è la riga che tiene insieme i fogli. */
 .footer {{
   background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
-  padding: 18px 56px; display: flex; justify-content: space-between;
-  align-items: center;
+  padding: 18px 56px; display: flex; align-items: center;
   font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase;
 }}
+/* Il marchio va al centro della PAGINA, non a metà fra due scritte di
+   lunghezza diversa: con space-between la riga lunga a sinistra lo
+   spingeva a destra e si vedeva. Le due estremità prendono la stessa
+   quota di spazio e spingono da pari a pari, così il segno cade sull'asse
+   del foglio qualunque cosa ci sia scritto ai lati. */
+.footer > span:first-child {{ flex: 1; text-align: left; }}
+.footer > span:last-child {{ flex: 1; text-align: right; }}
 /* Il marchio è quadrato, la riga che gli sta accanto è lunga: alto
    quanto il testo diventava un puntino. A 32px pesa quanto la riga senza
    diventare un'insegna, ed è la misura sotto cui il «17» non si legge
    più — che è l'unica cosa che questo segno ha da dire. */
 .footer .firma img {{ height: 32px; width: auto; display: block; }}
-.footer-continue {{
-  background: {NAVY}; color: {AZZURRO_PALE}; border-top: 3px solid {AZZURRO_BRIGHT};
-  padding: 20px 56px; display: flex; justify-content: space-between; align-items: baseline;
-}}
-.footer-continue .note {{ font-size: 17px; letter-spacing: 0.08em; text-transform: uppercase; }}
-.footer-continue .next {{
-  font-size: 20px; font-weight: 800; letter-spacing: 0.06em;
-  text-transform: uppercase; color: #fff;
-}}
+/* Il folio è l'unica cosa che cambia da una pagina all'altra: in bianco
+   e un filo più grosso si trova con la coda dell'occhio senza doverlo
+   cercare. */
+.footer .folio {{ color: #fff; font-weight: 800; letter-spacing: 0.06em; }}
 
 /* Testatina della seconda pagina: più bassa della prima, così si capisce a
    colpo d'occhio che è la continuazione e non un secondo giornale. */
@@ -1662,20 +1663,26 @@ def _numeri_del_giorno_html(stats: "Stats | None") -> str:
     )
 
 
-def _footer_html(note: str = FOOTER_NOTE, firma_uri: str | None = None) -> str:
-    """La fascia di chiusura. `firma_uri` è il marchio di chi fa il
-    giornale: sta in mezzo fra la nota e l'indirizzo, che è il posto in cui
-    un lettore lo cerca quando lo cerca, e l'unico in cui non ruba spazio a
-    una notizia. Senza il file la fascia resta quella di prima."""
+def _footer_html(
+    numero: int,
+    total: int,
+    firma_uri: str | None = None,
+    note: str = FOOTER_NOTE,
+) -> str:
+    """La fascia di chiusura, uguale su tutte le pagine: la testata a
+    sinistra, il marchio in mezzo, il folio a destra nella forma «1/4».
+    Ripeterla identica pagina dopo pagina è quello che fa sembrare i fogli
+    un giornale solo invece di tanti volantini. Senza il file del marchio
+    resta il vuoto in mezzo, e le due estremità non si spostano."""
     firma = (
         f'<span class="firma"><img src="{firma_uri}" alt=""></span>'
         if firma_uri
-        else ""
+        else "<span></span>"
     )
     return (
         f'<div class="footer"><span>{html.escape(note)}</span>'
         f"{firma}"
-        f"<span>{CHANNEL_LINK}</span></div>"
+        f'<span class="folio">{numero}/{total}</span></div>'
     )
 
 
@@ -2218,11 +2225,6 @@ def build_pages_html(
     testatina = f'<span class="testata">{html.escape(newspaper_name)}</span>'
 
     def chiusura(numero: int) -> str:
-        note = (
-            FOOTER_NOTE
-            if total == 1
-            else f"Fine dell'edizione · pagina {numero} di {total}"
-        )
         return (
             _brief_html(brief, gfx)
             # La vignetta sta in prima, dentro l'apertura, e nei giorni
@@ -2233,15 +2235,11 @@ def build_pages_html(
             + _quote_html(quote)
             + _numeri_html(index_entries, gfx)
             + _stats_html(stats, hourly, gfx, raccontato)
-            + _footer_html(note, firma_uri)
+            + _footer_html(numero, total, firma_uri)
         )
 
     def continua(numero: int) -> str:
-        return (
-            '<div class="footer-continue">'
-            f'<span class="note">{html.escape(FOOTER_NOTE)}</span>'
-            f'<span class="next">Continua a pagina {numero + 1} ▸</span></div>'
-        )
+        return _footer_html(numero, total, firma_uri)
 
     folio_prima = f"{edition} · Pagina 1 di {total}" if total > 1 else edition
     # L'ordine è quello di una prima pagina vera: testata, data, e poi la
