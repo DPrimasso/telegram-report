@@ -34,7 +34,9 @@ Da qui discende tutto il resto:
 
 from __future__ import annotations
 
+import base64
 import random
+import urllib.request
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -356,3 +358,89 @@ def leggi_battute(raw_tono: str, righe: list[str], toni: list[str]):
     """Tono e battute da quello che ha risposto la chiamata dell'apertura."""
     testo = f"TONO: {raw_tono}\n" + "\n".join(f"BATTUTA: {r}" for r in righe)
     return _leggi(testo, toni)
+
+
+def generate_ai_drawing(
+    client,
+    dest_path: Path | str,
+    *,
+    tema: str,
+    tono: str,
+    battute: list[str],
+    text_model: str = "gpt-4o-mini",
+    image_model: str = "gpt-image-2",
+) -> Path | None:
+    """Genera un disegno per la vignetta con OpenAI basato sulla discussione del giorno."""
+    prompt_azione = (
+        "Sei l'autore delle vignette satiriche di un gazzettino sportivo napoletano.\n"
+        "I protagonisti fissi sono due amici tifosi napoletani sui 35 anni: "
+        "quello a sinistra è robusto con barba di qualche giorno e maglietta azzurra; "
+        "quello a destra è più magro, con frangia, felpa azzurro chiaro e sciarpa azzurra.\n\n"
+        f"Tema della discussione di oggi: {tema}\n"
+        f"Tono: {tono}\n"
+        f"Cosa dicono nel gruppo: {' // '.join(battute)}\n\n"
+        "Descrivi in una sola frase in italiano l'azione fisica, l'espressione dei volti "
+        "e l'ambientazione concreta (es. al bar con il caffè, sul balcone con i panni stesi, "
+        "in strada, al motorino, sul divano davanti alla tv, ecc.) coerente con la discussione. "
+        "I personaggi devono trovarsi rigorosamente nella metà bassa dell'inquadratura per lasciare "
+        "spazio ai balloon dei dialoghi sopra le loro teste.\n"
+        "Rispondi SOLO con la frase descrittiva, senza testo introduttivo."
+    )
+
+    try:
+        azione_scena = llm.complete(client, text_model, prompt_azione, temperature=0.5)
+    except Exception as exc:
+        print(f"Descrizione scena vignetta fallita ({exc}).")
+        azione_scena = ""
+
+    if not azione_scena:
+        azione_scena = "I due amici sono al bar, uno gesticola animatamente mentre l'altro lo ascolta con attenzione e perplessità."
+
+    print(f"  Scena vignetta IA ricavata: {azione_scena}")
+
+    prompt_disegno = (
+        "Vignetta a fumetti, senza testo. Due amici napoletani sui trentacinque anni, tifosi di calcio, gente comune e non atleti. "
+        "Quello a sinistra è robusto, capelli scuri corti e spettinati, barba di qualche giorno, maglietta azzurra a tinta unita senza scritte né stemmi. "
+        "Quello a destra è più magro, capelli scuri con la frangia, felpa azzurro chiaro, e spesso una sciarpa azzurra a tinta unita al collo. "
+        f"{azione_scena} "
+        "STILE: vignetta satirica da quotidiano italiano. Disegno a penna con linea decisa e nervosa, poche ombre, figure caricaturali dai lineamenti espressivi. "
+        "Colore quasi assente: solo tocchi di azzurro piatto sulle maglie e sulle sciarpe, tutto il resto in nero caldo su fondo AVORIO CALDO pieno e uniforme — il colore della carta di un quotidiano, non bianco. "
+        "L'aria è quella di una striscia stampata su carta di giornale, ma la carta è quella su cui la stampiamo noi: niente texture, niente grana, niente invecchiamento. "
+        "Inquadratura orizzontale, i due personaggi a mezzo busto o a tre quarti di figura, uno a sinistra e uno a destra. "
+        "VINCOLI TASSATIVI: nessun testo, nessuna scritta, nessuna lettera e nessun numero in nessun punto dell'immagine, in nessuna lingua. "
+        "Nessun fumetto e nessuna nuvoletta di dialogo, nemmeno vuoti. Nessuno stemma, logo, marchio o maglia ufficiale di una squadra reale: l'azzurro è a tinta unita e basta. "
+        "Nessuna persona reale o riconoscibile. Se in scena c'è uno schermo — televisore, telefono, computer — mostra solo forme e colori generici: nessun volto, nessuna scritta, nessuna partita riconoscibile. "
+        "Nessuna cornice e nessuna firma. "
+        "COMPOSIZIONE, la parte più importante: inquadratura molto larga, con i due personaggi piccoli e in basso. Le loro TESTE cominciano sotto la metà esatta dell'immagine, e sopra di loro c'è solo sfondo vuoto — cielo, muro, strada — per tutta la metà superiore. "
+        "Nessuna testa, nessuna mano e nessun dettaglio importante nella metà alta. Lo sfondo è essenziale e poco dettagliato: poche linee, niente tratteggio fitto. "
+        "DIMENSIONE FINALE: linee poche e spesse, nessun tratteggio fitto, nessun retino sottile, nessun dettaglio minuto sui volti o sui vestiti."
+    )
+
+    sizes_to_try = ["1536x1024", "1024x1024"]
+    dest = Path(dest_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    for sz in sizes_to_try:
+        try:
+            print(f"  Chiamo OpenAI Images ({image_model}, {sz})...")
+            response = client.images.generate(
+                model=image_model,
+                prompt=prompt_disegno,
+                size=sz,
+                quality="medium",
+                n=1,
+            )
+            payload = getattr(response.data[0], "b64_json", None)
+            if payload:
+                dest.write_bytes(base64.b64decode(payload))
+                return dest
+            url = getattr(response.data[0], "url", None)
+            if url:
+                urllib.request.urlretrieve(url, dest)
+                return dest
+        except Exception as exc:
+            print(f"  Tentativo con size {sz} fallito ({exc}).")
+            continue
+
+    print("Generazione disegno vignetta con OpenAI fallita. Ripiego sulla biblioteca.")
+    return None

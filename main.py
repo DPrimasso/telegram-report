@@ -1,5 +1,7 @@
 import argparse
 import asyncio
+import dataclasses
+import os
 import tempfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -33,6 +35,7 @@ from report.vignetta import (
     DESCRIZIONI,
     Biblioteca,
     componi,
+    generate_ai_drawing,
     leggi_battute,
     pick_vignetta,
 )
@@ -97,6 +100,14 @@ def parse_args() -> argparse.Namespace:
             "titolo contiene questa stringa, poi esce senza chiamare OpenAI "
             "né inviare nulla. Utile per confrontare 1:1 con Telegram cosa "
             "è stato effettivamente assegnato a un topic."
+        ),
+    )
+    parser.add_argument(
+        "--to-me",
+        action="store_true",
+        help=(
+            "Invia il report esclusivamente nei Messaggi salvati dell'account "
+            "(destinazione 'me') anziché nel gruppo, replicando il workflow di test."
         ),
     )
     return parser.parse_args()
@@ -393,6 +404,21 @@ async def _run_newspaper_report(
     giorno_di_uscita = target_date + timedelta(days=1)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
+        if vignetta and os.environ.get("GENERATE_AI_VIGNETTA", "1") != "0":
+            print("Genero il disegno della vignetta con OpenAI sulla discussione...")
+            ai_disegno = generate_ai_drawing(
+                openai_client,
+                Path(tmp_dir) / "vignetta_ai.png",
+                tema=f"{lead.headline} — {lead.deck}",
+                tono=vignetta.tone,
+                battute=[b.text for b in vignetta.balloons],
+                text_model=config.openai_model,
+                image_model=os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+            )
+            if ai_disegno:
+                vignetta = dataclasses.replace(vignetta, image_path=ai_disegno)
+                print(f"  vignetta IA generata e posizionata in pagina: {ai_disegno}")
+
         logo = Path(config.logo_path)
         firma = Path(config.firma_path)
         pages_html = build_pages_html(
@@ -446,8 +472,13 @@ async def run(
     dump_topic: str | None = None,
     report_format: str = "newspaper",
     list_topics_only: bool = False,
+    to_me: bool = False,
 ) -> None:
     config = load_config()
+    if to_me:
+        print("Modalità test attiva (--to-me): invio solo nei Messaggi salvati dell'account.")
+        config = dataclasses.replace(config, report_destination="me", report_topic_id=None)
+
     client = build_client(config)
 
     if list_topics_only:
@@ -504,6 +535,7 @@ def main() -> None:
             dump_topic=args.dump_topic,
             report_format=args.format,
             list_topics_only=args.list_topics,
+            to_me=args.to_me,
         )
     )
 
