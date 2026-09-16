@@ -405,6 +405,7 @@ async def _run_newspaper_report(
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         if vignetta and os.environ.get("GENERATE_AI_VIGNETTA", "1") != "0":
+            spesa.fase("vignetta")
             print("Genero il disegno della vignetta con OpenAI sulla discussione...")
             ai_disegno = generate_ai_drawing(
                 openai_client,

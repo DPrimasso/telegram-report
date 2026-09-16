@@ -41,7 +41,7 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from report import llm
+from report import llm, spesa
 from report.summarize import campione_citabile, trova_alla_lettera
 from report.newspaper import Balloon, Vignetta
 
@@ -433,10 +433,12 @@ def generate_ai_drawing(
             payload = getattr(response.data[0], "b64_json", None)
             if payload:
                 dest.write_bytes(base64.b64decode(payload))
+                spesa.registra_immagine(image_model)
                 return dest
             url = getattr(response.data[0], "url", None)
             if url:
                 urllib.request.urlretrieve(url, dest)
+                spesa.registra_immagine(image_model)
                 return dest
         except Exception as exc:
             print(f"  Tentativo con size {sz} fallito ({exc}).")
