@@ -1580,7 +1580,7 @@ def _vignetta_html(vignetta: "Vignetta | None") -> str:
 
     return (
         '<div class="vignetta">'
-        '<span class="section-label">Lo scatto del giorno</span>'
+        '<span class="section-label">L\'illustrazione del giorno</span>'
         f'<figure><div class="pannello"><img src="{uri}" alt=""></div>'
         f"{didascalia_html}</figure></div>"
     )

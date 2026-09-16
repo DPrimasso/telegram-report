@@ -370,7 +370,7 @@ def generate_ai_drawing(
     text_model: str = "gpt-4o-mini",
     image_model: str = "gpt-image-2",
 ) -> Path | None:
-    """Genera una foto editoriale in stile fotogiornalismo b/n per la prima pagina."""
+    """Genera un'illustrazione d'autore in stile Ligne Claire minimale per la prima pagina."""
     prompt_azione = (
         "Sei l'illustratore editoriale di un gazzettino sportivo napoletano.\n"
         "Devi creare un'illustrazione minimalista in stile fumetto d'autore (linea chiara, pulita, ariosa) "
