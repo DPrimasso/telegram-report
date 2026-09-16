@@ -34,12 +34,14 @@ Da qui discende tutto il resto:
 
 from __future__ import annotations
 
+import base64
 import random
+import urllib.request
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from report import llm
+from report import llm, spesa
 from report.summarize import campione_citabile, trova_alla_lettera
 from report.newspaper import Balloon, Vignetta
 
@@ -356,3 +358,83 @@ def leggi_battute(raw_tono: str, righe: list[str], toni: list[str]):
     """Tono e battute da quello che ha risposto la chiamata dell'apertura."""
     testo = f"TONO: {raw_tono}\n" + "\n".join(f"BATTUTA: {r}" for r in righe)
     return _leggi(testo, toni)
+
+
+def generate_ai_drawing(
+    client,
+    dest_path: Path | str,
+    *,
+    tema: str,
+    tono: str,
+    battute: list[str],
+    text_model: str = "gpt-4o-mini",
+    image_model: str = "gpt-image-2",
+) -> Path | None:
+    """Genera un'illustrazione d'autore in stile Ligne Claire minimale per la prima pagina."""
+    prompt_azione = (
+        "Sei l'illustratore editoriale di un gazzettino sportivo napoletano.\n"
+        "Devi creare un'illustrazione minimalista in stile fumetto d'autore (linea chiara, pulita, ariosa) "
+        "ispirata alla discussione del giorno tra i tifosi.\n\n"
+        f"Tema della discussione di oggi: {tema}\n"
+        f"Tono: {tono}\n"
+        f"Cosa dicono nel gruppo: {' // '.join(battute)}\n\n"
+        "Descrivi in una sola frase in italiano la situazione tra due amici tifosi "
+        "(es. due amici al tavolino di un bar che gesticolano con passione davanti a una tazzina di caffè, "
+        "uno che indica un punto sul giornale mentre l'altro ascolta dubbioso, ecc.). "
+        "La scena deve contenere SOLO due personaggi principali, senza folle, senza caos, con ambientazione essenziale.\n"
+        "Rispondi SOLO con la frase descrittiva, senza testo introduttivo."
+    )
+
+    try:
+        azione_scena = llm.complete(client, text_model, prompt_azione, temperature=0.5)
+    except Exception as exc:
+        print(f"Descrizione scena vignetta fallita ({exc}).")
+        azione_scena = ""
+
+    if not azione_scena:
+        azione_scena = "Due amici tifosi al tavolino di un bar discutono animatamente gesticolando con passione davanti a un caffe."
+
+    print(f"  Scena illustrazione ricavata: {azione_scena}")
+
+    prompt_disegno = (
+        "Minimalist modern European comic illustration in Ligne Claire style, elegant French-Belgian graphic novel look. "
+        "Clean, crisp black ink contour lines with plenty of negative space on a warm ivory background (#f2ece0). "
+        f"{azione_scena} "
+        "Character design: two expressive animated Neapolitan friends with lively, quintessential Italian hand gestures. "
+        "Extremely clean, minimal and uncluttered composition: only the two characters and a simple table/archway in the background. "
+        "Flat, sophisticated color palette with solid fills (Napoli sky blue, warm terracotta, soft ochre, warm charcoal). "
+        "MANDATORY: NO crowd, NO background clutter, NO photorealism, NO dense cross-hatching. "
+        "NO text, NO letters, NO numbers, NO speech bubbles anywhere in the image. "
+        "High visual clarity, airy, refined and modern editorial illustration."
+    )
+
+    sizes_to_try = ["1536x1024", "1024x1024"]
+    dest = Path(dest_path)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    for sz in sizes_to_try:
+        try:
+            print(f"  Chiamo OpenAI Images ({image_model}, {sz})...")
+            response = client.images.generate(
+                model=image_model,
+                prompt=prompt_disegno,
+                size=sz,
+                quality="medium",
+                n=1,
+            )
+            payload = getattr(response.data[0], "b64_json", None)
+            if payload:
+                dest.write_bytes(base64.b64decode(payload))
+                spesa.registra_immagine(image_model)
+                return dest
+            url = getattr(response.data[0], "url", None)
+            if url:
+                urllib.request.urlretrieve(url, dest)
+                spesa.registra_immagine(image_model)
+                return dest
+        except Exception as exc:
+            print(f"  Tentativo con size {sz} fallito ({exc}).")
+            continue
+
+    print("Generazione disegno vignetta con OpenAI fallita. Ripiego sulla biblioteca.")
+    return None

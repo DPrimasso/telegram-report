@@ -837,13 +837,20 @@ p {{ margin: 0; }}
   right: 27px; bottom: -10px; border-width: 11px 0 0 12px;
   border-color: {PAPER} transparent transparent transparent;
 }}
-/* La didascalia di una foto, in un giornale, è piccola e in bastoni:
-   non è un titolo, è una nota di servizio. */
+/* La didascalia di una foto, in un giornale, è elegante e tipografica. */
 .vignetta figcaption {{
-  margin-top: 10px; font-size: 14px; font-weight: 600; color: {INK_SOFT};
-  letter-spacing: 0.01em; line-height: 1.3;
-  font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
+  margin-top: 10px; font-size: 15px; color: {INK};
+  line-height: 1.35; font-family: 'Newsreader', Georgia, serif;
 }}
+.vignetta figcaption i {{
+  font-style: italic;
+}}
+.vignetta figcaption .autore {{
+  font-family: Archivo, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 700; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: {INK_SOFT};
+}}
+
 
 .stats {{ background: {NAVY}; color: #fff; padding: 28px 56px; }}
 /* I quattro numeri, in colonna sulla prima pagina. La cifra in graziato
@@ -1565,54 +1572,36 @@ def _quote_html(quote: Quote | None, in_apertura: bool = False) -> str:
 
 
 def _vignetta_html(vignetta: "Vignetta | None") -> str:
-    if vignetta is None or not vignetta.balloons:
+    if vignetta is None:
         return ""
     try:
         uri = data_uri(vignetta.image_path)
     except OSError:
-        # Un disegno che non si apre non è un motivo per non spedire il
-        # gazzettino: la vignetta salta, il resto della pagina resta.
-        print(f"Vignetta saltata: non riesco a leggere {vignetta.image_path}.")
+        print(f"Foto editoriale saltata: non riesco a leggere {vignetta.image_path}.")
         return ""
 
-    # Chi parla per primo sta a sinistra. Il lato non dice chi è la
-    # persona — i disegni sono sempre gli stessi due — dice solo che le
-    # voci sono due e distinte.
-    voci: list[str] = []
+    citazioni = []
     for b in vignetta.balloons:
-        if b.author not in voci:
-            voci.append(b.author)
-
-    pezzi = []
-    for i, b in enumerate(vignetta.balloons):
-        lato = "sx" if voci.index(b.author) == 0 else "dx"
-        # La codina va a chi non ha altre battute dopo dallo stesso lato,
-        # altrimenti resta nascosta sotto il balloon successivo.
-        ultimo = not any(
-            ("sx" if voci.index(x.author) == 0 else "dx") == lato
-            for x in vignetta.balloons[i + 1:]
-        )
         firma = html.escape(b.author)
-        if b.time:
-            firma += f" &middot; {html.escape(b.time)}"
-        pezzi.append(
-            f'<div class="balloon {lato}{" coda" if ultimo else ""}">'
-            f"<p>{html.escape(b.text)}</p>"
-            f'<span class="firma">{firma}</span></div>'
-        )
+        testo = html.escape(b.text)
+        citazioni.append(f'«<i>{testo}</i>» &mdash; <span class="autore">{firma}</span>')
 
-    didascalia = (
-        f"<figcaption>{html.escape(vignetta.topic)}</figcaption>"
-        if vignetta.topic
-        else ""
-    )
+    if citazioni:
+        didascalia_testo = "<br>".join(citazioni)
+    elif vignetta.topic:
+        didascalia_testo = html.escape(vignetta.topic)
+    else:
+        didascalia_testo = ""
+
+    didascalia_html = f"<figcaption>{didascalia_testo}</figcaption>" if didascalia_testo else ""
+
     return (
         '<div class="vignetta">'
-        '<span class="section-label">La vignetta</span>'
-        f'<figure><div class="pannello"><img src="{uri}" alt="">'
-        f'<div class="battute">{"".join(pezzi)}</div></div>'
-        f"{didascalia}</figure></div>"
+        '<span class="section-label">L\'illustrazione del giorno</span>'
+        f'<figure><div class="pannello"><img src="{uri}" alt=""></div>'
+        f"{didascalia_html}</figure></div>"
     )
+
 
 
 def _stats_html(

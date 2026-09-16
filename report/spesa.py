@@ -34,6 +34,9 @@ PREZZO_OUTPUT = 1.20
 # applicare a quelli.
 SCONTO_CACHE = 0.10
 
+# Costo indicativo per singola immagine generata (formato 1536x1024 / qualità standard/media)
+PREZZO_IMMAGINE = 0.05
+
 # I prezzi qui sopra valgono per questa famiglia di modelli, e basta. Se
 # OPENAI_MODEL punta altrove i token restano veri e i dollari no: il conto
 # lo dice invece di far finta di niente.
@@ -42,11 +45,12 @@ FAMIGLIA_A_LISTINO = "gpt-5."
 
 @dataclass(frozen=True)
 class Listino:
-    """Quanto costano mille chilometri di token."""
+    """Quanto costano mille chilometri di token e le immagini generate."""
 
     input: float = PREZZO_INPUT
     output: float = PREZZO_OUTPUT
     sconto_cache: float = SCONTO_CACHE
+    immagine: float = PREZZO_IMMAGINE
 
     @property
     def predefinito(self) -> bool:
@@ -62,6 +66,13 @@ class Listino:
             (pieni + cache * self.sconto_cache) / 1e6 * self.input
             + uscita / 1e6 * self.output
         )
+
+
+@dataclass
+class Immagine:
+    fase: str
+    modello: str
+    costo: float
 
 
 @dataclass
@@ -96,6 +107,7 @@ class Tassametro:
 
     def __init__(self) -> None:
         self.chiamate: list[Chiamata] = []
+        self.immagini: list[Immagine] = []
         # Sotto quale voce del conto finiscono le prossime chiamate. La
         # imposta main.py mentre avanza, negli stessi punti in cui stampa
         # a che punto è: sono le stesse tappe.
@@ -112,9 +124,13 @@ class Tassametro:
         cache = _cached_tokens(getattr(uso, "prompt_tokens_details", None))
         self.chiamate.append(Chiamata(self.fase, modello, ingresso, cache, uscita))
 
+    def registra_immagine(self, modello: str, costo: float | None = None) -> None:
+        c = PREZZO_IMMAGINE if costo is None else costo
+        self.immagini.append(Immagine(self.fase, modello, c))
+
     @property
     def vuoto(self) -> bool:
-        return not self.chiamate
+        return not self.chiamate and not self.immagini
 
     def totali(self) -> tuple[int, int, int]:
         return (
@@ -123,23 +139,33 @@ class Tassametro:
             sum(c.uscita for c in self.chiamate),
         )
 
-    def costo(self, listino: Listino) -> float:
+    def costo_testo(self, listino: Listino) -> float:
         return sum(
             listino.costo(c.ingresso, c.cache, c.uscita) for c in self.chiamate
         )
 
+    def costo_immagini(self) -> float:
+        return sum(img.costo for img in self.immagini)
+
+    def costo(self, listino: Listino) -> float:
+        return self.costo_testo(listino) + self.costo_immagini()
+
     def per_fase(self, listino: Listino) -> list[tuple[str, int, float]]:
         """Le voci del conto, dalla più cara alla meno cara."""
-        voci: dict[str, list[Chiamata]] = {}
+        voci: dict[str, list[float]] = {}
         for chiamata in self.chiamate:
-            voci.setdefault(chiamata.fase, []).append(chiamata)
+            voci.setdefault(chiamata.fase, []).append(
+                listino.costo(chiamata.ingresso, chiamata.cache, chiamata.uscita)
+            )
+        for img in self.immagini:
+            voci.setdefault(img.fase, []).append(img.costo)
         righe = [
             (
                 fase,
-                len(gruppo),
-                sum(listino.costo(c.ingresso, c.cache, c.uscita) for c in gruppo),
+                len(costi),
+                sum(costi),
             )
-            for fase, gruppo in voci.items()
+            for fase, costi in voci.items()
         ]
         return sorted(righe, key=lambda r: r[2], reverse=True)
 
@@ -168,6 +194,10 @@ def registra(modello: str, risposta) -> None:
     tassametro.registra(modello, risposta)
 
 
+def registra_immagine(modello: str, costo: float | None = None) -> None:
+    tassametro.registra_immagine(modello, costo)
+
+
 def _numero(n: float) -> str:
     """Migliaia col punto, come si scrivono in italiano."""
     return f"{n:,.0f}".replace(",", ".")
@@ -190,11 +220,17 @@ def riga_di_log(tassametro: Tassametro, listino: Listino) -> str:
     """Una riga sola per i log di GitHub Actions, che non sono un giornale."""
     ingresso, cache, uscita = tassametro.totali()
     quante = len(tassametro.chiamate)
+    totale = tassametro.costo(listino)
+    dettaglio_img = ""
+    if tassametro.immagini:
+        n_img = len(tassametro.immagini)
+        parola = "immagine generata" if n_img == 1 else "immagini generate"
+        dettaglio_img = f", {n_img} {parola} ({_soldi(tassametro.costo_immagini())})"
     return (
-        f"Questa edizione è costata {_soldi(tassametro.costo(listino))}: "
+        f"Questa edizione è costata {_soldi(totale)}: "
         f"{quante} {_chiamate(quante)}, {_numero(ingresso)} token in "
         f"ingresso (di cui {_numero(cache)} dalla cache), "
-        f"{_numero(uscita)} in uscita."
+        f"{_numero(uscita)} in uscita{dettaglio_img}."
     )
 
 
@@ -205,21 +241,27 @@ def riepilogo(
     modello: str,
 ) -> str:
     """Il conto come arriva su Telegram, in HTML."""
-    costo = tassametro.costo(listino)
+    costo_tot = tassametro.costo(listino)
+    costo_testo = tassametro.costo_testo(listino)
+    costo_img = tassametro.costo_immagini()
     ingresso, cache, uscita = tassametro.totali()
     quota_cache = f" ({cache / ingresso:.0%} del totale)" if ingresso else ""
-    # Il nome del modello è l'unico pezzo di testo libero che finisce nel
-    # messaggio: arriva da OPENAI_MODEL, e un carattere sbagliato lì
-    # renderebbe l'HTML illeggibile a Telegram, che rifiuterebbe l'invio.
     modello = html.escape(modello)
+
+    dettaglio_spesa = f"Spesi <b>{_soldi(costo_tot)}</b> per scrivere il gazzettino."
+    if tassametro.immagini:
+        dettaglio_spesa = (
+            f"Spesi <b>{_soldi(costo_tot)}</b> per comporre il gazzettino "
+            f"({_soldi(costo_testo)} testi + {_soldi(costo_img)} immagini)."
+        )
 
     righe = [
         f"🧾 <b>Il conto dell'edizione</b> — giornata del "
         f"{giorno.strftime('%d/%m/%Y')}",
         "",
-        f"Spesi <b>{_soldi(costo)}</b> per scrivere il gazzettino.",
-        f"A questo ritmo sono {_soldi(costo * 30, 2)} al mese, "
-        f"{_soldi(costo * 365, 2)} all'anno.",
+        dettaglio_spesa,
+        f"A questo ritmo sono {_soldi(costo_tot * 30, 2)} al mese, "
+        f"{_soldi(costo_tot * 365, 2)} all'anno.",
         "",
     ]
 
@@ -238,12 +280,12 @@ def riepilogo(
         f"{len(tassametro.chiamate)} {_chiamate(len(tassametro.chiamate))} a "
         f"<code>{modello}</code> in {_durata(tassametro.durata())}.",
     ]
+    if tassametro.immagini:
+        modelli_img = ", ".join(sorted({f"<code>{html.escape(img.modello)}</code>" for img in tassametro.immagini}))
+        righe.append(f"{len(tassametro.immagini)} immagine generata con {modelli_img} ({_soldi(costo_img)}).")
 
     # Due avvertenze, quando servono. Un conto che non torna deve dirlo da
     # solo: chi lo legge non ha modo di accorgersene guardando la cifra.
-    # La prima vale solo finché i prezzi sono quelli di serie: chi li ha
-    # già corretti per il suo modello sa quello che sta facendo, e non ha
-    # bisogno di sentirselo ripetere tutte le notti.
     fuori_listino = not any(
         m.startswith(FAMIGLIA_A_LISTINO) for m in tassametro.modelli()
     )
