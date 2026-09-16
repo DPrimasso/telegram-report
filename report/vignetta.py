@@ -370,20 +370,18 @@ def generate_ai_drawing(
     text_model: str = "gpt-4o-mini",
     image_model: str = "gpt-image-2",
 ) -> Path | None:
-    """Genera un disegno per la vignetta con OpenAI basato sulla discussione del giorno."""
+    """Genera una foto editoriale in stile fotogiornalismo b/n per la prima pagina."""
     prompt_azione = (
-        "Sei l'autore delle vignette satiriche di un gazzettino sportivo napoletano.\n"
-        "I protagonisti fissi sono due amici tifosi napoletani sui 35 anni: "
-        "quello a sinistra è robusto con barba di qualche giorno e maglietta azzurra; "
-        "quello a destra è più magro, con frangia, felpa azzurro chiaro e sciarpa azzurra.\n\n"
+        "Sei l'illustratore editoriale di un gazzettino sportivo napoletano.\n"
+        "Devi creare un'illustrazione minimalista in stile fumetto d'autore (linea chiara, pulita, ariosa) "
+        "ispirata alla discussione del giorno tra i tifosi.\n\n"
         f"Tema della discussione di oggi: {tema}\n"
         f"Tono: {tono}\n"
         f"Cosa dicono nel gruppo: {' // '.join(battute)}\n\n"
-        "Descrivi in una sola frase in italiano l'azione fisica, l'espressione dei volti "
-        "e l'ambientazione concreta (es. al bar con il caffè, sul balcone con i panni stesi, "
-        "in strada, al motorino, sul divano davanti alla tv, ecc.) coerente con la discussione. "
-        "I personaggi devono trovarsi rigorosamente nella metà bassa dell'inquadratura per lasciare "
-        "spazio ai balloon dei dialoghi sopra le loro teste.\n"
+        "Descrivi in una sola frase in italiano la situazione tra due amici tifosi "
+        "(es. due amici al tavolino di un bar che gesticolano con passione davanti a una tazzina di caffè, "
+        "uno che indica un punto sul giornale mentre l'altro ascolta dubbioso, ecc.). "
+        "La scena deve contenere SOLO due personaggi principali, senza folle, senza caos, con ambientazione essenziale.\n"
         "Rispondi SOLO con la frase descrittiva, senza testo introduttivo."
     )
 
@@ -394,26 +392,20 @@ def generate_ai_drawing(
         azione_scena = ""
 
     if not azione_scena:
-        azione_scena = "I due amici sono al bar, uno gesticola animatamente mentre l'altro lo ascolta con attenzione e perplessità."
+        azione_scena = "Due amici tifosi al tavolino di un bar discutono animatamente gesticolando con passione davanti a un caffe."
 
-    print(f"  Scena vignetta IA ricavata: {azione_scena}")
+    print(f"  Scena illustrazione ricavata: {azione_scena}")
 
     prompt_disegno = (
-        "Vignetta a fumetti, senza testo. Due amici napoletani sui trentacinque anni, tifosi di calcio, gente comune e non atleti. "
-        "Quello a sinistra è robusto, capelli scuri corti e spettinati, barba di qualche giorno, maglietta azzurra a tinta unita senza scritte né stemmi. "
-        "Quello a destra è più magro, capelli scuri con la frangia, felpa azzurro chiaro, e spesso una sciarpa azzurra a tinta unita al collo. "
+        "Minimalist modern European comic illustration in Ligne Claire style, elegant French-Belgian graphic novel look. "
+        "Clean, crisp black ink contour lines with plenty of negative space on a warm ivory background (#f2ece0). "
         f"{azione_scena} "
-        "STILE: vignetta satirica da quotidiano italiano. Disegno a penna con linea decisa e nervosa, poche ombre, figure caricaturali dai lineamenti espressivi. "
-        "Colore quasi assente: solo tocchi di azzurro piatto sulle maglie e sulle sciarpe, tutto il resto in nero caldo su fondo AVORIO CALDO pieno e uniforme — il colore della carta di un quotidiano, non bianco. "
-        "L'aria è quella di una striscia stampata su carta di giornale, ma la carta è quella su cui la stampiamo noi: niente texture, niente grana, niente invecchiamento. "
-        "Inquadratura orizzontale, i due personaggi a mezzo busto o a tre quarti di figura, uno a sinistra e uno a destra. "
-        "VINCOLI TASSATIVI: nessun testo, nessuna scritta, nessuna lettera e nessun numero in nessun punto dell'immagine, in nessuna lingua. "
-        "Nessun fumetto e nessuna nuvoletta di dialogo, nemmeno vuoti. Nessuno stemma, logo, marchio o maglia ufficiale di una squadra reale: l'azzurro è a tinta unita e basta. "
-        "Nessuna persona reale o riconoscibile. Se in scena c'è uno schermo — televisore, telefono, computer — mostra solo forme e colori generici: nessun volto, nessuna scritta, nessuna partita riconoscibile. "
-        "Nessuna cornice e nessuna firma. "
-        "COMPOSIZIONE, la parte più importante: inquadratura molto larga, con i due personaggi piccoli e in basso. Le loro TESTE cominciano sotto la metà esatta dell'immagine, e sopra di loro c'è solo sfondo vuoto — cielo, muro, strada — per tutta la metà superiore. "
-        "Nessuna testa, nessuna mano e nessun dettaglio importante nella metà alta. Lo sfondo è essenziale e poco dettagliato: poche linee, niente tratteggio fitto. "
-        "DIMENSIONE FINALE: linee poche e spesse, nessun tratteggio fitto, nessun retino sottile, nessun dettaglio minuto sui volti o sui vestiti."
+        "Character design: two expressive animated Neapolitan friends with lively, quintessential Italian hand gestures. "
+        "Extremely clean, minimal and uncluttered composition: only the two characters and a simple table/archway in the background. "
+        "Flat, sophisticated color palette with solid fills (Napoli sky blue, warm terracotta, soft ochre, warm charcoal). "
+        "MANDATORY: NO crowd, NO background clutter, NO photorealism, NO dense cross-hatching. "
+        "NO text, NO letters, NO numbers, NO speech bubbles anywhere in the image. "
+        "High visual clarity, airy, refined and modern editorial illustration."
     )
 
     sizes_to_try = ["1536x1024", "1024x1024"]
