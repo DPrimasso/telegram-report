@@ -492,10 +492,20 @@ LEAD_FORMAT_RULE = (
     # giornale funziona così, e il testo non compare mai due volte.
     # Scriverne uno nuovo voleva dire raccontare in prima la stessa cosa
     # che l'articolo racconta dopo, con altre parole.
+    #
+    # Per questo TITOLO e SOMMARIO non sono liberi di scegliere un'altra
+    # angolazione sullo stesso fatto: sotto ci va stampato, parola per
+    # parola, il primo capoverso del pezzo che nomini in FONTE, quindi
+    # titolo e sommario devono annunciare esattamente QUEL capoverso — il
+    # fatto con cui il pezzo comincia — non un dettaglio più avanti nel
+    # pezzo né un taglio più largo. Se il titolo dicesse un'altra cosa dal
+    # testo che gli sta sotto, il lettore troverebbe due notizie diverse
+    # nella stessa apertura.
     "NON scrivere il corpo del pezzo: in prima pagina va l'inizio "
     "dell'articolo che hai davanti, e il resto continua alla sua pagina. "
     "Tu scegli quale notizia apre e le dai il titolo e il sommario che "
-    "merita in prima pagina.\n\n"
+    "merita in prima pagina, ma titolo e sommario devono restare sul "
+    "fatto con cui QUEL pezzo si apre.\n\n"
     f"{HEADLINE_RULE}\n\n{DECK_RULE}\n\n{ATTACCO_RULE}\n\n{PIRAMIDE_RULE}"
     f"\n\n{QUOTE_RULE}"
 )
@@ -1377,9 +1387,12 @@ def write_lead_story(
     Per giornate molto attive riusa summarize_overall come fonte condensata
     invece di rifare da zero il map-reduce sui messaggi grezzi.
     `page_headlines` sono i titoli degli articoli già in pagina: servono a
-    dare all'apertura un taglio diverso invece di ripetere un pezzo che il
-    lettore ha già sotto. `sections` sono i topic attivi oggi, fra cui il
-    modello sceglie quello da cui l'apertura arriva: è l'occhiello, e
+    far riconoscere al modello quando il fatto di apertura è lo stesso di
+    un pezzo già scritto, e in quel caso a tenerlo sullo stesso taglio con
+    cui quel pezzo comincia — non un taglio diverso, perché il testo che va
+    sotto il titolo in prima pagina è comunque il primo capoverso di quel
+    pezzo, preso alla lettera. `sections` sono i topic attivi oggi, fra cui
+    il modello sceglie quello da cui l'apertura arriva: è l'occhiello, e
     finché lo decideva il codice (il topic più attivo) poteva annunciare
     una sezione che con la notizia non c'entrava."""
     if not messages_with_topic:
@@ -1434,13 +1447,27 @@ def write_lead_story(
             source_text = summarize_overall(client, model, messages_with_topic)
             source_label = "un riepilogo già pronto dei temi più rilevanti di oggi"
 
+    # Attenzione: questa regola NON dice "prendi un'angolazione diversa" —
+    # lo diceva in una versione precedente, quando l'apertura scriveva il
+    # proprio corpo per intero e un taglio più ampio aveva senso. Da
+    # quando in prima pagina va stampato l'inizio vero e proprio del
+    # pezzo scelto (vedi LEAD_FORMAT_RULE), un titolo con un taglio
+    # diverso da quello del pezzo produce una prima pagina in cui il
+    # titolo dice una cosa e il testo sotto ne dice un'altra: il difetto
+    # più visibile che questo file conosca. Se rimetti un "taglio
+    # proprio"/"angolazione più ampia" qui, il difetto torna.
     titles = [t for t in (page_headlines or []) if t]
     angle_rule = (
-        "Nella stessa pagina compaiono già questi articoli: "
-        + "; ".join(titles)
-        + ". L'apertura deve avere un taglio proprio: se il tema più "
-        "importante coincide con uno di quelli, trattalo da un'angolazione "
-        "più ampia invece di riscrivere lo stesso pezzo."
+        "Nella stessa pagina compaiono già questi articoli, già scritti per "
+        "intero: " + "; ".join(titles) + ". Se il fatto più rilevante della "
+        "giornata è lo stesso di uno di questi pezzi, apri PROPRIO con "
+        "quello — non evitarlo per non ripetere un titolo — e scrivi "
+        "titolo e sommario sullo stesso taglio con cui quel pezzo comincia: "
+        "in prima pagina finisce stampato, parola per parola, il suo primo "
+        "capoverso, quindi titolo e sommario devono annunciare esattamente "
+        "quel capoverso. Solo se l'apertura nasce da un fatto che nessuno "
+        "di questi pezzi racconta per intero, o che li attraversa tutti, "
+        "sei libero di scegliere il taglio che preferisci."
         if titles
         else ""
     )
