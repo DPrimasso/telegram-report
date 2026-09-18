@@ -1145,9 +1145,9 @@ def _lead_html(
     # Senza capoversi non si stampa un segnaposto: "Nessun dettaglio
     # disponibile" era una riga di arredo che occupava il posto della
     # notizia e non diceva niente. Il titolo e il sommario la notizia la
-    # danno comunque, e _apertura_dal_pezzo fa in modo che questo caso non
-    # si presenti finché in pagina c'è almeno un articolo con due
-    # capoversi.
+    # danno comunque, e capita quando _apertura_dal_pezzo non trova un
+    # pezzo dello stesso tema da cui prestare il testo: meglio nessun
+    # corpo che uno preso da un pezzo che parla d'altro.
     body = "".join(
         f"<p>{html.escape(p)}{chiusura if i == len(testo) - 1 else ''}</p>"
         for i, p in enumerate(testo)
@@ -1780,30 +1780,29 @@ def _apertura_dal_pezzo(
 
     L'apertura non scrive più il proprio corpo: glielo presta l'articolo
     da cui nasce, che poi riparte da dove lei si ferma. `lead_topic` è il
-    tema dichiarato da chi l'ha scritta, ma fidarsi e basta lascia la
-    prima pagina senza niente sotto il titolo in tre casi veri: quando il
-    tema è vuoto — l'apertura ne mette insieme più d'uno —, quando nomina
-    un tema che in pagina non c'è, e quando il pezzo che nomina è troppo
-    corto per prestare qualcosa senza restare senza niente.
+    tema dichiarato da chi l'ha scritta.
 
-    Quindi il tema dichiarato apre la fila ma non la chiude: se non può
-    prestare, presta il pezzo dopo, in ordine di rilevanza. Un capoverso
-    resta sempre al pezzo, o dentro ci sarebbe un titolo senza articolo.
-    """
-    ordine = list(range(len(articoli)))
-    if lead_topic:
-        primo = next(
-            (i for i in ordine if getattr(articoli[i], "topic", None) == lead_topic),
-            None,
-        )
-        if primo is not None:
-            ordine = [primo] + [i for i in ordine if i != primo]
-    for i in ordine:
-        parti = _paragraphs(articoli[i].body)
-        if len(parti) >= 2:
-            quanti = min(CAPOVERSI_IN_PRIMA, len(parti) - 1)
-            return parti[:quanti], i, parti[quanti:]
-    return [], -1, []
+    Il prestito vale SOLO dal pezzo di quel tema, e da nessun altro: se il
+    tema è vuoto (l'apertura ne mette insieme più d'uno), se nomina un
+    tema che in pagina non c'è, o se il pezzo che nomina è troppo corto
+    per prestare qualcosa, la prima pagina resta senza testo sotto il
+    titolo — solo occhiello, titolo e sommario. Prima si ripiegava sul
+    primo pezzo disponibile "in ordine di rilevanza": un titolo su un
+    fatto e un testo preso da un pezzo che parlava d'altro, la stessa
+    pagina con due notizie diverse spacciate per una."""
+    if not lead_topic:
+        return [], -1, []
+    i = next(
+        (i for i in range(len(articoli)) if getattr(articoli[i], "topic", None) == lead_topic),
+        None,
+    )
+    if i is None:
+        return [], -1, []
+    parti = _paragraphs(articoli[i].body)
+    if len(parti) < 2:
+        return [], -1, []
+    quanti = min(CAPOVERSI_IN_PRIMA, len(parti) - 1)
+    return parti[:quanti], i, parti[quanti:]
 
 
 def _estimate_lead_height(
@@ -2162,6 +2161,12 @@ def build_pages_html(
     i_fonte, resto = -1, []
     if not lead.paragraphs:
         apertura_paragrafi, i_fonte, resto = _apertura_dal_pezzo(usable, lead_topic)
+        if i_fonte < 0:
+            print(
+                "Apertura senza testo in prima pagina: il tema dichiarato "
+                f"({lead_topic or 'nessuno'!r}) non combacia con un pezzo "
+                "in pagina con almeno due capoversi."
+            )
     if i_fonte >= 0:
         usable[i_fonte] = replace(
             usable[i_fonte], body="\n\n".join(resto), dalla_prima=True

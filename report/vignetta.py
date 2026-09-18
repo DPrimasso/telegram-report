@@ -373,26 +373,43 @@ def generate_ai_drawing(
     """Genera un'illustrazione d'autore in stile Ligne Claire minimale per la prima pagina."""
     prompt_azione = (
         "Sei l'illustratore editoriale di un gazzettino sportivo napoletano.\n"
-        "Devi creare un'illustrazione minimalista in stile fumetto d'autore (linea chiara, pulita, ariosa) "
-        "ispirata alla discussione del giorno tra i tifosi.\n\n"
+        "Devi immaginare l'ambientazione e l'azione di un'illustrazione minimalista in stile fumetto d'autore "
+        "(linea chiara, pulita, ariosa) ispirata alla discussione del giorno tra i tifosi.\n\n"
         f"Tema della discussione di oggi: {tema}\n"
         f"Tono: {tono}\n"
         f"Cosa dicono nel gruppo: {' // '.join(battute)}\n\n"
-        "Descrivi in una sola frase in italiano la situazione tra due amici tifosi "
-        "(es. due amici al tavolino di un bar che gesticolano con passione davanti a una tazzina di caffè, "
-        "uno che indica un punto sul giornale mentre l'altro ascolta dubbioso, ecc.). "
-        "La scena deve contenere SOLO due personaggi principali, senza folle, senza caos, con ambientazione essenziale.\n"
+        "Descrivi in una sola frase in italiano la situazione tra due amici tifosi, e scegli un luogo diverso "
+        "ogni volta: l'illustrazione di ieri e quella di oggi non devono mai sembrare la stessa scena. Evita il "
+        "tavolino del bar col caffè, è il luogo più scontato e va usato solo se davvero non c'è alternativa "
+        "migliore per il tono di oggi. Pesca fra ambientazioni della vita di tutti i giorni a Napoli, per "
+        "esempio (solo esempi, cambia ogni volta): per strada davanti a un portone, su un balcone, sugli spalti "
+        "dello stadio, in uno spogliatoio, in cucina, in auto fermi nel traffico, al mercato rionale, in sella "
+        "a uno scooter fermo al semaforo, in un vicolo con i panni stesi, sul lungomare, davanti alla TV in "
+        "salotto, in ufficio, in fila alla salumeria, in un giardinetto sotto casa. "
+        "La scena deve contenere SOLO due personaggi principali, senza folle, senza caos, con ambientazione "
+        "essenziale ma riconoscibile: pochi elementi, ma chiari, non un fondo vuoto e generico.\n"
         "Rispondi SOLO con la frase descrittiva, senza testo introduttivo."
     )
 
     try:
-        azione_scena = llm.complete(client, text_model, prompt_azione, temperature=0.5)
+        azione_scena = llm.complete(client, text_model, prompt_azione, temperature=0.9)
     except Exception as exc:
         print(f"Descrizione scena vignetta fallita ({exc}).")
         azione_scena = ""
 
     if not azione_scena:
-        azione_scena = "Due amici tifosi al tavolino di un bar discutono animatamente gesticolando con passione davanti a un caffe."
+        # Il ripiego non è mai il tavolino del bar da solo: è quello che
+        # succede quasi ogni volta che la chiamata fallisce, e il giorno
+        # dopo l'immagine sembrerebbe di nuovo identica a quella prima.
+        azione_scena = random.choice(
+            [
+                "Due amici tifosi si confrontano animatamente per strada, davanti a un portone del centro.",
+                "Due amici tifosi discutono affacciati a un balcone, la città sullo sfondo.",
+                "Due amici tifosi si confrontano in piedi sugli spalti dello stadio, quasi vuoti.",
+                "Due amici tifosi discutono fermi in sella a uno scooter, al semaforo.",
+                "Due amici tifosi si confrontano seduti in cucina, davanti a due tazze vuote.",
+            ]
+        )
 
     print(f"  Scena illustrazione ricavata: {azione_scena}")
 
@@ -401,9 +418,13 @@ def generate_ai_drawing(
         "Clean, crisp black ink contour lines with plenty of negative space on a warm ivory background (#f2ece0). "
         f"{azione_scena} "
         "Character design: two expressive animated Neapolitan friends with lively, quintessential Italian hand gestures. "
-        "Extremely clean, minimal and uncluttered composition: only the two characters and a simple table/archway in the background. "
-        "Flat, sophisticated color palette with solid fills (Napoli sky blue, warm terracotta, soft ochre, warm charcoal). "
-        "MANDATORY: NO crowd, NO background clutter, NO photorealism, NO dense cross-hatching. "
+        "Extremely clean, minimal and uncluttered composition: only the two characters and the single essential "
+        "background element described above, nothing more added to the setting. "
+        "Monochrome black and white illustration ONLY: pure black ink contour lines and grayscale ink hatching "
+        "for shading, no color anywhere, on the warm ivory background (#f2ece0) — like a black-and-white "
+        "newspaper illustration, not a colour comic. "
+        "MANDATORY: NO crowd, NO background clutter, NO photorealism, NO dense cross-hatching, NO color of any "
+        "kind (no blue, no terracotta, no ochre — black ink and grayscale tones only). "
         "NO text, NO letters, NO numbers, NO speech bubbles anywhere in the image. "
         "High visual clarity, airy, refined and modern editorial illustration."
     )
