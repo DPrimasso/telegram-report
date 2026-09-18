@@ -122,6 +122,20 @@ NO_META_RULE = (
 )
 
 
+# Le regole di cui sopra, unite nell'ordine in cui i prompt qui sotto le
+# usano: la stessa stringa, byte per byte, a ogni chiamata dello stesso
+# tipo. Metterle in testa al prompt — prima del nome del topic, che cambia
+# a ogni chiamata — è quello che permette al prefisso comune di cadere
+# nella cache dei prompt di OpenAI sui topic abbastanza lunghi da superare
+# la soglia di 1024 token, invece di essere ripagato per intero a ogni
+# chiamata. Stesso principio già in uso per gli articoli, vedi
+# REGOLE_DI_PROSA più sotto.
+REGOLE_RIASSUNTO = (
+    f"{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n{NO_META_RULE}\n\n{FORMAT_RULE}"
+)
+REGOLE_RIASSUNTO_PARZIALE = f"{GROUNDING_RULE}\n\n{NO_META_RULE}\n\n{FORMAT_RULE}"
+
+
 def _topic_point_budget(message_count: int) -> str:
     """Scala il numero massimo di punti richiesti al modello in base al
     volume reale di messaggi, invece di chiedere sempre lo stesso numero
@@ -194,6 +208,7 @@ def summarize_topic(
     if len(chunks) == 1:
         transcript = _format_transcript(chunks[0])
         prompt = (
+            f"{REGOLE_RIASSUNTO}\n\n"
             f'Sei un assistente che scrive il riepilogo giornaliero del topic '
             f'"{topic_title}" di un gruppo Telegram.\n'
             "Di seguito trovi tutti i messaggi scambiati oggi in questo topic, "
@@ -205,8 +220,7 @@ def summarize_topic(
             "prese, dubbi sollevati); altrimenti limitati a descrivere "
             "l'argomento senza inventare dettagli mancanti. Italiano, tono "
             f"neutro e informativo. Sintetizza, non ripetere i messaggi "
-            f"parola per parola.\n\n{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n"
-            f"{NO_META_RULE}\n\n{FORMAT_RULE}\n\n"
+            f"parola per parola.\n\n"
             f"Messaggi:\n" + transcript
         )
         return _call_openai(client, model, prompt)
@@ -215,23 +229,23 @@ def summarize_topic(
     for chunk in chunks:
         transcript = _format_transcript(chunk)
         prompt = (
+            f"{REGOLE_RIASSUNTO}\n\n"
             f'Riassumi in punti elenco (massimo 3-4 punti) i temi discussi '
             f'in questa porzione di conversazione del topic "{topic_title}", '
             f'aggiungendo contesto solo se esplicitamente presente nei '
-            f'messaggi.\n\n{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n'
-            f'{NO_META_RULE}\n\n{FORMAT_RULE}\n\n{transcript}'
+            f'messaggi.\n\n{transcript}'
         )
         partial_summaries.append(_call_openai(client, model, prompt))
 
     combined = "\n\n".join(partial_summaries)
     final_prompt = (
+        f"{REGOLE_RIASSUNTO_PARZIALE}\n\n"
         f'Di seguito trovi diversi riassunti parziali della conversazione di '
         f'oggi nel topic "{topic_title}". Unificali in un unico riepilogo '
-        f"(massimo {budget} punti elenco), eliminando le ripetizioni.\n\n"
-        f"{GROUNDING_RULE} Non aggiungere nulla che non sia già presente nei "
-        f"riassunti parziali sotto. I nomi propri, le cifre e le date "
-        f"presenti nei riassunti parziali vanno riportati tutti.\n\n"
-        f"{NO_META_RULE}\n\n{FORMAT_RULE}\n\n" + combined
+        f"(massimo {budget} punti elenco), eliminando le ripetizioni. Non "
+        "aggiungere nulla che non sia già presente nei riassunti parziali "
+        "sotto. I nomi propri, le cifre e le date presenti nei riassunti "
+        "parziali vanno riportati tutti.\n\n" + combined
     )
     return _call_openai(client, model, final_prompt)
 
@@ -264,13 +278,13 @@ def summarize_overall(
         lines = [_format_line(m, topic) for topic, m in ordered]
         transcript = "\n".join(lines)
         prompt = (
+            f"{REGOLE_RIASSUNTO}\n\n"
             "Sei un assistente che individua i punti salienti della "
             "giornata in un gruppo Telegram organizzato in più topic.\n"
             "Di seguito trovi TUTTI i messaggi scambiati oggi nel gruppo, di "
             "tutti i topic insieme, in ordine cronologico (tra parentesi il "
             f"topic di provenienza).\n{highlight_rule}\n\n"
-            f"{GROUNDING_RULE}\n\n{IDENTIFICAZIONE_RULE}\n\n"
-            f"{NO_META_RULE}\n\n{FORMAT_RULE}\n\nMessaggi:\n" + transcript
+            "Messaggi:\n" + transcript
         )
         return _call_openai(client, model, prompt)
 
@@ -280,19 +294,21 @@ def summarize_overall(
         lines = [_format_line(m, topic_by_message.get(id(m))) for m in chunk]
         transcript = "\n".join(lines)
         prompt = (
+            f"{REGOLE_RIASSUNTO_PARZIALE}\n\n"
             "Riassumi in punti elenco (massimo 3-4 punti) i temi trasversali "
             "o particolarmente rilevanti in questa porzione della "
             "conversazione giornaliera del gruppo (tra parentesi il topic di "
-            f"provenienza).\n\n{GROUNDING_RULE}\n\n{NO_META_RULE}\n\n{FORMAT_RULE}\n\n" + transcript
+            "provenienza).\n\n" + transcript
         )
         partial_summaries.append(_call_openai(client, model, prompt))
 
     combined = "\n\n".join(partial_summaries)
     final_prompt = (
+        f"{GROUNDING_RULE}\n\n{FORMAT_RULE}\n\n"
         "Di seguito trovi diversi riassunti parziali dei punti salienti di "
         f"oggi nel gruppo. Unificali eliminando le ripetizioni.\n{highlight_rule}"
-        f"\n\n{GROUNDING_RULE} Non aggiungere nulla che non sia già presente "
-        f"nei riassunti parziali sotto.\n\n{FORMAT_RULE}\n\n" + combined
+        "\n\nNon aggiungere nulla che non sia già presente "
+        "nei riassunti parziali sotto.\n\n" + combined
     )
     return _call_openai(client, model, final_prompt)
 
