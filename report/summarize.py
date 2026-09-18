@@ -480,10 +480,18 @@ LEAD_FORMAT_RULE = (
     "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
     "scrivere)\n"
     "SEZIONE: {sections}\n"
-    "FONTE: il titolo di UNO dei temi qui sotto, copiato identico — quello "
-    "di cui parla il fatto che apre — oppure, SOLO se il fatto attraversa "
-    "più temi insieme e non è raccontato per intero da nessun pezzo "
-    "qui sotto, la sola parola TRASVERSALE\n"
+    # Ogni pezzo qui sotto comincia con "### NOME DEL TOPIC (N messaggi)",
+    # seguito dal SUO titolo. Due cose diverse chiamate entrambe "titolo"
+    # nella stessa istruzione si confondono facilmente — il modello ha
+    # copiato il titolo dell'articolo invece del nome del topic, e FONTE
+    # non ha mai combaciato con niente. Ora la riga nomina esplicitamente
+    # il cancelletto, che è l'unica cosa che il codice confronta.
+    "FONTE: il NOME DEL TOPIC copiato identico da uno dei cancelletti "
+    "\"### nome del topic\" qui sotto — non il titolo dell'articolo che "
+    "gli sta scritto sotto, il nome del topic sul cancelletto — quello da "
+    "cui viene il fatto che apre, oppure, SOLO se il fatto attraversa più "
+    "topic insieme e non è raccontato per intero da nessun pezzo qui "
+    "sotto, la sola parola TRASVERSALE\n"
     "TITOLO: il titolo di quel fatto, massimo 9 parole\n"
     "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
     "TESTO: lascia questa riga VUOTA se in FONTE hai scritto il titolo di "
