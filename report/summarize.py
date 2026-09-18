@@ -480,32 +480,44 @@ LEAD_FORMAT_RULE = (
     "lavoro, non viene pubblicata: serve a fissare l'argomento prima di "
     "scrivere)\n"
     "SEZIONE: {sections}\n"
-    "FONTE: il titolo di UNO dei temi qui sotto, copiato identico: "
-    "quello di cui parla il fatto che apre\n"
+    "FONTE: il titolo di UNO dei temi qui sotto, copiato identico — quello "
+    "di cui parla il fatto che apre — oppure, SOLO se il fatto attraversa "
+    "più temi insieme e non è raccontato per intero da nessun pezzo "
+    "qui sotto, la sola parola TRASVERSALE\n"
     "TITOLO: il titolo di quel fatto, massimo 9 parole\n"
     "SOMMARIO: una frase che sviluppa quello stesso fatto\n"
+    "TESTO: lascia questa riga VUOTA se in FONTE hai scritto il titolo di "
+    "un pezzo — il suo testo lo prendiamo da lì. Scrivila SOLO se in FONTE "
+    "hai scritto TRASVERSALE: in quel caso, 2 paragrafi brevi (massimo 300 "
+    "caratteri ciascuno) separati da una riga vuota, sullo stesso fatto del "
+    "titolo\n"
     "CITAZIONE: una frase copiata alla lettera da un messaggio, poi una "
     "barra verticale, poi il nome di chi l'ha scritta — oppure la sola "
     "parola NESSUNA\n\n"
-    # Il corpo dell'apertura non si scrive: è l'inizio dell'articolo che
-    # sta dentro, stampato in prima e continuato alla sua pagina. Su un
-    # giornale funziona così, e il testo non compare mai due volte.
-    # Scriverne uno nuovo voleva dire raccontare in prima la stessa cosa
-    # che l'articolo racconta dopo, con altre parole.
+    # Il corpo dell'apertura non si scrive quando esiste già un pezzo che
+    # lo scrive per noi: in prima pagina va l'inizio di QUEL pezzo, e il
+    # resto continua alla sua pagina. Su un giornale funziona così, e il
+    # testo non compare mai due volte. Scriverne uno nuovo in quel caso
+    # voleva dire raccontare in prima la stessa cosa che l'articolo
+    # racconta dopo, con altre parole.
     #
-    # Per questo TITOLO e SOMMARIO non sono liberi di scegliere un'altra
-    # angolazione sullo stesso fatto: sotto ci va stampato, parola per
-    # parola, il primo capoverso del pezzo che nomini in FONTE, quindi
-    # titolo e sommario devono annunciare esattamente QUEL capoverso — il
-    # fatto con cui il pezzo comincia — non un dettaglio più avanti nel
-    # pezzo né un taglio più largo. Se il titolo dicesse un'altra cosa dal
-    # testo che gli sta sotto, il lettore troverebbe due notizie diverse
-    # nella stessa apertura.
-    "NON scrivere il corpo del pezzo: in prima pagina va l'inizio "
-    "dell'articolo che hai davanti, e il resto continua alla sua pagina. "
-    "Tu scegli quale notizia apre e le dai il titolo e il sommario che "
-    "merita in prima pagina, ma titolo e sommario devono restare sul "
-    "fatto con cui QUEL pezzo si apre.\n\n"
+    # Per questo, quando FONTE nomina un pezzo, TITOLO e SOMMARIO non sono
+    # liberi di scegliere un'altra angolazione sullo stesso fatto: sotto ci
+    # va stampato, parola per parola, il primo capoverso di quel pezzo,
+    # quindi titolo e sommario devono annunciare esattamente QUEL
+    # capoverso — il fatto con cui il pezzo comincia — non un dettaglio più
+    # avanti nel pezzo né un taglio più largo. Se il titolo dicesse
+    # un'altra cosa dal testo che gli sta sotto, il lettore troverebbe due
+    # notizie diverse nella stessa apertura.
+    #
+    # Quando invece il fatto è TRASVERSALE non esiste un pezzo unico da
+    # prestare: lì, e SOLO lì, il testo lo scrivi tu in TESTO, sullo stesso
+    # fatto di titolo e sommario.
+    "Se FONTE nomina un pezzo: tu scegli quale notizia apre e le dai il "
+    "titolo e il sommario che merita in prima pagina, ma titolo e sommario "
+    "devono restare sul fatto con cui QUEL pezzo si apre, e TESTO resta "
+    "vuoto. Se FONTE è TRASVERSALE, scrivi anche TESTO, sempre sullo "
+    "stesso fatto di titolo e sommario.\n\n"
     f"{HEADLINE_RULE}\n\n{DECK_RULE}\n\n{ATTACCO_RULE}\n\n{PIRAMIDE_RULE}"
     f"\n\n{QUOTE_RULE}"
 )
@@ -1498,13 +1510,36 @@ def write_lead_story(
         headline, deck, paragraphs, declared, citazione, tono, battute, fonte,
     ) = _split_lead(raw)
     _segnala_se_generico("apertura", headline, " ".join(paragraphs))
-    # La fonte vale solo se è davvero uno dei temi che abbiamo passato:
-    # un titolo storpiato manderebbe il rimando della prima pagina su una
-    # pagina a caso, ed è meglio nessun rimando che uno sbagliato.
-    noti = {t for t, *_ in (articoli or [])}
-    if fonte and fonte not in noti:
-        vicini = [t for t in noti if t.lower() == fonte.lower()]
-        fonte = vicini[0] if vicini else ""
+    # TRASVERSALE è una dichiarazione esplicita, non un titolo storpiato:
+    # non va cercata fra i temi, e il TESTO che il modello ha scritto in
+    # quel caso è quello vero, da tenere.
+    if fonte.strip().upper() == CROSS_SECTION_MARKER:
+        fonte = ""
+    else:
+        # La fonte vale solo se è davvero uno dei temi che abbiamo
+        # passato: un titolo storpiato manderebbe il rimando della prima
+        # pagina su una pagina a caso, ed è meglio nessun rimando che uno
+        # sbagliato. Stessa tolleranza di _match_section: il modello a
+        # volte accorcia o allunga il nome del topic, e un match solo
+        # esatto scartava una fonte vera — l'apertura restava senza testo
+        # sotto il titolo per un titolo storpiato di poco, non per un
+        # fatto davvero trasversale.
+        noti = {t for t, *_ in (articoli or [])}
+        if fonte and fonte not in noti:
+            lowered = fonte.lower()
+            vicini = [t for t in noti if t.lower() == lowered]
+            if not vicini:
+                vicini = [
+                    t for t in noti if t and (t.lower() in lowered or lowered in t.lower())
+                ]
+            fonte = vicini[0] if vicini else ""
+        if fonte:
+            # Un pezzo preciso presta il suo testo: il TESTO che il
+            # modello avesse scritto lo stesso andrebbe buttato, o
+            # apparirebbe due volte — qui e nel pezzo interno — con due
+            # angolazioni diverse, esattamente il difetto che FONTE serve
+            # a evitare.
+            paragraphs = []
     return (
         headline,
         deck,
