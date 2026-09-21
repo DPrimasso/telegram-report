@@ -51,6 +51,11 @@ jobs:
           TELEGRAM_GROUP_ID: ${{ secrets.TELEGRAM_GROUP_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          # Il disegno della vignetta. Vuote = si genera sull'apertura del
+          # giorno, con gpt-image-2, e in bianco e nero come la pagina.
+          GENERATE_AI_VIGNETTA: ${{ vars.GENERATE_AI_VIGNETTA }}
+          OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL }}
+          VIGNETTA_BIANCO_E_NERO: ${{ vars.VIGNETTA_BIANCO_E_NERO }}
           REPORT_DESTINATION: ${{ vars.REPORT_DESTINATION }}
           REPORT_TOPIC_ID: ${{ vars.REPORT_TOPIC_ID }}
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}

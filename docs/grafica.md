@@ -326,6 +326,36 @@ separato, stesso trattamento cromatico delle foto vere). Quello che
 manca, e che nessuna di quelle difese risolve, è un modo di legare
 l'immagine al fatto e non all'argomento.
 
+**Ripresa, con il legame che mancava.** Quel modo è arrivato con la
+vignetta: il disegno non rappresenta il fatto, rappresenta **due che ne
+parlano**. Il fatto non decide *che cosa* è disegnato — non c'è nessun
+pallone appoggiato su un contratto — decide **dove sono i due e cosa
+stanno facendo**: una partita in tv si guarda dal divano, un'asta di
+fantacalcio davanti a un portatile, una notizia di mercato arriva sul
+telefono mentre si fa la fila. Il soggetto resta lo stesso tutti i
+giorni, ed è per questo che non può illustrare la categoria; a cambiare
+è la scena, che dal fatto ci viene per davvero.
+
+È quello che fa `generate_ai_drawing` (`report/vignetta.py`), in due
+chiamate separate per la stessa ragione di prima: la prima legge
+l'apertura e ricava luogo, azione e oggetto di scena, la seconda disegna
+e della notizia non sa niente — così titoli, nomi e numeri non hanno una
+strada per entrare in un'immagine che non deve contenere scritte. Nel
+prompt della scena il bar è vietato per nome: era l'esempio che il
+prompt dava, e un esempio in un prompt è la risposta più facile, quindi
+per settimane l'edizione è uscita con gli stessi due al tavolino con le
+tazzine.
+
+Il trattamento cromatico è la terza difesa, e qui è diventato più
+severo: il disegno esce in **bianco e nero**, inchiostro e carta avorio
+e nient'altro (`report/inchiostro.py`). La conversione è fatta dopo la
+generazione, non chiesta nel prompt — un prompt è una richiesta, e il
+colore i modelli lo rimettono comunque — quindi vale qualunque cosa
+consegni il modello e qualunque modello si usi. In pagina il fondo del
+pannello cade esattamente sulla carta, e il disegno smette di somigliare
+a un ritaglio di un altro giornale: è la regola 2, una sola famiglia di
+colori, applicata alla sola cosa che arrivava da fuori.
+
 ### Classifica dei partecipanti
 
 Tecnicamente gratis: i dati ci sono già. Scartata per motivi non tecnici —

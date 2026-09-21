@@ -413,8 +413,22 @@ async def _run_newspaper_report(
                 tema=f"{lead.headline} — {lead.deck}",
                 tono=vignetta.tone,
                 battute=[b.text for b in vignetta.balloons],
+                # Il pezzo di apertura per esteso. Da titolo e sommario il
+                # modello ricava solo il luogo più generico che esiste —
+                # due che parlano — mentre è nel corpo che si dice se la
+                # partita era in tv, se era una trasferta, se la notizia è
+                # arrivata sul telefono a mezzanotte.
+                contesto="\n".join(lead.paragraphs),
+                giorno=target_date,
                 text_model=config.openai_model,
-                image_model=os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2"),
+                # `or` e non il default di get: su GitHub Actions una
+                # variabile non impostata arriva come stringa vuota, e un
+                # modello vuoto è una chiamata che fallisce.
+                image_model=os.environ.get("OPENAI_IMAGE_MODEL") or "gpt-image-2",
+                # Il disegno esce in bianco e nero, come il resto della
+                # pagina: carta avorio e inchiostro, nessun colore in
+                # più. A 0 resta la tavolozza del modello.
+                bianco_e_nero=os.environ.get("VIGNETTA_BIANCO_E_NERO", "1") != "0",
             )
             if ai_disegno:
                 vignetta = dataclasses.replace(vignetta, image_path=ai_disegno)

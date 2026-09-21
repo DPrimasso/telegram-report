@@ -31,13 +31,16 @@ riepilogo. Due formati disponibili:
   [`docs/grafica.md`](docs/grafica.md). Anche l'indice in cima alla prima
   pagina elenca le sezioni e non i topic: è la mappa dell'edizione, e
   nomina le stesse cose che si trovano nelle testate più in basso.
-- **Grafica**: nessuna immagine (l'unica in pagina è il logo della
-  testata). Il peso visivo lo fanno la tipografia e i dati — dato grande,
-  capolettera, barrette di peso, box «In breve», grafico dell'andamento
-  orario — generati in SVG dentro la pagina, senza librerie né asset
-  scaricati. Il criterio con cui sono stati scelti, e perché le foto del
-  gruppo sono state provate e poi tolte, sta in
-  [`docs/grafica.md`](docs/grafica.md).
+- **Grafica**: nessuna fotografia. Il peso visivo lo fanno la tipografia e
+  i dati — dato grande, capolettera, barrette di peso, box «In breve»,
+  grafico dell'andamento orario — generati in SVG dentro la pagina, senza
+  librerie né asset scaricati. Le sole cose raster sono i marchi e
+  l'illustrazione del giorno, che è un disegno: sempre gli stessi due
+  tifosi, con le battute vere del gruppo sotto, in una scena che cambia a
+  ogni edizione perché la decide il fatto di apertura. Esce in bianco e
+  nero, inchiostro e carta come il resto della pagina. Il criterio con cui
+  gli elementi sono stati scelti, e perché le foto del gruppo sono state
+  provate e poi tolte, sta in [`docs/grafica.md`](docs/grafica.md).
 - **Invio**: per ora il report arriva in DM privato (Saved Messages, cioè
   messaggio a "te stesso"). In futuro, quando validato, si può spostare in un
   topic dedicato del gruppo cambiando solo configurazione (vedi sotto). Le
