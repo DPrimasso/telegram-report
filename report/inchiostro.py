@@ -104,7 +104,13 @@ def stampa_in_bianco_e_nero(
                 altezza = round(immagine.height * larghezza / immagine.width)
                 immagine = immagine.resize((larghezza, altezza), Image.LANCZOS)
             immagine.save(percorso, "PNG", optimize=True)
+            misura = f"{immagine.width}x{immagine.height}"
     except OSError as errore:
         print(f"  Bianco e nero saltato ({errore}): tengo il disegno com'è.")
         return False
+    # Detto in positivo apposta: l'unico modo di sapere che era andata
+    # bene era che non fosse comparso un errore, e "non ha detto niente"
+    # e "ha fatto la cosa giusta" avevano lo stesso aspetto nei log di
+    # un'edizione che gira in CI e non si può guardare.
+    print(f"  Disegno portato in bianco e nero sulla carta del giornale ({misura}).")
     return True

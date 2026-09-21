@@ -340,11 +340,35 @@ giorni, ed è per questo che non può illustrare la categoria; a cambiare
 chiamate separate per la stessa ragione di prima: la prima legge
 l'apertura e ricava luogo, azione e oggetto di scena, la seconda disegna
 e della notizia non sa niente — così titoli, nomi e numeri non hanno una
-strada per entrare in un'immagine che non deve contenere scritte. Nel
-prompt della scena il bar è vietato per nome: era l'esempio che il
-prompt dava, e un esempio in un prompt è la risposta più facile, quindi
-per settimane l'edizione è uscita con gli stessi due al tavolino con le
-tazzine.
+strada per entrare in un'immagine che non deve contenere scritte.
+
+**Il luogo si sceglie in un elenco, e non è una limitazione ma la
+correzione di due errori opposti.** Il primo: il prompt chiedeva «una
+scena» e ne dava un esempio — due amici al tavolino del bar con le
+tazzine — e il modello restituiva quell'esempio tutti i giorni, perché
+un esempio in un prompt è la risposta più facile. Il secondo, arrivato
+subito dopo aver tolto l'esempio e lasciato il luogo a mano libera: su
+una giornata di partita il modello ha messo i due **su un campetto, uno
+in tuffo a parare**. Il fatto era rispettato alla lettera e la vignetta
+non stava in piedi — quelli sono due tifosi, non due giocatori, e il
+lettore lo sa prima di aver letto la didascalia.
+
+Da qui le due regole che reggono la verosimiglianza:
+
+- **il luogo si prende da `LUOGHI`**, venti posti in cui due che
+  commentano ci stanno davvero (il salotto, la curva, il motorino al
+  semaforo, l'edicola, la fila in salumeria). Il fatto continua a
+  decidere — decide *quale* — ma non può inventarne uno in cui i due non
+  potrebbero essere;
+- **i due guardano il fatto, non lo fanno.** Non sono in campo, non
+  indossano una divisa, non allenano e non arbitrano. Sta scritto due
+  volte, nel prompt della scena e in quello del disegno, perché nessun
+  luogo la garantisce da sé: allo stadio si può stare in curva o in
+  campo, e la differenza è tutta lì.
+
+Il bar resta disponibile ma raro — vietarlo del tutto è ciò che aveva
+spinto il modello sul campetto — e quando esce è il bancone con la tv
+appesa, non il tavolino con le tazzine.
 
 Il trattamento cromatico è la terza difesa, e qui è diventato più
 severo: il disegno esce in **bianco e nero**, inchiostro e carta avorio

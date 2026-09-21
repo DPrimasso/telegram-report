@@ -410,54 +410,81 @@ _STILE_A_COLORI = (
 )
 
 # Il tono lo ha già scelto il modello che ha letto la giornata: qui
-# diventa il modo in cui i due stanno in scena. Sono sei, quindi sei
-# disegni diversi anche a parità di luogo.
+# diventa l'aria che hanno addosso, non quello che fanno. La differenza
+# è tutta in una prova andata storta: quando questo blocco descriveva i
+# corpi ("uno tiene l'altro a distanza con il palmo aperto") finiva per
+# contraddire l'azione scelta dal modello, e il disegno usciva con due
+# pose sovrapposte. L'azione la decide la scena; qui ci sono le facce.
 _ARIA = {
     "battibecco": (
-        "the two are arguing: one holds the other back with an open palm "
-        "while the other leans in, still talking over him"
+        "Faces and attitude: they are in the middle of an argument — "
+        "eyebrows up, mouths open at the same time, neither listening"
     ),
     "esultanza": (
-        "the two are celebrating: arms up, mouths wide open, one grabbing "
-        "the other by the shoulders"
+        "Faces and attitude: pure celebration — wide open mouths, eyes "
+        "shut, they are shouting with joy"
     ),
     "sconforto": (
-        "the two are crushed: shoulders down, one with his head in his "
-        "hands, the other staring at nothing"
+        "Faces and attitude: they have been knocked flat — shoulders "
+        "down, empty stares, one rubbing his forehead"
     ),
     "complotto": (
-        "the two are conspiring: heads close together, one pointing "
-        "sideways with a knowing look, both glancing off-frame"
+        "Faces and attitude: conspiratorial — heads close together, "
+        "knowing narrowed eyes, both glancing sideways"
     ),
     "spiegone": (
-        "one is lecturing the other, counting his points on his fingers, "
-        "while the other listens unconvinced with folded arms"
+        "Faces and attitude: one is explaining with great certainty, the "
+        "other is visibly unconvinced"
     ),
     "attesa": (
-        "the two are waiting, tense and still, both looking off-frame at "
-        "the same point without speaking"
+        "Faces and attitude: tense waiting — jaws tight, both staring at "
+        "the same point off-frame, not speaking"
     ),
 }
 
-# Dove finiscono i due quando il fatto non suggerisce nessun posto — e
-# solo allora. Sono i luoghi della biblioteca fatta a mano: Napoli si
+# I posti in cui due tifosi si trovano DAVVERO. È un elenco e non una
+# richiesta a mano libera, ed è la correzione di una prova vera: lasciato
+# libero, il modello aveva messo i due dentro il fatto — su un campetto,
+# uno in tuffo a parare — che come vignetta di tifosi non sta in piedi.
+# Il fatto sceglie il posto dentro l'elenco; l'elenco garantisce che il
+# posto sia uno dove due che commentano ci stanno per davvero.
+#
+# Sono i luoghi della biblioteca fatta a mano, più qualcuno: Napoli si
 # riconosce dai posti, che non invecchiano, e non dai fatti, che
-# invecchiano in un giorno. La rotazione è ancorata alla data, come la
-# scelta dei disegni di biblioteca: due edizioni di fila non ripiegano
-# sullo stesso posto.
-_LUOGHI_DI_RIPIEGO = (
-    "in a living room in front of a switched-on television",
-    "standing on the terraces of a stadium",
-    "on the seafront promenade, leaning on the railing",
-    "sitting on a parked scooter at a traffic light, helmets on",
-    "at a table in a pizzeria, the wood oven burning behind them",
-    "on a balcony at sunset, rooftops behind them",
-    "inside a parked car, seen through the windscreen",
-    "in an office, one hiding his phone under the desk",
-    "in a five-a-side changing room, sitting on a bench",
-    "standing in an underground train carriage, holding the bar",
-    "outside a stadium in the rain, under umbrellas",
-    "in front of a laptop screen in a small study",
+# invecchiano in un giorno.
+LUOGHI = (
+    "in salotto davanti al televisore acceso",
+    "sul divano a notte fonda, la casa spenta intorno",
+    "sugli spalti dello stadio, in mezzo alle sciarpe alzate",
+    "sotto la pioggia fuori dallo stadio, con gli ombrelli aperti",
+    "in un bar dello sport, in piedi davanti alla tv appesa",
+    "a un tavolo di pizzeria, il forno a legna acceso dietro",
+    "sul lungomare, appoggiati alla ringhiera",
+    "su un balcone, i palazzi e il Vesuvio dietro",
+    "fermi in sella allo scooter al semaforo, col casco in testa",
+    "in auto ferma nel traffico, inquadrati dal parabrezza",
+    "in ufficio, uno col telefono nascosto sotto la scrivania",
+    "davanti allo schermo di un portatile, in una stanza da studio",
+    "nello spogliatoio del calcetto, seduti sulla panca a partita finita",
+    "in fila in una salumeria di quartiere",
+    "in piedi nella carrozza della metropolitana, aggrappati alla barra",
+    "chini sullo stesso telefono, a guardare un video",
+    "in edicola, davanti ai quotidiani sportivi appesi",
+    "alla fermata dell'autobus, le buste della spesa per terra",
+    "in un vicolo del centro, sotto i panni stesi fra i balconi",
+    "sulle scale del palazzo, uno che sale e l'altro che scende",
+)
+
+# La regola che l'elenco da solo non dà: i due GUARDANO il fatto, non lo
+# fanno. Vale nei due prompt, perché è la cosa che li rende credibili e
+# non c'è nessun luogo che la garantisca da sé — allo stadio si può stare
+# in curva o in campo, e la differenza è tutta qui.
+_SPETTATORI = (
+    "I due non sono mai dentro il fatto: sono quelli che lo guardano e lo "
+    "commentano. Non giocano la partita di cui si parla, non sono in "
+    "campo, non indossano una divisa da gioco, non allenano, non "
+    "arbitrano e non sono dirigenti. Se il fatto è una partita, loro la "
+    "stanno guardando o ne stanno parlando dopo."
 )
 
 # Quanto del pezzo di apertura finisce nel prompt della scena.
@@ -467,16 +494,24 @@ _MAX_CONTESTO = 1200
 def _prompt_scena(tema: str, tono: str, battute: list[str], contesto: str) -> str:
     """Chiede DOVE e COSA, non «una scena».
 
-    La versione precedente chiedeva una frase sola e le dava un esempio —
-    due amici al tavolino di un bar con la tazzina — e il modello
-    restituiva quell'esempio, giorno dopo giorno, con le parole cambiate.
-    Un esempio in un prompt non è un'illustrazione di quello che si
-    vuole: è la risposta più facile, e il modello la prende.
+    La prima versione chiedeva una frase sola e le dava un esempio — due
+    amici al tavolino di un bar con la tazzina — e il modello restituiva
+    quell'esempio, giorno dopo giorno, con le parole cambiate. Un esempio
+    in un prompt non è un'illustrazione di quello che si vuole: è la
+    risposta più facile, e il modello la prende.
 
-    Quindi niente esempio da copiare e una domanda per volta: il luogo
-    deve venire dal FATTO — dove quella cosa lì si guarda, si aspetta, si
-    subisce — e il bar è vietato per nome, perché è la scena che ogni
-    modello propone quando non sa cosa proporre.
+    La seconda chiedeva il luogo a mano libera, «quello che nasce dal
+    fatto», e ha sbagliato dall'altra parte: su una giornata di partita
+    ha messo i due su un campetto, uno in tuffo a parare. Il fatto era
+    rispettato alla lettera e la vignetta non stava in piedi — quelli
+    sono due tifosi, non due giocatori, e il giornale lo sanno tutti.
+
+    Adesso il luogo si sceglie dentro un elenco di posti dove due che
+    commentano ci stanno davvero (`LUOGHI`), e la regola che i due
+    guardano il fatto invece di farlo è scritta due volte, qui e nel
+    prompt del disegno. Il fatto continua a decidere — decide QUALE posto
+    dell'elenco — ma non può più inventarne uno in cui i due non
+    potrebbero essere.
     """
     voci = "\n".join(f"- «{b}»" for b in battute if b)
     # Del pezzo di apertura basta l'inizio: il luogo della scena sta nei
@@ -484,6 +519,7 @@ def _prompt_scena(tema: str, tono: str, battute: list[str], contesto: str) -> st
     # sono dettagli che pagheremmo senza cambiare il disegno.
     ritaglio = contesto.strip()[:_MAX_CONTESTO]
     extra = f"\nCom'è andata, per esteso:\n{ritaglio}\n" if ritaglio else ""
+    elenco_luoghi = "\n".join(f"- {l}" for l in LUOGHI)
     return (
         "Sei l'illustratore di un gazzettino sportivo napoletano. Ogni "
         "giorno disegni gli stessi due amici tifosi, e ogni giorno li "
@@ -494,26 +530,29 @@ def _prompt_scena(tema: str, tono: str, battute: list[str], contesto: str) -> st
         f"IL TONO con cui il gruppo ne ha parlato: {tono} — "
         f"{DESCRIZIONI.get(tono, '')}.\n"
         f"QUELLO CHE SI SONO DETTI:\n{voci}\n\n"
+        f"CHI SONO I DUE. {_SPETTATORI}\n\n"
         "Rispondi con tre righe e nient'altro:\n\n"
-        "LUOGO: dove sono i due, in poche parole. Deve nascere DAL FATTO: "
-        "il posto da cui quella cosa lì si guarda, si aspetta, si "
-        "festeggia o si subisce. Una partita in tv si guarda in salotto o "
-        "in un bar dello sport; un'asta di fantacalcio si fa davanti a un "
-        "portatile; una trasferta si commenta in auto o in treno; una "
-        "notizia di mercato arriva sul telefono mentre si fa altro — in "
-        "fila, in ufficio, al mercato, sul motorino. Scegli il posto che "
-        "racconta QUESTO fatto, e se il fatto ne ammette più d'uno prendi "
-        "il meno scontato: il giornale esce tutti i giorni, e il lettore "
-        "il salotto l'ha già visto.\n"
-        "VIETATO il tavolino del bar con le tazzine di caffè, a meno che "
-        "il fatto non parli proprio di un bar: è la scena che esce "
-        "sempre, ed è il motivo per cui questa riga esiste.\n"
-        "AZIONE: cosa stanno facendo in quel momento — il gesto e la "
-        "posizione dei corpi, non l'emozione raccontata a parole.\n"
+        "LUOGO: copialo da questo elenco, scegliendo quello che il fatto "
+        "di oggi rende più probabile — dove due tifosi si trovano "
+        "davvero mentre quella cosa lì succede, o subito dopo:\n"
+        f"{elenco_luoghi}\n"
+        "Puoi scriverne uno fuori elenco solo se è altrettanto ordinario "
+        "e i due ci stanno da spettatori (una sala d'attesa, un "
+        "supermercato, un treno). Mai un posto in cui due tifosi non "
+        "possono stare: il campo di gioco, la panchina della squadra, lo "
+        "spogliatoio dei giocatori, la sala stampa.\n"
+        "Il bar prendilo solo se il fatto ci si svolge davvero o se "
+        "nessun altro posto regge: è la scena che questo giornale ha già "
+        "stampato troppe volte.\n"
+        "AZIONE: cosa stanno facendo lì dentro, da tifosi: guardare, "
+        "mostrarsi il telefono, alzarsi di scatto, indicare lo schermo, "
+        "trattenersi, andarsene. Il gesto e la posizione dei corpi, non "
+        "l'emozione raccontata a parole — e niente che li faccia "
+        "sembrare i protagonisti del fatto.\n"
         "OGGETTO: un oggetto di scena che viene dal fatto e si può "
         "disegnare senza scriverci sopra niente (una sciarpa, un "
-        "telecomando, un ombrello, un borsone, una moka, un pallone "
-        "sgonfio). Se non ce n'è uno che c'entra, scrivi: nessuno.\n\n"
+        "telecomando, un ombrello, una tazzina, un borsone, le chiavi "
+        "del motorino). Se non ce n'è uno che c'entra, scrivi: nessuno.\n\n"
         "Vincoli: due personaggi soli, nessuna folla, ambientazione "
         "essenziale, nessuna scritta, nessuno stemma, nessuna persona "
         "reale o riconoscibile."
@@ -561,8 +600,12 @@ def _prompt_disegno(
         f"{_STILE_BIANCO_E_NERO if bianco_e_nero else _STILE_A_COLORI} "
         f"THE SCENE OF THE DAY: {scena}."
         f"{with_oggetto} "
-        f"{('The mood: ' + aria + '. ') if aria else ''}"
+        f"{(aria + '. ') if aria else ''}"
         f"{_PERSONAGGI} "
+        "They are supporters watching and commenting, never players: they "
+        "are never on a pitch, never in a football kit, never playing, "
+        "training or refereeing — whatever the scene says, they are the "
+        "two who are watching it. "
         "Composition: wide horizontal framing, the two characters together "
         "in the middle of the frame, the setting suggested with few lines "
         "and lots of empty paper around them; the picture will be cropped "
@@ -617,15 +660,14 @@ def generate_ai_drawing(
 
     luogo, azione, oggetto = _leggi_scena(raw)
     if not luogo:
-        # Il ripiego non è una scena qualunque: è un luogo della
-        # rotazione, diverso da quello di ieri. Un ripiego fisso sarebbe
-        # di nuovo lo stesso disegno tutti i giorni, che è il difetto da
-        # cui si parte.
-        indice = (giorno or date.today()).toordinal() % len(_LUOGHI_DI_RIPIEGO)
-        luogo = _LUOGHI_DI_RIPIEGO[indice]
+        # Il ripiego non è un luogo fisso ma una rotazione sullo stesso
+        # elenco, ancorata alla data: un ripiego fisso sarebbe di nuovo
+        # lo stesso disegno tutti i giorni, che è il difetto da cui si
+        # parte.
+        luogo = LUOGHI[(giorno or date.today()).toordinal() % len(LUOGHI)]
         print(f"  Luogo non ricavato dal fatto, ripiego sulla rotazione: {luogo}")
     if not azione:
-        azione = "the two friends are talking about what just happened"
+        azione = "i due commentano quello che è appena successo"
 
     print(f"  Scena del giorno: {azione} — {luogo}" + (f" [{oggetto}]" if oggetto else ""))
 
