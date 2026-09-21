@@ -376,6 +376,19 @@ python preview.py --no-glyphs              # spegne un singolo elemento
 python catalogo.py                         # campionario di tutti gli elementi
 ```
 
+Il disegno del giorno ha un banco di prova suo, perché è l'unico elemento
+che costa una chiamata e non si giudica leggendo il codice:
+
+```bash
+python prova_vignetta.py --solo-prompt     # gratis: i due prompt, nient'altro
+python prova_vignetta.py --tutti           # tre fatti diversi, tre scene diverse
+python preview.py --vignetta esultanza --biblioteca prova_vignette
+```
+
+L'ultima riga rimette i disegni appena fatti dentro la pagina vera: un
+disegno si giudica alla misura in cui esce — 616px con i balloon sotto —
+e non a piena risoluzione, dove qualunque cosa sembra buona.
+
 Serve Chromium. Se l'ambiente ne ha già uno con una revisione
 diversa da quella che Playwright si aspetta, si indica con
 `CHROMIUM_EXECUTABLE_PATH=/percorso/al/chrome`.
