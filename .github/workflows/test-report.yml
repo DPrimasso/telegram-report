@@ -71,6 +71,9 @@ jobs:
           REPORT_TIMEZONE: ${{ vars.REPORT_TIMEZONE }}
           NEWSPAPER_NAME: ${{ vars.NEWSPAPER_NAME }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GENERATE_AI_VIGNETTA: ${{ vars.GENERATE_AI_VIGNETTA }}
+          OPENAI_IMAGE_MODEL: ${{ vars.OPENAI_IMAGE_MODEL }}
+          VIGNETTA_BIANCO_E_NERO: ${{ vars.VIGNETTA_BIANCO_E_NERO }}
           REPORT_SECTIONS: ${{ vars.REPORT_SECTIONS }}
           REPORT_SECTION_FAMILIES: ${{ vars.REPORT_SECTION_FAMILIES }}
           PREZZO_INPUT: ${{ vars.PREZZO_INPUT }}

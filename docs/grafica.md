@@ -326,6 +326,60 @@ separato, stesso trattamento cromatico delle foto vere). Quello che
 manca, e che nessuna di quelle difese risolve, è un modo di legare
 l'immagine al fatto e non all'argomento.
 
+**Ripresa, con il legame che mancava.** Quel modo è arrivato con la
+vignetta: il disegno non rappresenta il fatto, rappresenta **due che ne
+parlano**. Il fatto non decide *che cosa* è disegnato — non c'è nessun
+pallone appoggiato su un contratto — decide **dove sono i due e cosa
+stanno facendo**: una partita in tv si guarda dal divano, un'asta di
+fantacalcio davanti a un portatile, una notizia di mercato arriva sul
+telefono mentre si fa la fila. Il soggetto resta lo stesso tutti i
+giorni, ed è per questo che non può illustrare la categoria; a cambiare
+è la scena, che dal fatto ci viene per davvero.
+
+È quello che fa `generate_ai_drawing` (`report/vignetta.py`), in due
+chiamate separate per la stessa ragione di prima: la prima legge
+l'apertura e ricava luogo, azione e oggetto di scena, la seconda disegna
+e della notizia non sa niente — così titoli, nomi e numeri non hanno una
+strada per entrare in un'immagine che non deve contenere scritte.
+
+**Il luogo si sceglie in un elenco, e non è una limitazione ma la
+correzione di due errori opposti.** Il primo: il prompt chiedeva «una
+scena» e ne dava un esempio — due amici al tavolino del bar con le
+tazzine — e il modello restituiva quell'esempio tutti i giorni, perché
+un esempio in un prompt è la risposta più facile. Il secondo, arrivato
+subito dopo aver tolto l'esempio e lasciato il luogo a mano libera: su
+una giornata di partita il modello ha messo i due **su un campetto, uno
+in tuffo a parare**. Il fatto era rispettato alla lettera e la vignetta
+non stava in piedi — quelli sono due tifosi, non due giocatori, e il
+lettore lo sa prima di aver letto la didascalia.
+
+Da qui le due regole che reggono la verosimiglianza:
+
+- **il luogo si prende da `LUOGHI`**, venti posti in cui due che
+  commentano ci stanno davvero (il salotto, la curva, il motorino al
+  semaforo, l'edicola, la fila in salumeria). Il fatto continua a
+  decidere — decide *quale* — ma non può inventarne uno in cui i due non
+  potrebbero essere;
+- **i due guardano il fatto, non lo fanno.** Non sono in campo, non
+  indossano una divisa, non allenano e non arbitrano. Sta scritto due
+  volte, nel prompt della scena e in quello del disegno, perché nessun
+  luogo la garantisce da sé: allo stadio si può stare in curva o in
+  campo, e la differenza è tutta lì.
+
+Il bar resta disponibile ma raro — vietarlo del tutto è ciò che aveva
+spinto il modello sul campetto — e quando esce è il bancone con la tv
+appesa, non il tavolino con le tazzine.
+
+Il trattamento cromatico è la terza difesa, e qui è diventato più
+severo: il disegno esce in **bianco e nero**, inchiostro e carta avorio
+e nient'altro (`report/inchiostro.py`). La conversione è fatta dopo la
+generazione, non chiesta nel prompt — un prompt è una richiesta, e il
+colore i modelli lo rimettono comunque — quindi vale qualunque cosa
+consegni il modello e qualunque modello si usi. In pagina il fondo del
+pannello cade esattamente sulla carta, e il disegno smette di somigliare
+a un ritaglio di un altro giornale: è la regola 2, una sola famiglia di
+colori, applicata alla sola cosa che arrivava da fuori.
+
 ### Classifica dei partecipanti
 
 Tecnicamente gratis: i dati ci sono già. Scartata per motivi non tecnici —
@@ -345,6 +399,19 @@ python preview.py --plain                  # com'era prima di questo modulo
 python preview.py --no-glyphs              # spegne un singolo elemento
 python catalogo.py                         # campionario di tutti gli elementi
 ```
+
+Il disegno del giorno ha un banco di prova suo, perché è l'unico elemento
+che costa una chiamata e non si giudica leggendo il codice:
+
+```bash
+python prova_vignetta.py --solo-prompt     # gratis: i due prompt, nient'altro
+python prova_vignetta.py --tutti           # tre fatti diversi, tre scene diverse
+python preview.py --vignetta esultanza --biblioteca prova_vignette
+```
+
+L'ultima riga rimette i disegni appena fatti dentro la pagina vera: un
+disegno si giudica alla misura in cui esce — 616px con i balloon sotto —
+e non a piena risoluzione, dove qualunque cosa sembra buona.
 
 Serve Chromium. Se l'ambiente ne ha già uno con una revisione
 diversa da quella che Playwright si aspetta, si indica con

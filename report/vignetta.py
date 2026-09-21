@@ -30,6 +30,16 @@ Da qui discende tutto il resto:
   della frase del giorno, e qui pesa di più: un fumetto sembra per sua
   natura una cosa inventata, e se le parole non fossero vere sarebbe una
   barzelletta con dei nomi veri sotto.
+
+Sopra la biblioteca c'è poi il disegno generato per l'edizione del
+giorno (`generate_ai_drawing`), che la sostituisce quando c'è una chiave
+OpenAI e non salta niente quando non c'è. Prende il verso opposto — il
+disegno torna a guardare il fatto — ma senza ricadere nell'errore
+dell'illustrazione di categoria: il fatto decide DOVE sono i due e COSA
+stanno facendo, non che cosa c'è disegnato al posto loro. I due
+personaggi restano fissi come in biblioteca, e le parole restano quelle
+vere del gruppo; a cambiare da un'edizione all'altra è la scena, che è
+precisamente quello che in biblioteca non poteva cambiare.
 """
 
 from __future__ import annotations
@@ -41,7 +51,7 @@ from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from report import llm, spesa
+from report import inchiostro, llm, spesa
 from report.summarize import campione_citabile, trova_alla_lettera
 from report.newspaper import Balloon, Vignetta
 
@@ -360,6 +370,256 @@ def leggi_battute(raw_tono: str, righe: list[str], toni: list[str]):
     return _leggi(testo, toni)
 
 
+# ------------------------------------------------------- il disegno del giorno
+
+# I due protagonisti, sempre gli stessi. È l'unica cosa del disegno che
+# NON cambia da un'edizione all'altra: se cambiassero anche loro, ogni
+# giorno sarebbe un fumetto diverso invece che una striscia che continua.
+# La descrizione è la stessa della biblioteca fatta a mano
+# (`genera_prompt.py`), tradotta: i modelli di immagini capiscono meglio
+# l'inglese, e qui sotto si tratta di dettagli minuti.
+_PERSONAGGI = (
+    "Always the same two Neapolitan football fans in their mid-thirties, "
+    "ordinary people and not athletes: the one on the left is stocky, with "
+    "short messy dark hair and a few days' stubble, wearing a plain t-shirt "
+    "with no writing and no crest; the one on the right is thinner, dark "
+    "hair with a fringe, a hoodie and often a plain scarf round his neck. "
+    "Lively, expressive Italian hand gestures."
+)
+
+# Lo stile, che è l'unica cosa che tiene insieme due edizioni lontane un
+# mese. Il bianco e nero è quello che va in pagina: la pagina ha una
+# carta avorio, un inchiostro e un azzurro, e un'illustrazione con
+# terracotta e ocra dentro si legge come un ritaglio di un altro
+# giornale. Il blocco a colori resta per chi spegne l'interruttore.
+_STILE_BIANCO_E_NERO = (
+    "Black and white editorial comic illustration, Ligne Claire style, "
+    "elegant French-Belgian graphic novel look, like a daily newspaper "
+    "strip. STRICTLY MONOCHROME: black ink on warm ivory paper, no colour "
+    "at all, no grey washes, no gradients, no digital shading — only black "
+    "lines, a few solid black fills and the bare paper. Shadows, where they "
+    "are needed, are a few thick parallel hatching lines."
+)
+_STILE_A_COLORI = (
+    "Minimalist modern European comic illustration in Ligne Claire style, "
+    "elegant French-Belgian graphic novel look. Clean, crisp black ink "
+    "contour lines with plenty of negative space on a warm ivory background "
+    "(#f2ece0). Flat solid fills, no gradients and no digital shading, with "
+    "a single accent colour — a bright sky blue — used only on shirts and "
+    "scarves; everything else is warm black on the bare ivory."
+)
+
+# Il tono lo ha già scelto il modello che ha letto la giornata: qui
+# diventa l'aria che hanno addosso, non quello che fanno. La differenza
+# è tutta in una prova andata storta: quando questo blocco descriveva i
+# corpi ("uno tiene l'altro a distanza con il palmo aperto") finiva per
+# contraddire l'azione scelta dal modello, e il disegno usciva con due
+# pose sovrapposte. L'azione la decide la scena; qui ci sono le facce.
+_ARIA = {
+    "battibecco": (
+        "Faces and attitude: they are in the middle of an argument — "
+        "eyebrows up, mouths open at the same time, neither listening"
+    ),
+    "esultanza": (
+        "Faces and attitude: pure celebration — wide open mouths, eyes "
+        "shut, they are shouting with joy"
+    ),
+    "sconforto": (
+        "Faces and attitude: they have been knocked flat — shoulders "
+        "down, empty stares, one rubbing his forehead"
+    ),
+    "complotto": (
+        "Faces and attitude: conspiratorial — heads close together, "
+        "knowing narrowed eyes, both glancing sideways"
+    ),
+    "spiegone": (
+        "Faces and attitude: one is explaining with great certainty, the "
+        "other is visibly unconvinced"
+    ),
+    "attesa": (
+        "Faces and attitude: tense waiting — jaws tight, both staring at "
+        "the same point off-frame, not speaking"
+    ),
+}
+
+# I posti in cui due tifosi si trovano DAVVERO. È un elenco e non una
+# richiesta a mano libera, ed è la correzione di una prova vera: lasciato
+# libero, il modello aveva messo i due dentro il fatto — su un campetto,
+# uno in tuffo a parare — che come vignetta di tifosi non sta in piedi.
+# Il fatto sceglie il posto dentro l'elenco; l'elenco garantisce che il
+# posto sia uno dove due che commentano ci stanno per davvero.
+#
+# Sono i luoghi della biblioteca fatta a mano, più qualcuno: Napoli si
+# riconosce dai posti, che non invecchiano, e non dai fatti, che
+# invecchiano in un giorno.
+LUOGHI = (
+    "in salotto davanti al televisore acceso",
+    "sul divano a notte fonda, la casa spenta intorno",
+    "sugli spalti dello stadio, in mezzo alle sciarpe alzate",
+    "sotto la pioggia fuori dallo stadio, con gli ombrelli aperti",
+    "in un bar dello sport, in piedi davanti alla tv appesa",
+    "a un tavolo di pizzeria, il forno a legna acceso dietro",
+    "sul lungomare, appoggiati alla ringhiera",
+    "su un balcone, i palazzi e il Vesuvio dietro",
+    "fermi in sella allo scooter al semaforo, col casco in testa",
+    "in auto ferma nel traffico, inquadrati dal parabrezza",
+    "in ufficio, uno col telefono nascosto sotto la scrivania",
+    "davanti allo schermo di un portatile, in una stanza da studio",
+    "nello spogliatoio del calcetto, seduti sulla panca a partita finita",
+    "in fila in una salumeria di quartiere",
+    "in piedi nella carrozza della metropolitana, aggrappati alla barra",
+    "chini sullo stesso telefono, a guardare un video",
+    "in edicola, davanti ai quotidiani sportivi appesi",
+    "alla fermata dell'autobus, le buste della spesa per terra",
+    "in un vicolo del centro, sotto i panni stesi fra i balconi",
+    "sulle scale del palazzo, uno che sale e l'altro che scende",
+)
+
+# La regola che l'elenco da solo non dà: i due GUARDANO il fatto, non lo
+# fanno. Vale nei due prompt, perché è la cosa che li rende credibili e
+# non c'è nessun luogo che la garantisca da sé — allo stadio si può stare
+# in curva o in campo, e la differenza è tutta qui.
+_SPETTATORI = (
+    "I due non sono mai dentro il fatto: sono quelli che lo guardano e lo "
+    "commentano. Non giocano la partita di cui si parla, non sono in "
+    "campo, non indossano una divisa da gioco, non allenano, non "
+    "arbitrano e non sono dirigenti. Se il fatto è una partita, loro la "
+    "stanno guardando o ne stanno parlando dopo."
+)
+
+# Quanto del pezzo di apertura finisce nel prompt della scena.
+_MAX_CONTESTO = 1200
+
+
+def _prompt_scena(tema: str, tono: str, battute: list[str], contesto: str) -> str:
+    """Chiede DOVE e COSA, non «una scena».
+
+    La prima versione chiedeva una frase sola e le dava un esempio — due
+    amici al tavolino di un bar con la tazzina — e il modello restituiva
+    quell'esempio, giorno dopo giorno, con le parole cambiate. Un esempio
+    in un prompt non è un'illustrazione di quello che si vuole: è la
+    risposta più facile, e il modello la prende.
+
+    La seconda chiedeva il luogo a mano libera, «quello che nasce dal
+    fatto», e ha sbagliato dall'altra parte: su una giornata di partita
+    ha messo i due su un campetto, uno in tuffo a parare. Il fatto era
+    rispettato alla lettera e la vignetta non stava in piedi — quelli
+    sono due tifosi, non due giocatori, e il giornale lo sanno tutti.
+
+    Adesso il luogo si sceglie dentro un elenco di posti dove due che
+    commentano ci stanno davvero (`LUOGHI`), e la regola che i due
+    guardano il fatto invece di farlo è scritta due volte, qui e nel
+    prompt del disegno. Il fatto continua a decidere — decide QUALE posto
+    dell'elenco — ma non può più inventarne uno in cui i due non
+    potrebbero essere.
+    """
+    voci = "\n".join(f"- «{b}»" for b in battute if b)
+    # Del pezzo di apertura basta l'inizio: il luogo della scena sta nei
+    # primi capoversi — dove si è visto, dove si è aspettato — e il resto
+    # sono dettagli che pagheremmo senza cambiare il disegno.
+    ritaglio = contesto.strip()[:_MAX_CONTESTO]
+    extra = f"\nCom'è andata, per esteso:\n{ritaglio}\n" if ritaglio else ""
+    elenco_luoghi = "\n".join(f"- {l}" for l in LUOGHI)
+    return (
+        "Sei l'illustratore di un gazzettino sportivo napoletano. Ogni "
+        "giorno disegni gli stessi due amici tifosi, e ogni giorno li "
+        "disegni ALTROVE: la scena la decide il fatto di giornata, non "
+        "l'abitudine.\n\n"
+        f"IL FATTO DI OGGI, che è l'apertura del giornale:\n«{tema}»\n"
+        f"{extra}\n"
+        f"IL TONO con cui il gruppo ne ha parlato: {tono} — "
+        f"{DESCRIZIONI.get(tono, '')}.\n"
+        f"QUELLO CHE SI SONO DETTI:\n{voci}\n\n"
+        f"CHI SONO I DUE. {_SPETTATORI}\n\n"
+        "Rispondi con tre righe e nient'altro:\n\n"
+        "LUOGO: copialo da questo elenco, scegliendo quello che il fatto "
+        "di oggi rende più probabile — dove due tifosi si trovano "
+        "davvero mentre quella cosa lì succede, o subito dopo:\n"
+        f"{elenco_luoghi}\n"
+        "Puoi scriverne uno fuori elenco solo se è altrettanto ordinario "
+        "e i due ci stanno da spettatori (una sala d'attesa, un "
+        "supermercato, un treno). Mai un posto in cui due tifosi non "
+        "possono stare: il campo di gioco, la panchina della squadra, lo "
+        "spogliatoio dei giocatori, la sala stampa.\n"
+        "Il bar prendilo solo se il fatto ci si svolge davvero o se "
+        "nessun altro posto regge: è la scena che questo giornale ha già "
+        "stampato troppe volte.\n"
+        "AZIONE: cosa stanno facendo lì dentro, da tifosi: guardare, "
+        "mostrarsi il telefono, alzarsi di scatto, indicare lo schermo, "
+        "trattenersi, andarsene. Il gesto e la posizione dei corpi, non "
+        "l'emozione raccontata a parole — e niente che li faccia "
+        "sembrare i protagonisti del fatto.\n"
+        "OGGETTO: un oggetto di scena che viene dal fatto e si può "
+        "disegnare senza scriverci sopra niente (una sciarpa, un "
+        "telecomando, un ombrello, una tazzina, un borsone, le chiavi "
+        "del motorino). Se non ce n'è uno che c'entra, scrivi: nessuno.\n\n"
+        "Vincoli: due personaggi soli, nessuna folla, ambientazione "
+        "essenziale, nessuna scritta, nessuno stemma, nessuna persona "
+        "reale o riconoscibile."
+    )
+
+
+def _leggi_scena(raw: str) -> tuple[str, str, str]:
+    """Luogo, azione e oggetto dalle tre righe etichettate.
+
+    Le etichette sono la stessa scelta del resto del gazzettino (vedi
+    `docs/grafica.md`): un formato posizionale sbaglia in silenzio, uno a
+    etichette no. Quello che non arriva resta vuoto e lo rimette chi
+    chiama, una riga alla volta: una risposta a metà vale comunque più
+    del ripiego intero.
+    """
+    campi = {"LUOGO": "", "AZIONE": "", "OGGETTO": ""}
+    for riga in raw.splitlines():
+        riga = riga.strip().lstrip("-*• ").replace("**", "")
+        for etichetta in campi:
+            if riga.upper().startswith(etichetta):
+                corpo = riga.split(":", 1)[1].strip() if ":" in riga else ""
+                if corpo and not campi[etichetta]:
+                    campi[etichetta] = corpo.strip('"').strip("«»").strip()
+    oggetto = campi["OGGETTO"]
+    if oggetto.lower().rstrip(".") in {"nessuno", "nessun oggetto", "niente", "-"}:
+        oggetto = ""
+    return campi["LUOGO"], campi["AZIONE"], oggetto
+
+
+def _prompt_disegno(
+    luogo: str, azione: str, oggetto: str, tono: str, bianco_e_nero: bool = True
+) -> str:
+    """Il prompt dell'immagine: i due fissi, la scena del giorno, la carta.
+
+    Il modello che disegna non sa niente della notizia: riceve la scena
+    già ricavata, i personaggi che non cambiano mai e i vincoli della
+    pagina. È la difesa di `docs/grafica.md` — il soggetto da un
+    passaggio separato — e serve a non far arrivare titoli, nomi e
+    numeri dentro un'immagine che non deve contenere scritte.
+    """
+    aria = _ARIA.get(tono, "")
+    scena = ", ".join(p.strip().rstrip(".") for p in (azione, luogo) if p.strip())
+    with_oggetto = f" Visible in the scene: {oggetto.rstrip('.')}." if oggetto else ""
+    return (
+        f"{_STILE_BIANCO_E_NERO if bianco_e_nero else _STILE_A_COLORI} "
+        f"THE SCENE OF THE DAY: {scena}."
+        f"{with_oggetto} "
+        f"{(aria + '. ') if aria else ''}"
+        f"{_PERSONAGGI} "
+        "They are supporters watching and commenting, never players: they "
+        "are never on a pitch, never in a football kit, never playing, "
+        "training or refereeing — whatever the scene says, they are the "
+        "two who are watching it. "
+        "Composition: wide horizontal framing, the two characters together "
+        "in the middle of the frame, the setting suggested with few lines "
+        "and lots of empty paper around them; the picture will be cropped "
+        "to a wide strip, so keep nothing important in the top and bottom "
+        "sixth of the image. Few, thick, confident lines: it will be looked "
+        "at about six hundred pixels wide on a phone. "
+        "MANDATORY: NO text, NO letters, NO numbers, NO speech bubbles or "
+        "empty balloons anywhere in the image. NO crowds, NO background "
+        "clutter, NO photorealism, NO dense cross-hatching, NO team crests, "
+        "logos or official kits, NO real or recognisable people, NO frame, "
+        "NO signature."
+    )
+
+
 def generate_ai_drawing(
     client,
     dest_path: Path | str,
@@ -367,46 +627,51 @@ def generate_ai_drawing(
     tema: str,
     tono: str,
     battute: list[str],
+    contesto: str = "",
+    giorno: date | None = None,
     text_model: str = "gpt-4o-mini",
     image_model: str = "gpt-image-2",
+    bianco_e_nero: bool = True,
 ) -> Path | None:
-    """Genera un'illustrazione d'autore in stile Ligne Claire minimale per la prima pagina."""
-    prompt_azione = (
-        "Sei l'illustratore editoriale di un gazzettino sportivo napoletano.\n"
-        "Devi creare un'illustrazione minimalista in stile fumetto d'autore (linea chiara, pulita, ariosa) "
-        "ispirata alla discussione del giorno tra i tifosi.\n\n"
-        f"Tema della discussione di oggi: {tema}\n"
-        f"Tono: {tono}\n"
-        f"Cosa dicono nel gruppo: {' // '.join(battute)}\n\n"
-        "Descrivi in una sola frase in italiano la situazione tra due amici tifosi "
-        "(es. due amici al tavolino di un bar che gesticolano con passione davanti a una tazzina di caffè, "
-        "uno che indica un punto sul giornale mentre l'altro ascolta dubbioso, ecc.). "
-        "La scena deve contenere SOLO due personaggi principali, senza folle, senza caos, con ambientazione essenziale.\n"
-        "Rispondi SOLO con la frase descrittiva, senza testo introduttivo."
-    )
+    """Il disegno dell'edizione: gli stessi due, in una scena che è di oggi.
 
+    Due chiamate, e la divisione conta. La prima legge il fatto del
+    giorno e decide DOVE si svolge la scena e COSA stanno facendo i due;
+    la seconda disegna e non sa niente della notizia — riceve solo la
+    scena, i personaggi fissi e i vincoli della pagina. È la difesa
+    vecchia di `docs/grafica.md` (il soggetto da un passaggio separato),
+    e serve a non far arrivare titoli, nomi e numeri dentro un'immagine
+    che non deve contenere scritte.
+
+    Quello che cambia ogni giorno è la scena; quello che non cambia mai
+    sono i due amici e la tavolozza. `contesto` è il pezzo di apertura
+    per esteso: senza, il modello ha solo un titolo e un sommario, e da
+    due righe il luogo che ne ricava è sempre il più generico che ci sia.
+    """
+    prompt_scena = _prompt_scena(tema, tono, battute, contesto)
     try:
-        azione_scena = llm.complete(client, text_model, prompt_azione, temperature=0.5)
+        # Più alta di prima (era 0.5): qui la varietà È il requisito, e
+        # sui modelli di ragionamento la temperatura viene omessa da sola
+        # in llm.complete.
+        raw = llm.complete(client, text_model, prompt_scena, temperature=0.9)
     except Exception as exc:
         print(f"Descrizione scena vignetta fallita ({exc}).")
-        azione_scena = ""
+        raw = ""
 
-    if not azione_scena:
-        azione_scena = "Due amici tifosi al tavolino di un bar discutono animatamente gesticolando con passione davanti a un caffe."
+    luogo, azione, oggetto = _leggi_scena(raw)
+    if not luogo:
+        # Il ripiego non è un luogo fisso ma una rotazione sullo stesso
+        # elenco, ancorata alla data: un ripiego fisso sarebbe di nuovo
+        # lo stesso disegno tutti i giorni, che è il difetto da cui si
+        # parte.
+        luogo = LUOGHI[(giorno or date.today()).toordinal() % len(LUOGHI)]
+        print(f"  Luogo non ricavato dal fatto, ripiego sulla rotazione: {luogo}")
+    if not azione:
+        azione = "i due commentano quello che è appena successo"
 
-    print(f"  Scena illustrazione ricavata: {azione_scena}")
+    print(f"  Scena del giorno: {azione} — {luogo}" + (f" [{oggetto}]" if oggetto else ""))
 
-    prompt_disegno = (
-        "Minimalist modern European comic illustration in Ligne Claire style, elegant French-Belgian graphic novel look. "
-        "Clean, crisp black ink contour lines with plenty of negative space on a warm ivory background (#f2ece0). "
-        f"{azione_scena} "
-        "Character design: two expressive animated Neapolitan friends with lively, quintessential Italian hand gestures. "
-        "Extremely clean, minimal and uncluttered composition: only the two characters and a simple table/archway in the background. "
-        "Flat, sophisticated color palette with solid fills (Napoli sky blue, warm terracotta, soft ochre, warm charcoal). "
-        "MANDATORY: NO crowd, NO background clutter, NO photorealism, NO dense cross-hatching. "
-        "NO text, NO letters, NO numbers, NO speech bubbles anywhere in the image. "
-        "High visual clarity, airy, refined and modern editorial illustration."
-    )
+    prompt_disegno = _prompt_disegno(luogo, azione, oggetto, tono, bianco_e_nero)
 
     sizes_to_try = ["1536x1024", "1024x1024"]
     dest = Path(dest_path)
@@ -426,15 +691,30 @@ def generate_ai_drawing(
             if payload:
                 dest.write_bytes(base64.b64decode(payload))
                 spesa.registra_immagine(image_model)
-                return dest
+                return _sulla_carta(dest, bianco_e_nero)
             url = getattr(response.data[0], "url", None)
             if url:
                 urllib.request.urlretrieve(url, dest)
                 spesa.registra_immagine(image_model)
-                return dest
+                return _sulla_carta(dest, bianco_e_nero)
         except Exception as exc:
             print(f"  Tentativo con size {sz} fallito ({exc}).")
             continue
 
     print("Generazione disegno vignetta con OpenAI fallita. Ripiego sulla biblioteca.")
     return None
+
+
+def _sulla_carta(dest: Path, bianco_e_nero: bool) -> Path:
+    """L'ultimo passaggio: il disegno diventa inchiostro sulla nostra carta.
+
+    Il prompt il monocromo lo chiede già, ma un prompt è una richiesta e
+    un modello di immagini il colore lo rimette — un riflesso azzurro,
+    una parete ocra — e in pagina si vede. Qui non si chiede: si
+    converte. Fallisce senza conseguenze (Pillow assente, file
+    illeggibile): esce il disegno com'è, che vale comunque più di
+    nessun disegno.
+    """
+    if bianco_e_nero:
+        inchiostro.stampa_in_bianco_e_nero(dest)
+    return dest

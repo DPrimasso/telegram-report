@@ -2,3 +2,8 @@ telethon==1.36.0
 openai==1.109.1
 python-dotenv==1.1.1
 playwright==1.61.0
+# Serve al disegno della vignetta: il file che consegna il modello di
+# immagini viene riportato in bianco e nero sulla carta del giornale
+# (report/inchiostro.py). Se manca, il gazzettino esce lo stesso con il
+# disegno a colori: l'import è dentro le funzioni apposta.
+Pillow==11.3.0

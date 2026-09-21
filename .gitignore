@@ -4,4 +4,5 @@ __pycache__/
 *.session
 *.session-journal
 preview_out/
+prova_vignette/
 catalogo.png

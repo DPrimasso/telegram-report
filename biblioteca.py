@@ -9,6 +9,7 @@ pagina è largo 968px e viene renderizzato al doppio, quindi oltre i
     python biblioteca.py assets/vignette              # solo il referto
     python biblioteca.py assets/vignette --applica    # ridimensiona e comprime
     python biblioteca.py assets/vignette --applica --jpeg
+    python biblioteca.py assets/vignette --applica --bianconero   # come l'edizione
 
 Senza --applica non tocca niente: stampa cosa farebbe.
 
@@ -24,15 +25,24 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageOps
+    from PIL import Image
 except ImportError:
     sys.exit("Serve Pillow: pip install Pillow")
 
 # I colori li tiene il giornale. Qui c'erano tre costanti scritte a mano
 # — navy, azzurro, bianco — e sono rimaste indietro quando la pagina è
-# passata alla carta avorio: la bicromia rimappava ancora su un navy
-# freddo e sul bianco puro, due colori che in pagina non esistono più.
-from report.newspaper import AZZURRO, INK, PAPER  # noqa: E402
+# passata alla carta avorio: la carta era ancora il bianco puro, un
+# colore che in pagina non esiste più.
+from report.newspaper import PAPER  # noqa: E402
+
+# Le rimappature non stanno più qui: ci passa anche il disegno generato
+# ogni giorno, e due rampe scritte in due posti prima o poi dicono due
+# cose diverse.
+from report.inchiostro import (  # noqa: E402
+    LARGHEZZA_UTILE,
+    bianco_e_nero,
+    bicromia,
+)
 
 # I toni e le estensioni sono gli stessi che legge il gazzettino: se qui
 # ci fosse una seconda lista, prima o poi direbbe una cosa diversa.
@@ -40,8 +50,9 @@ from report.vignetta import ESTENSIONI, TONI as _TONI  # noqa: E402
 
 TONI = list(_TONI)
 
-# Il pannello è largo 616px e la pagina si renderizza a scala 2: oltre
-# 1232px non serve un pixel.
+# La larghezza utile la tiene `report/inchiostro.py`, che è il posto da
+# cui passano tutti i disegni: il pannello è largo 616px e la pagina si
+# renderizza a scala 2, quindi oltre 1232px non serve un pixel.
 #
 # Era 968 (e quindi 1936) finché l'apertura occupava tutta la pagina. Da
 # quando sta su una colonna, il disegno è più stretto di un terzo, e le
@@ -49,7 +60,6 @@ TONI = list(_TONI)
 # necessario. Prima il default dei modelli — 1536px — stava SOTTO la
 # larghezza utile e ridurlo sarebbe stato buttare dettaglio; adesso ci
 # sta sopra, e ridurre è gratis.
-LARGHEZZA_UTILE = 1232
 LARGHEZZA_DEFAULT = LARGHEZZA_UTILE
 
 # Sotto queste soglie la biblioteca si nota che si ripete: vedi la
@@ -148,23 +158,6 @@ def _ridimensiona(immagine: Image.Image, larghezza: int, piatto: bool) -> Image.
                 dither=Image.Dither.NONE,
             )
     return immagine
-
-
-def bicromia(immagine: Image.Image) -> Image.Image:
-    """Riporta un'immagine a colori dentro la tavolozza del gazzettino.
-
-    Serve alle illustrazioni realistiche, che arrivano a colori pieni con
-    ombre e profondità di campo — cioè tutto quello che le cinque regole
-    della grafica vietano. La luminanza viene rimappata sulla rampa
-    inchiostro → azzurro → carta: l'immagine resta leggibile e smette di
-    essere un corpo estraneo in pagina.
-
-    L'autocontrasto prima della mappatura non è un vezzo: senza, le foto
-    con poco contrasto diventano una macchia di azzurro medio e i neri non
-    arrivano mai al navy.
-    """
-    grigi = ImageOps.autocontrast(ImageOps.grayscale(immagine), cutoff=2)
-    return ImageOps.colorize(grigi, black=INK, white=PAPER, mid=AZZURRO)
 
 
 _CARTA_RGB = tuple(int(PAPER[i:i + 2], 16) for i in (1, 3, 5))
@@ -308,11 +301,13 @@ def ottimizza(
     applica: bool,
     duotone: bool = False,
     carta: bool = False,
+    bianconero: bool = False,
 ) -> None:
     print(f"\n{'—' * 60}")
     print(
         f"{'Ridimensiono' if applica else 'Ridimensionerei'} a {larghezza}px "
         f"di larghezza, formato {'JPEG' if jpeg else 'PNG'}"
+        f"{', in bianco e nero' if bianconero else ''}"
         f"{', con la bicromia azzurra' if duotone else ''}"
         f"{', stampandole sulla carta' if carta else ''}."
     )
@@ -347,6 +342,13 @@ def ottimizza(
                 # ridimensionato: dopo l'interpolazione ogni disegno
                 # sembra sfumato.
                 intatta = True
+                # Prima il bianco e nero, poi la bicromia: chiederle
+                # tutte e due vuol dire volere l'azzurro, e la bicromia
+                # rimappa comunque la luminanza — che dopo il bianco e
+                # nero è la stessa di prima.
+                if bianconero:
+                    immagine = bianco_e_nero(immagine)
+                    intatta = False
                 if duotone:
                     immagine = bicromia(immagine)
                     intatta = False
@@ -436,6 +438,11 @@ def main() -> None:
              "(serve alle illustrazioni realistiche)",
     )
     p.add_argument(
+        "--bianconero", action="store_true",
+        help="inchiostro e carta e basta, come il disegno generato ogni "
+             "giorno: serve a far somigliare la biblioteca all'edizione",
+    )
+    p.add_argument(
         "--larghezza", type=int, default=LARGHEZZA_DEFAULT,
         help=f"larghezza massima in px (default {LARGHEZZA_DEFAULT}, "
              f"che è quanto ne servono in pagina)",
@@ -457,7 +464,7 @@ def main() -> None:
     if any(trovate.values()):
         ottimizza(
             trovate, args.larghezza, args.jpeg, args.applica,
-            args.duotone, args.carta,
+            args.duotone, args.carta, args.bianconero,
         )
 
 
