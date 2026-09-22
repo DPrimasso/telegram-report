@@ -54,14 +54,14 @@ EDIZIONE_LABEL = "Inserto settimanale"
 
 _CSS_EXTRA = f"""
 .intervista-domanda {{
-  font-size: 24px; line-height: 1.3; font-weight: 500; font-style: italic;
+  font-size: 26px; line-height: 1.3; font-weight: 500; font-style: italic;
   color: {INK_SOFT}; margin-bottom: 12px;
 }}
 .intervista-risposta {{
   border-left: 5px solid {AZZURRO}; padding: 3px 0 3px 16px; margin: 4px 0 0 0;
 }}
 .intervista-risposta p {{
-  font-size: 32px; line-height: 1.3; font-weight: 700; color: {NAVY};
+  font-size: 27px; line-height: 1.3; font-weight: 700; color: {NAVY};
   letter-spacing: -0.015em; margin-bottom: 6px;
 }}
 .intervista-risposta .chi {{
@@ -88,9 +88,9 @@ def _stima_intro(deck: str, con_foto: bool) -> int:
 
 def _stima_domanda(domanda: str, risposta: str) -> int:
     h = _H_DOMANDA_BASE
-    h += _text_height(domanda, chars_per_line=62, line_height=33)
+    h += _text_height(domanda, chars_per_line=58, line_height=34)
     h += _H_RISPOSTA_BASE
-    h += _text_height(risposta, chars_per_line=51, line_height=42)
+    h += _text_height(risposta, chars_per_line=58, line_height=36)
     return h
 
 
