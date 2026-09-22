@@ -2,6 +2,11 @@ telethon==1.36.0
 openai==1.109.1
 python-dotenv==1.1.1
 playwright==1.61.0
+# Bot a comandi (Bot API), separato dalla sessione utente Telethon sopra:
+# risponde ai comandi in chat e gestisce l'intervista settimanale.
+python-telegram-bot==22.8
+starlette==1.6.0
+uvicorn==0.53.0
 # Serve al disegno della vignetta: il file che consegna il modello di
 # immagini viene riportato in bianco e nero sulla carta del giornale
 # (report/inchiostro.py). Se manca, il gazzettino esce lo stesso con il

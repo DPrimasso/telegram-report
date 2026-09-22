@@ -190,6 +190,35 @@ Nessuna modifica al codice è necessaria.
 > mostrano invece la forma grezza, senza il prefisso `-100`: sono lo stesso
 > gruppo, ma solo la prima funziona come `TELEGRAM_GROUP_ID`.
 
+## Bot a comandi e intervista settimanale
+
+Oltre al gazzettino (batch, Telethon a sessione utente), il repo contiene un
+**bot separato** in `bot/`, basato sulla Bot API (`python-telegram-bot`), che
+resta in ascolto e risponde a comandi in chat. Non legge la cronologia del
+gruppo — per quello serve la sessione utente sopra — ma può scegliere una
+persona a settimana, contattarla per prima e raccogliere le sue risposte in
+un'intervista guidata, da usare poi in un inserto settimanale.
+
+- Comandi attuali: `/start`, `/ping` (prova di funzionamento), `/iscriviti`
+  (per essere candidabile all'intervista), `/intervista` (per rispondere,
+  solo se sei stato scelto quella settimana).
+- Credenziali: `TELEGRAM_BOT_TOKEN` (da [@BotFather](https://t.me/BotFather)),
+  separato da `TELEGRAM_SESSION`. Vedi `.env.example` per tutte le variabili
+  (`TELEGRAM_BOT_WEBHOOK_URL`, `TELEGRAM_BOT_WEBHOOK_SECRET`,
+  `TELEGRAM_BOT_TRIGGER_SECRET`, `BOT_DB_PATH`).
+- In locale: con `TELEGRAM_BOT_WEBHOOK_URL` vuoto, `python -m bot.app` parte
+  in polling.
+- In produzione: deploy su [Render](https://render.com) (piano free, vedi
+  `render.yaml`), in modalità webhook — il servizio dorme se inattivo e si
+  risveglia alla prima richiesta HTTP.
+- L'estrazione settimanale del candidato è pilotata da
+  `.github/workflows/weekly-intervista.yml` (cron), che chiama l'endpoint
+  protetto `/trigger/intervista` del servizio Render per svegliarlo e fargli
+  scegliere e contattare la persona di turno.
+- Le risposte restano salvate in SQLite (`bot/data/bot.sqlite3` di default,
+  mai committato) e non vengono pubblicate automaticamente da nessuna parte:
+  l'inserto settimanale che le userà è da costruire.
+
 ## Note
 
 - L'orario del cron in `.github/workflows/daily-report.yml` è in UTC:

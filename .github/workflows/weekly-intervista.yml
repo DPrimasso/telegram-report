@@ -1,0 +1,20 @@
+name: Intervista settimanale Telegram
+
+on:
+  schedule:
+    # Lunedi alle 08:00 UTC (09:00/10:00 ora italiana a seconda del cambio
+    # d'ora). Solo per svegliare il bot su Render e fargli scegliere e
+    # contattare il candidato di turno: la logica vera sta nel servizio.
+    - cron: "0 8 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chiama l'endpoint del bot per scegliere e invitare
+        run: |
+          curl -sS -X POST \
+            --fail \
+            -H "X-Trigger-Secret: ${{ secrets.TELEGRAM_BOT_TRIGGER_SECRET }}" \
+            "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/trigger/intervista"

@@ -1,0 +1,24 @@
+# Deploy del bot a comandi su Render (piano free, modalita' webhook).
+# Il gazzettino giornaliero resta su GitHub Actions e non e' toccato da qui.
+#
+# TELEGRAM_BOT_WEBHOOK_URL va impostato con l'URL pubblico che Render
+# assegna a questo stesso servizio (es. https://<nome-servizio>.onrender.com):
+# il primo deploy puo' quindi partire senza, e va ri-deployato una volta
+# nota l'URL per attivare la modalita' webhook (altrimenti il bot resta in
+# polling, che su un web service free si ferma appena il servizio dorme).
+services:
+  - type: web
+    name: telegram-report-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m bot.app
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_WEBHOOK_URL
+        sync: false
+      - key: TELEGRAM_BOT_WEBHOOK_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TRIGGER_SECRET
+        sync: false
