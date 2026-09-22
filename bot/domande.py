@@ -48,7 +48,7 @@ DOMANDE_DI_RISERVA = [
     "C'e' un argomento di cui vorresti si parlasse di piu' nel gruppo?",
 ]
 
-_REAZIONE_DI_RISERVA = "Capito, andiamo avanti."
+_REAZIONE_DI_RISERVA = "Capito, grazie."
 
 # Quanti topic (i piu' "suoi", per numero di messaggi) portare al modello, e
 # quanto lungo al massimo il transcript risultante: un paio di conversazioni
@@ -96,17 +96,28 @@ def _prompt_intervista(nome: str, trascritto: str) -> str:
     )
 
 
-def _prompt_reazione(nome: str, domanda: str, risposta: str) -> str:
+def _prompt_reazione(nome: str, domanda: str, risposta: str, ultima: bool) -> str:
+    if ultima:
+        istruzione = (
+            "E' l'ultima risposta dell'intervista: scrivi una riga di "
+            "chiusura naturale a quello che ha appena detto. NON accennare, "
+            "alludere o aprire ad altre domande o argomenti: l'intervista "
+            "finisce qui, quindi la riga non deve terminare con un punto "
+            "di domanda."
+        )
+    else:
+        istruzione = (
+            "Scrivi come diresti davvero prima di passare alla prossima "
+            "domanda (un commento breve, anche una battuta se ci sta): "
+            "niente nuove domande, niente saluti, solo la reazione."
+        )
     return (
         f"Sei un giornalista che sta intervistando dal vivo {nome} per il "
         "gazzettino di un gruppo Telegram, con il tono di una vera "
         "intervista a un personaggio pubblico. Ha appena risposto cosi':\n"
         f"Domanda: {domanda}\n"
         f"Risposta: {risposta}\n\n"
-        "Scrivi UNA sola riga di reazione naturale, come diresti davvero "
-        "prima di passare alla prossima domanda (un commento breve, anche "
-        "una battuta se ci sta): niente nuove domande, niente saluti, solo "
-        "la reazione a quello che ha appena detto."
+        f"Scrivi UNA sola riga di reazione naturale. {istruzione}"
     )
 
 
@@ -175,18 +186,21 @@ async def genera_domande(nome: str, user_id: int) -> list[str]:
     return random.sample(DOMANDE_DI_RISERVA, k=min(NUM_RISERVA, len(DOMANDE_DI_RISERVA)))
 
 
-def genera_reazione(nome: str, domanda: str, risposta: str) -> str:
+def genera_reazione(nome: str, domanda: str, risposta: str, ultima: bool = False) -> str:
     """Una riga di reazione del giornalista alla risposta appena ricevuta,
     per dare all'intervista un ritmo da conversazione vera invece che da
-    lista di domande spedite in fila. Se qualcosa non funziona, una riga
-    neutra tiene comunque in piedi l'intervista."""
+    lista di domande spedite in fila. `ultima=True` per la risposta che
+    chiude l'intervista: senza saperlo, il modello tende a chiudere la
+    reazione con un accenno a un'altra domanda che poi non arriva mai. Se
+    qualcosa non funziona, una riga neutra tiene comunque in piedi
+    l'intervista."""
     try:
         config = load_config()
         openai_client = OpenAI(api_key=config.openai_api_key)
         testo = llm.complete(
             openai_client,
             config.openai_model,
-            _prompt_reazione(nome, domanda, risposta),
+            _prompt_reazione(nome, domanda, risposta, ultima),
             temperature=0.8,
         )
         righe = [riga.strip() for riga in testo.splitlines() if riga.strip()]

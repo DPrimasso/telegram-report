@@ -88,10 +88,11 @@ async def ricevi_risposta(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     risposta_testo = update.message.text
     storage.salva_risposta(intervista_id, indice, domanda_corrente, risposta_testo)
 
-    reazione = genera_reazione(nome, domanda_corrente, risposta_testo)
-
     indice += 1
-    if indice >= len(domande_lista):
+    ultima = indice >= len(domande_lista)
+    reazione = genera_reazione(nome, domanda_corrente, risposta_testo, ultima=ultima)
+
+    if ultima:
         storage.aggiorna_stato_intervista(intervista_id, "completata")
         await update.message.reply_text(f"{reazione}\n\nGrazie mille per il tuo tempo, {nome}!")
         return ConversationHandler.END
