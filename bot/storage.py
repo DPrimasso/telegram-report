@@ -117,6 +117,14 @@ class Storage:
             ).fetchall()
         return {riga[0] for riga in righe}
 
+    def dimentica_estrazioni(self) -> None:
+        """Cancella la cronologia delle estrazioni: con pochi iscritti (o
+        durante le prove) il vincolo delle ultime settimane finisce per
+        escludere tutti i candidati. Da usare con criterio: dopo, chiunque
+        puo' essere ripescato subito, senza aspettare."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM estrazioni")
+
     def registra_estrazione(self, settimana: str, user_id: int) -> None:
         with self._connect() as conn:
             conn.execute(

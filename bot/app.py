@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 WEBHOOK_PATH = "/telegram/webhook"
 TRIGGER_INTERVISTA_PATH = "/trigger/intervista"
 TRIGGER_INSERTO_PATH = "/trigger/inserto"
+TRIGGER_RESET_ESTRAZIONI_PATH = "/trigger/reset-estrazioni"
 
 
 def build_application(config: BotConfig, storage: Storage) -> Application:
@@ -82,6 +83,14 @@ def create_starlette_app(
         pubblicato = await pubblica_inserto_settimanale(storage)
         return PlainTextResponse(f"pubblicato: {pubblicato}")
 
+    async def trigger_reset_estrazioni(request: Request) -> Response:
+        if not config.trigger_secret:
+            return Response(status_code=404)
+        if not _secret_valido(request):
+            return Response(status_code=401)
+        storage.dimentica_estrazioni()
+        return PlainTextResponse("estrazioni dimenticate")
+
     async def health(request: Request) -> Response:
         return PlainTextResponse("ok")
 
@@ -90,6 +99,7 @@ def create_starlette_app(
             Route(WEBHOOK_PATH, telegram_webhook, methods=["POST"]),
             Route(TRIGGER_INTERVISTA_PATH, trigger_intervista, methods=["POST"]),
             Route(TRIGGER_INSERTO_PATH, trigger_inserto, methods=["POST"]),
+            Route(TRIGGER_RESET_ESTRAZIONI_PATH, trigger_reset_estrazioni, methods=["POST"]),
             Route("/", health, methods=["GET"]),
         ]
     )
@@ -133,6 +143,15 @@ def _parse_args() -> argparse.Namespace:
             "aspettare il cron settimanale, o per forzare la pubblicazione."
         ),
     )
+    parser.add_argument(
+        "--dimentica-estrazioni",
+        action="store_true",
+        help=(
+            "Cancella la cronologia delle estrazioni ed esce, senza avviare "
+            "il bot: con pochi iscritti il vincolo delle ultime settimane "
+            "puo' escludere tutti i candidati. Da usare con criterio."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -155,6 +174,11 @@ def main() -> None:
     if args.pubblica_inserto:
         pubblicato = asyncio.run(pubblica_inserto_settimanale(storage))
         logger.info("Pubblicazione manuale: %s", "fatta" if pubblicato else "nulla da pubblicare")
+        return
+
+    if args.dimentica_estrazioni:
+        storage.dimentica_estrazioni()
+        logger.info("Cronologia delle estrazioni cancellata.")
         return
 
     if config.webhook_url:
