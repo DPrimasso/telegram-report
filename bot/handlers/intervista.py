@@ -14,7 +14,7 @@ comporra' l'inserto settimanale.
 
 import logging
 import random
-from datetime import date
+from datetime import date, datetime, timezone
 
 from telegram import Bot, Update
 from telegram.ext import (
@@ -32,6 +32,11 @@ from bot.storage import Storage
 logger = logging.getLogger(__name__)
 
 IN_DOMANDA = 1
+
+# Il giorno in cui un invito senza risposta decade: 1-3 giorni dopo
+# l'estrazione arriva un promemoria, al 4o l'intervista si chiude e ne
+# viene estratta subito un'altra al posto di quella rimasta senza risposta.
+GIORNI_PRIMA_DI_CHIUDERE = 4
 
 
 def _settimana_corrente() -> str:
@@ -157,3 +162,55 @@ async def scegli_e_invita(bot: Bot, storage: Storage) -> int:
     )
     logger.info("Intervista settimanale proposta a user_id=%s (%s).", utente_id, username)
     return 1
+
+
+async def sollecita_e_chiudi_scadute(bot: Bot, storage: Storage) -> tuple[int, int]:
+    """Da chiamare una volta al giorno (endpoint /trigger/promemoria): manda
+    un promemoria a chi ha un'intervista aperta da 1-3 giorni, e chiude
+    quella ferma da 4 o piu' giorni — cancellandola del tutto, come se la
+    persona non fosse mai stata estratta — estraendo subito un sostituto al
+    suo posto. Ritorna (promemoria mandati, interviste chiuse)."""
+    oggi = datetime.now(timezone.utc).date()
+    promemoria = 0
+    chiuse = 0
+
+    for intervista_id, user_id, chat_id, nome, settimana, invitato_il in storage.interviste_aperte():
+        giorni = (oggi - datetime.fromisoformat(invitato_il).date()).days
+
+        if giorni >= GIORNI_PRIMA_DI_CHIUDERE:
+            storage.annulla_intervista(intervista_id, user_id, settimana)
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        "Il tempo per rispondere all'intervista di questa "
+                        "settimana è scaduto: nessun problema, magari alla "
+                        "prossima occasione!"
+                    ),
+                )
+            except Exception:
+                logger.warning("Avviso di chiusura non recapitato a %s.", nome)
+            chiuse += 1
+            continue
+
+        if giorni >= 1:
+            giorni_rimasti = GIORNI_PRIMA_DI_CHIUDERE - giorni
+            unita = "giorno" if giorni_rimasti == 1 else "giorni"
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"Ciao {nome}! Ti ricordo che questa settimana tocca "
+                        "a te per l'intervista del gazzettino: scrivi "
+                        "/intervista quando hai un attimo. Hai ancora "
+                        f"{giorni_rimasti} {unita} prima che l'invito decada."
+                    ),
+                )
+                promemoria += 1
+            except Exception:
+                logger.warning("Promemoria non recapitato a %s.", nome)
+
+    if chiuse:
+        await scegli_e_invita(bot, storage)
+
+    return promemoria, chiuse

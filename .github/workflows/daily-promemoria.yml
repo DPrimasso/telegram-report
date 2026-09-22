@@ -1,0 +1,21 @@
+name: Promemoria intervista Telegram
+
+on:
+  schedule:
+    # Ogni giorno alle 09:00 UTC (10:00/11:00 ora italiana a seconda del
+    # cambio d'ora): manda un promemoria a chi ha un'intervista aperta da
+    # 1-3 giorni, e chiude (estraendo subito un sostituto) quella ferma da
+    # 4 o piu' giorni. La logica vera sta nel servizio.
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chiama l'endpoint del bot per i promemoria e le chiusure
+        run: |
+          curl -sS -X POST \
+            --fail \
+            -H "X-Trigger-Secret: ${{ secrets.TELEGRAM_BOT_TRIGGER_SECRET }}" \
+            "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/trigger/promemoria"

@@ -36,6 +36,7 @@ WEBHOOK_PATH = "/telegram/webhook"
 TRIGGER_INTERVISTA_PATH = "/trigger/intervista"
 TRIGGER_INSERTO_PATH = "/trigger/inserto"
 TRIGGER_RESET_ESTRAZIONI_PATH = "/trigger/reset-estrazioni"
+TRIGGER_PROMEMORIA_PATH = "/trigger/promemoria"
 
 
 def build_application(config: BotConfig, storage: Storage) -> Application:
@@ -91,6 +92,14 @@ def create_starlette_app(
         storage.dimentica_estrazioni()
         return PlainTextResponse("estrazioni dimenticate")
 
+    async def trigger_promemoria(request: Request) -> Response:
+        if not config.trigger_secret:
+            return Response(status_code=404)
+        if not _secret_valido(request):
+            return Response(status_code=401)
+        promemoria, chiuse = await intervista.sollecita_e_chiudi_scadute(application.bot, storage)
+        return PlainTextResponse(f"promemoria: {promemoria}, chiuse: {chiuse}")
+
     async def health(request: Request) -> Response:
         return PlainTextResponse("ok")
 
@@ -100,6 +109,7 @@ def create_starlette_app(
             Route(TRIGGER_INTERVISTA_PATH, trigger_intervista, methods=["POST"]),
             Route(TRIGGER_INSERTO_PATH, trigger_inserto, methods=["POST"]),
             Route(TRIGGER_RESET_ESTRAZIONI_PATH, trigger_reset_estrazioni, methods=["POST"]),
+            Route(TRIGGER_PROMEMORIA_PATH, trigger_promemoria, methods=["POST"]),
             Route("/", health, methods=["GET"]),
         ]
     )
@@ -152,6 +162,16 @@ def _parse_args() -> argparse.Namespace:
             "puo' escludere tutti i candidati. Da usare con criterio."
         ),
     )
+    parser.add_argument(
+        "--sollecita-interviste",
+        action="store_true",
+        help=(
+            "Manda i promemoria e chiude le interviste scadute (4+ giorni "
+            "senza risposta, con estrazione di un sostituto) ed esce, senza "
+            "avviare il bot. Utile per provare in locale senza aspettare il "
+            "cron giornaliero."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -159,6 +179,13 @@ async def _estrai_intervista_una_volta(application: Application, storage: Storag
     async with application:
         invitati = await intervista.scegli_e_invita(application.bot, storage)
         logger.info("Estrazione manuale completata: %s invitati.", invitati)
+
+
+async def _sollecita_interviste_una_volta(
+    application: Application, storage: Storage
+) -> tuple[int, int]:
+    async with application:
+        return await intervista.sollecita_e_chiudi_scadute(application.bot, storage)
 
 
 def main() -> None:
@@ -179,6 +206,13 @@ def main() -> None:
     if args.dimentica_estrazioni:
         storage.dimentica_estrazioni()
         logger.info("Cronologia delle estrazioni cancellata.")
+        return
+
+    if args.sollecita_interviste:
+        promemoria, chiuse = asyncio.run(
+            _sollecita_interviste_una_volta(application, storage)
+        )
+        logger.info("Promemoria: %s, interviste chiuse: %s", promemoria, chiuse)
         return
 
     if config.webhook_url:

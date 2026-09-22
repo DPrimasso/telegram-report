@@ -196,6 +196,40 @@ class Storage:
             ).fetchall()
         return [tuple(riga) for riga in righe]
 
+    def interviste_aperte(self) -> list[tuple[int, int, int, str, str, str]]:
+        """(intervista_id, user_id, chat_id, nome, settimana, invitato_il) di
+        ogni intervista non ancora completata: usata dal promemoria
+        giornaliero per sapere da quanti giorni una persona e' in attesa di
+        rispondere. `invitato_il` viene dalla riga di estrazioni gemella
+        (stesso user_id e settimana, create nello stesso momento da
+        scegli_e_invita): risparmia di duplicare quella data su interviste."""
+        with self._connect() as conn:
+            righe = conn.execute(
+                """
+                SELECT i.id, i.user_id, c.chat_id, i.nome, i.settimana, e.invitato_il
+                FROM interviste i
+                JOIN candidati c ON c.user_id = i.user_id
+                JOIN estrazioni e ON e.user_id = i.user_id AND e.settimana = i.settimana
+                WHERE i.stato != 'completata'
+                """
+            ).fetchall()
+        return [tuple(riga) for riga in righe]
+
+    def annulla_intervista(self, intervista_id: int, user_id: int, settimana: str) -> None:
+        """Cancella un'intervista rimasta senza risposta troppo a lungo:
+        sparisce del tutto (risposte, domande, l'intervista e la sua
+        estrazione), cosi' la persona risulta come mai estratta quella
+        settimana e puo' essere ripescata senza aspettare le settimane
+        dell'esclusione."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM risposte WHERE intervista_id = ?", (intervista_id,))
+            conn.execute("DELETE FROM domande WHERE intervista_id = ?", (intervista_id,))
+            conn.execute("DELETE FROM interviste WHERE id = ?", (intervista_id,))
+            conn.execute(
+                "DELETE FROM estrazioni WHERE user_id = ? AND settimana = ?",
+                (user_id, settimana),
+            )
+
     def prossima_intervista_da_pubblicare(self) -> tuple[int, int, str] | None:
         """La piu' vecchia intervista completata e non ancora pubblicata
         (id, user_id, nome). FIFO: se una settimana salta, la prossima
