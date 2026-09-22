@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS interviste (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     settimana TEXT NOT NULL,
+    nome TEXT NOT NULL DEFAULT '',
     stato TEXT NOT NULL DEFAULT 'invitato'
 );
 
@@ -108,19 +109,19 @@ class Storage:
                 (settimana, user_id, _now()),
             )
 
-    def apri_intervista(self, user_id: int, settimana: str) -> int:
+    def apri_intervista(self, user_id: int, settimana: str, nome: str) -> int:
         with self._connect() as conn:
             cur = conn.execute(
-                "INSERT INTO interviste (user_id, settimana, stato) VALUES (?, ?, 'invitato')",
-                (user_id, settimana),
+                "INSERT INTO interviste (user_id, settimana, nome, stato) VALUES (?, ?, ?, 'invitato')",
+                (user_id, settimana, nome),
             )
             return int(cur.lastrowid)
 
-    def intervista_aperta_per(self, user_id: int) -> tuple[int, str] | None:
+    def intervista_aperta_per(self, user_id: int) -> tuple[int, str, str] | None:
         with self._connect() as conn:
             riga = conn.execute(
                 """
-                SELECT id, stato FROM interviste
+                SELECT id, stato, nome FROM interviste
                 WHERE user_id = ? AND stato != 'completata'
                 ORDER BY id DESC LIMIT 1
                 """,
