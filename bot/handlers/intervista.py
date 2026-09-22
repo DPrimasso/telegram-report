@@ -45,7 +45,11 @@ async def iscriviti(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     utente = update.effective_user
     storage.registra_candidato(utente.id, update.effective_chat.id, utente.username)
     await update.message.reply_text(
-        "Fatto: sei tra i candidabili per l'intervista settimanale."
+        "Fatto: sei tra i candidabili. Ogni lunedì scelgo a caso una persona "
+        "tra chi si è iscritto (evitando chi è già stato scelto di recente): "
+        "se tocca a te, te lo scrivo qui e potrai rispondere quando vuoi con "
+        "/intervista. Le interviste completate escono nell'inserto del "
+        "gazzettino la domenica sera."
     )
 
 
@@ -94,7 +98,10 @@ async def ricevi_risposta(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     if ultima:
         storage.aggiorna_stato_intervista(intervista_id, "completata")
-        await update.message.reply_text(f"{reazione}\n\nGrazie mille per il tuo tempo, {nome}!")
+        await update.message.reply_text(
+            f"{reazione}\n\nGrazie mille per il tuo tempo, {nome}! La tua "
+            "intervista uscirà nel prossimo inserto del gazzettino."
+        )
         return ConversationHandler.END
 
     context.user_data["indice_domanda"] = indice
@@ -142,7 +149,10 @@ async def scegli_e_invita(bot: Bot, storage: Storage) -> int:
         chat_id=chat_id,
         text=(
             "Questa settimana tocca a te! Quando vuoi, scrivi /intervista per "
-            "rispondere a qualche domanda per l'inserto settimanale."
+            "rispondere a qualche domanda sulla tua settimana nel gruppo. Se "
+            "rispondi entro domenica sera la tua intervista esce nell'inserto "
+            "di questa settimana, altrimenti in quello della settimana dopo — "
+            "nessuna fretta."
         ),
     )
     logger.info("Intervista settimanale proposta a user_id=%s (%s).", utente_id, username)
