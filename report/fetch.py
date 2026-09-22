@@ -160,34 +160,14 @@ async def _resolve_member(client: TelegramClient, group, user_id: int):
         )
 
 
-async def fetch_user_messages(
-    client: TelegramClient,
-    group_id: int,
-    user_id: int,
-    since: datetime,
-    until: datetime,
-) -> list[SimpleMessage]:
-    """Messaggi scritti da un utente specifico nel gruppo, tra `since` e
-    `until` (entrambi consapevoli del fuso). Usata per le domande
-    specifiche dell'intervista settimanale: qui non servono i topic, solo
-    quello che quella persona ha scritto davvero."""
+async def resolve_member_name(client: TelegramClient, group_id: int, user_id: int) -> str:
+    """Il nome con cui un utente compare come `SimpleMessage.author` nei
+    messaggi del gruppo. Serve a riconoscere le sue righe dentro un
+    transcript per topic (es. per l'intervista settimanale), con lo stesso
+    identico criterio con cui fetch_messages_between le etichetta."""
     group = await _resolve_group(client, group_id)
     member = await _resolve_member(client, group, user_id)
-
-    messaggi: list[SimpleMessage] = []
-    sender_cache: dict[int, str] = {}
-    async for message in client.iter_messages(group, from_user=member, offset_date=until):
-        if message.date < since:
-            break
-        text = _message_text(message)
-        if text is None:
-            continue
-        author = await _author_of(message, sender_cache)
-        messaggi.append(
-            SimpleMessage(author=author, timestamp=_local(message.date, since.tzinfo), text=text)
-        )
-    messaggi.sort(key=lambda m: m.timestamp)
-    return messaggi
+    return _display_name(member)
 
 
 async def get_group_title(client: TelegramClient, group_id: int) -> str:
@@ -244,6 +224,31 @@ async def fetch_day_messages(
     tz = ZoneInfo(timezone)
     start = datetime.combine(day, time.min, tzinfo=tz)
     end = start + timedelta(days=1)
+    return await fetch_messages_between(
+        client,
+        group_id,
+        start,
+        end,
+        debug=debug,
+        scribe_names=scribe_names,
+        summary_markers=summary_markers,
+    )
+
+
+async def fetch_messages_between(
+    client: TelegramClient,
+    group_id: int,
+    start: datetime,
+    end: datetime,
+    debug: bool = False,
+    scribe_names: tuple[str, ...] = scribe.DEFAULT_BOT_NAMES,
+    summary_markers: tuple[str, ...] = scribe.DEFAULT_SUMMARY_MARKERS,
+) -> list[TopicMessages]:
+    """Come fetch_day_messages, ma su un intervallo qualunque invece che su
+    un giorno intero: fetch_day_messages e' il caso di un giorno, questa
+    serve per finestre piu' larghe (es. la settimana delle domande
+    dell'intervista). `start`/`end` devono essere consapevoli del fuso."""
+    tz = start.tzinfo
 
     group = await _resolve_group(client, group_id)
 
