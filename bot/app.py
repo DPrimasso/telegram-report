@@ -12,6 +12,7 @@ solo alla rotta di Telegram, senza modo comodo di aggiungere l'endpoint
 sulla coda della Application.
 """
 
+import argparse
 import asyncio
 import logging
 
@@ -97,10 +98,35 @@ async def _run_webhook(application: Application, starlette_app: Starlette, confi
             await application.stop()
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Bot a comandi Telegram.")
+    parser.add_argument(
+        "--estrai-intervista",
+        action="store_true",
+        help=(
+            "Esegue una volta l'estrazione+invito dell'intervista settimanale "
+            "ed esce, senza avviare il bot. Utile per provare in locale senza "
+            "aspettare il cron settimanale, o per forzarla a mano in caso di bisogno."
+        ),
+    )
+    return parser.parse_args()
+
+
+async def _estrai_intervista_una_volta(application: Application, storage: Storage) -> None:
+    async with application:
+        invitati = await intervista.scegli_e_invita(application.bot, storage)
+        logger.info("Estrazione manuale completata: %s invitati.", invitati)
+
+
 def main() -> None:
+    args = _parse_args()
     config = load_bot_config()
     storage = Storage(config.db_path)
     application = build_application(config, storage)
+
+    if args.estrai_intervista:
+        asyncio.run(_estrai_intervista_una_volta(application, storage))
+        return
 
     if config.webhook_url:
         starlette_app = create_starlette_app(application, config, storage)
