@@ -1,0 +1,21 @@
+name: Inserto settimanale Telegram
+
+on:
+  schedule:
+    # Domenica alle 18:00 UTC (19:00/20:00 ora italiana a seconda del
+    # cambio d'ora): da' tempo alla persona scelta di rispondere durante
+    # la settimana prima che l'inserto esca. Cambia l'orario qui se serve
+    # un giorno diverso.
+    - cron: "0 18 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chiama l'endpoint del bot per pubblicare l'inserto
+        run: |
+          curl -sS -X POST \
+            --fail \
+            -H "X-Trigger-Secret: ${{ secrets.TELEGRAM_BOT_TRIGGER_SECRET }}" \
+            "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/trigger/inserto"

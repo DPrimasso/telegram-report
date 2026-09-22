@@ -208,3 +208,45 @@ def genera_reazione(nome: str, domanda: str, risposta: str, ultima: bool = False
     except Exception as errore:
         logger.warning("Reazione non generata (%s): uso una riga neutra.", errore)
         return _REAZIONE_DI_RISERVA
+
+
+_DECK_DI_RISERVA = "Le risposte della persona scelta questa settimana, per l'inserto del gazzettino."
+
+
+def _prompt_deck(nome: str, domande_risposte: list[tuple[str, str]]) -> str:
+    scambio = "\n".join(f"D: {d}\nR: {r}" for d, r in domande_risposte)
+    return (
+        "Sei il caporedattore del gazzettino di un gruppo Telegram e devi "
+        f"scrivere il sommario (il 'deck') dell'intervista a {nome} di "
+        "questa settimana, da mettere sotto il titolo in prima pagina.\n\n"
+        "Regole:\n"
+        "- Una sola riga, una frase, senza virgolette.\n"
+        "- Basati ESCLUSIVAMENTE su quello che e' scritto nello scambio "
+        "sotto: non inventare fatti che non ci siano.\n"
+        "- Deve aggiungere un'informazione, non ripetere il nome o dire "
+        "solo 'un'intervista con...': anticipa di cosa si parla.\n\n"
+        f"Scambio:\n{scambio}"
+    )
+
+
+def genera_deck(nome: str, domande_risposte: list[tuple[str, str]]) -> str:
+    """Il sommario di apertura dell'inserto (occhiello sotto il titolo):
+    una riga che anticipa di cosa parla l'intervista, come richiede lo
+    stile del gazzettino (titolo, sommario, testo). Se la generazione
+    fallisce, una riga di riserva tiene comunque in piedi l'impaginazione."""
+    if not domande_risposte:
+        return _DECK_DI_RISERVA
+    try:
+        config = load_config()
+        openai_client = OpenAI(api_key=config.openai_api_key)
+        testo = llm.complete(
+            openai_client,
+            config.openai_model,
+            _prompt_deck(nome, domande_risposte),
+            temperature=0.7,
+        )
+        righe = [riga.strip().strip('"').strip("«»") for riga in testo.splitlines() if riga.strip()]
+        return righe[0] if righe else _DECK_DI_RISERVA
+    except Exception as errore:
+        logger.warning("Deck dell'inserto non generato (%s): uso una riga di riserva.", errore)
+        return _DECK_DI_RISERVA

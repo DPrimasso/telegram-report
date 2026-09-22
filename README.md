@@ -209,26 +209,44 @@ sessione Telethon e OpenAI del gazzettino, solo in quel punto).
   (`TELEGRAM_BOT_WEBHOOK_URL`, `TELEGRAM_BOT_WEBHOOK_SECRET`,
   `TELEGRAM_BOT_TRIGGER_SECRET`, `BOT_DB_PATH`).
 - **Domande dell'intervista** (`bot/domande.py`): al momento dell'estrazione
-  settimanale, il bot pesca fino a 2 domande da un elenco fisso (`DOMANDE_GENERICHE`,
-  a rotazione casuale) e fino a 3 domande specifiche generate da OpenAI a
-  partire sui messaggi che la persona scelta ha scritto nel gruppo negli
-  ultimi 7 giorni (letti con lo stesso client Telethon del gazzettino). Se
-  quella persona non ha scritto nulla, o mancano le variabili
+  settimanale, il bot genera in un colpo solo tutta l'intervista (apertura,
+  corpo, chiusura) con un prompt da vero giornalista che intervista un
+  personaggio pubblico, basandosi sulle conversazioni della settimana a cui
+  la persona scelta ha partecipato (lette con lo stesso client Telethon del
+  gazzettino: non solo le sue righe, l'intera discussione dei topic a cui ha
+  preso parte, così le domande hanno contesto reale). Durante la chat, dopo
+  ogni risposta il bot genera anche una breve reazione prima della domanda
+  successiva. Se quella persona non ha scritto nulla quella settimana, o
+  mancano le variabili
   `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`/`TELEGRAM_SESSION`/`TELEGRAM_GROUP_ID`/`OPENAI_API_KEY`
-  sull'ambiente del bot, l'intervista parte comunque con le sole domande
-  generiche.
+  sull'ambiente del bot, l'intervista parte comunque con un pool fisso di
+  domande generiche (`DOMANDE_DI_RISERVA`), come ultima rete di sicurezza.
 - In locale: con `TELEGRAM_BOT_WEBHOOK_URL` vuoto, `python -m bot.app` parte
-  in polling.
+  in polling. Due flag utili per provare senza aspettare i cron settimanali:
+  `--estrai-intervista` (forza estrazione+invito) e `--pubblica-inserto`
+  (forza la pubblicazione se c'è un'intervista completata in coda).
 - In produzione: deploy su [Render](https://render.com) (piano free, vedi
   `render.yaml`), in modalità webhook — il servizio dorme se inattivo e si
   risveglia alla prima richiesta HTTP.
 - L'estrazione settimanale del candidato è pilotata da
-  `.github/workflows/weekly-intervista.yml` (cron), che chiama l'endpoint
-  protetto `/trigger/intervista` del servizio Render per svegliarlo e fargli
-  scegliere e contattare la persona di turno.
-- Le risposte restano salvate in SQLite (`bot/data/bot.sqlite3` di default,
-  mai committato) e non vengono pubblicate automaticamente da nessuna parte:
-  l'inserto settimanale che le userà è da costruire.
+  `.github/workflows/weekly-intervista.yml` (cron, di lunedì), che chiama
+  l'endpoint protetto `/trigger/intervista` del servizio Render per
+  svegliarlo e fargli scegliere e contattare la persona di turno.
+- **Inserto settimanale** (`report/inserto.py` + `bot/inserto.py`): una volta
+  che l'intervista è completata, `.github/workflows/weekly-inserto.yml`
+  (cron, di domenica sera — dà tempo a chi risponde durante la settimana)
+  chiama l'endpoint protetto `/trigger/inserto`, che impagina la più vecchia
+  intervista completata e non ancora pubblicata nello stesso stile grafico
+  del gazzettino (stessa testata, stessi colori/font, riquadri "domanda" +
+  citazione per ogni risposta) e la invia con la stessa pipeline Telethon del
+  report giornaliero (`report/send.py::send_photo_report`), nella
+  destinazione configurata da `REPORT_DESTINATION`/`REPORT_TOPIC_ID`. Se non
+  c'è nessuna intervista pronta, o qualcosa nella pipeline fallisce, non
+  succede nulla e l'intervista resta in coda per il prossimo giro (FIFO: se
+  una settimana salta, la successiva recupera quella rimasta indietro).
+- Tutto lo stato (iscritti, estrazioni, domande, risposte, cosa è già stato
+  pubblicato) resta in SQLite (`bot/data/bot.sqlite3` di default, mai
+  committato).
 
 ## Note
 

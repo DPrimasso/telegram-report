@@ -25,6 +25,7 @@ from telegram.ext import Application
 
 from bot.config import BotConfig, load_bot_config
 from bot.handlers import basics, intervista, report_commands  # noqa: F401 (side-effect: registrazione comandi)
+from bot.inserto import pubblica_inserto_settimanale
 from bot.registry import all_handlers
 from bot.storage import Storage
 
@@ -32,7 +33,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 WEBHOOK_PATH = "/telegram/webhook"
-TRIGGER_PATH = "/trigger/intervista"
+TRIGGER_INTERVISTA_PATH = "/trigger/intervista"
+TRIGGER_INSERTO_PATH = "/trigger/inserto"
 
 
 def build_application(config: BotConfig, storage: Storage) -> Application:
@@ -59,14 +61,26 @@ def create_starlette_app(
         await application.update_queue.put(update)
         return Response(status_code=200)
 
+    def _secret_valido(request: Request) -> bool:
+        if not config.trigger_secret:
+            return False
+        return request.headers.get("X-Trigger-Secret") == config.trigger_secret
+
     async def trigger_intervista(request: Request) -> Response:
         if not config.trigger_secret:
             return Response(status_code=404)
-        header = request.headers.get("X-Trigger-Secret")
-        if header != config.trigger_secret:
+        if not _secret_valido(request):
             return Response(status_code=401)
         invitati = await intervista.scegli_e_invita(application.bot, storage)
         return PlainTextResponse(f"invitati: {invitati}")
+
+    async def trigger_inserto(request: Request) -> Response:
+        if not config.trigger_secret:
+            return Response(status_code=404)
+        if not _secret_valido(request):
+            return Response(status_code=401)
+        pubblicato = await pubblica_inserto_settimanale(storage)
+        return PlainTextResponse(f"pubblicato: {pubblicato}")
 
     async def health(request: Request) -> Response:
         return PlainTextResponse("ok")
@@ -74,7 +88,8 @@ def create_starlette_app(
     return Starlette(
         routes=[
             Route(WEBHOOK_PATH, telegram_webhook, methods=["POST"]),
-            Route(TRIGGER_PATH, trigger_intervista, methods=["POST"]),
+            Route(TRIGGER_INTERVISTA_PATH, trigger_intervista, methods=["POST"]),
+            Route(TRIGGER_INSERTO_PATH, trigger_inserto, methods=["POST"]),
             Route("/", health, methods=["GET"]),
         ]
     )
@@ -109,6 +124,15 @@ def _parse_args() -> argparse.Namespace:
             "aspettare il cron settimanale, o per forzarla a mano in caso di bisogno."
         ),
     )
+    parser.add_argument(
+        "--pubblica-inserto",
+        action="store_true",
+        help=(
+            "Pubblica una volta l'ultima intervista completata (se c'e') ed "
+            "esce, senza avviare il bot. Utile per provare in locale senza "
+            "aspettare il cron settimanale, o per forzare la pubblicazione."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -126,6 +150,11 @@ def main() -> None:
 
     if args.estrai_intervista:
         asyncio.run(_estrai_intervista_una_volta(application, storage))
+        return
+
+    if args.pubblica_inserto:
+        pubblicato = asyncio.run(pubblica_inserto_settimanale(storage))
+        logger.info("Pubblicazione manuale: %s", "fatta" if pubblicato else "nulla da pubblicare")
         return
 
     if config.webhook_url:
