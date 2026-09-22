@@ -188,14 +188,14 @@ class Storage:
             ).fetchall()
         return [tuple(riga) for riga in righe]
 
-    def prossima_intervista_da_pubblicare(self) -> tuple[int, str] | None:
+    def prossima_intervista_da_pubblicare(self) -> tuple[int, int, str] | None:
         """La piu' vecchia intervista completata e non ancora pubblicata
-        (id, nome). FIFO: se una settimana salta, la prossima pubblicazione
-        recupera quella rimasta indietro invece di saltarla."""
+        (id, user_id, nome). FIFO: se una settimana salta, la prossima
+        pubblicazione recupera quella rimasta indietro invece di saltarla."""
         with self._connect() as conn:
             riga = conn.execute(
                 """
-                SELECT id, nome FROM interviste
+                SELECT id, user_id, nome FROM interviste
                 WHERE stato = 'completata' AND pubblicata = 0
                 ORDER BY id ASC LIMIT 1
                 """

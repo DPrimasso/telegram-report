@@ -35,7 +35,7 @@ async def pubblica_inserto_settimanale(storage: Storage) -> bool:
         logger.warning("Nessuna intervista completata in attesa di pubblicazione.")
         return False
 
-    intervista_id, nome = prossima
+    intervista_id, user_id, nome = prossima
     domande_risposte = storage.carica_risposte(intervista_id)
     if not domande_risposte:
         logger.warning(
@@ -53,6 +53,16 @@ async def pubblica_inserto_settimanale(storage: Storage) -> bool:
                 client, config.group_id
             )
             with tempfile.TemporaryDirectory() as tmp_dir:
+                foto_path = None
+                try:
+                    foto_path = await client.download_profile_photo(
+                        user_id, file=str(Path(tmp_dir) / "foto.jpg")
+                    )
+                except Exception:
+                    logger.warning(
+                        "Foto profilo non scaricata per %s: proseguo senza.", nome
+                    )
+
                 pagine_html = build_intervista_pages_html(
                     newspaper_name,
                     date.today(),
@@ -60,6 +70,7 @@ async def pubblica_inserto_settimanale(storage: Storage) -> bool:
                     domande_risposte,
                     logo_path=config.logo_path,
                     firma_path=config.firma_path,
+                    foto_path=foto_path,
                     deck=deck,
                 )
                 image_paths = []

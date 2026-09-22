@@ -10,6 +10,15 @@ risposta, ...). L'impaginazione e' percio' volutamente piu' semplice: un
 riempimento pagina per pagina finche' c'e' spazio sotto MAX_PAGE_HEIGHT,
 senza rimandi "a pagina N" fra un pezzo e l'altro (non servono, e' un
 pezzo solo).
+
+La domanda e la risposta non riusano semplicemente h3+virgolettato del
+gazzettino: in un articolo normale il virgolettato e' una citazione
+dentro un pezzo scritto da altri, quindi piccola apposta. Qui la
+risposta E' tutto il contenuto del blocco, quindi ha bisogno di un corpo
+grande e leggibile; la domanda e' solo il rilancio che introduce chi
+parla, quindi resta leggera (corsivo, come un occhiello). Le classi
+`.intervista-domanda`/`.intervista-risposta` in _CSS_EXTRA sono
+apposta per questo, e vengono iniettate pagina per pagina.
 """
 
 import html
@@ -17,7 +26,11 @@ from datetime import date
 from pathlib import Path
 
 from report.newspaper import (
+    AZZURRO,
+    AZZURRO_DEEP,
     MAX_PAGE_HEIGHT,
+    NAVY,
+    INK_SOFT,
     _dateline_html,
     _footer_html,
     _masthead,
@@ -33,40 +46,74 @@ _H_CHROME_PRIMA = 150 + 60 + 40  # testata + dateline + margine sotto l'intro
 _H_CHROME_CONT = 60 + 20  # dateline sulle pagine successive
 _H_FOOTER = 120
 _H_INTRO_BASE = 90  # occhiello + titolo + margini, il deck si stima a parte
+_H_FOTO = 156  # riga foto+testo quando c'e' l'immagine profilo
 _H_DOMANDA_BASE = 90  # etichetta "DOMANDA N", regolo e margini del blocco
-_H_VIRGOLETTATO_BASE = 60  # bordo, "chi", margini del blocco citazione
+_H_RISPOSTA_BASE = 60  # bordo, "chi", margini del blocco risposta
 
 EDIZIONE_LABEL = "Inserto settimanale"
 
+_CSS_EXTRA = f"""
+.intervista-domanda {{
+  font-size: 24px; line-height: 1.3; font-weight: 500; font-style: italic;
+  color: {INK_SOFT}; margin-bottom: 12px;
+}}
+.intervista-risposta {{
+  border-left: 5px solid {AZZURRO}; padding: 3px 0 3px 16px; margin: 4px 0 0 0;
+}}
+.intervista-risposta p {{
+  font-size: 32px; line-height: 1.3; font-weight: 700; color: {NAVY};
+  letter-spacing: -0.015em; margin-bottom: 6px;
+}}
+.intervista-risposta .chi {{
+  display: block; font-size: 14px; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: {AZZURRO_DEEP};
+}}
+.intervista-intro-row {{ display: flex; align-items: flex-start; gap: 24px; }}
+.intervista-foto {{
+  width: 140px; height: 140px; object-fit: cover; border: 2px solid {NAVY};
+  flex: none;
+}}
+"""
+_STYLE_EXTRA = f"<style>{_CSS_EXTRA}</style>"
 
-def _stima_intro(deck: str) -> int:
-    if not deck:
-        return _H_INTRO_BASE
-    return _H_INTRO_BASE + _text_height(deck, chars_per_line=62, line_height=33) + 12
+
+def _stima_intro(deck: str, con_foto: bool) -> int:
+    h = _H_INTRO_BASE
+    if deck:
+        h += _text_height(deck, chars_per_line=62, line_height=33) + 12
+    if con_foto:
+        h = max(h, _H_FOTO)
+    return h
 
 
 def _stima_domanda(domanda: str, risposta: str) -> int:
     h = _H_DOMANDA_BASE
-    h += _text_height(domanda, chars_per_line=40, line_height=44)
-    h += _H_VIRGOLETTATO_BASE
-    h += _text_height(risposta, chars_per_line=48, line_height=32)
+    h += _text_height(domanda, chars_per_line=62, line_height=33)
+    h += _H_RISPOSTA_BASE
+    h += _text_height(risposta, chars_per_line=51, line_height=42)
     return h
 
 
-def _intro_html(nome_intervistato: str, deck: str) -> str:
+def _intro_html(nome_intervistato: str, deck: str, foto_uri: str | None) -> str:
     deck_html = f'<p class="deck">{html.escape(deck)}</p>' if deck else ""
-    return (
-        '<div class="lead"><div class="kicker">Intervista della settimana</div>'
-        f"<h2>{html.escape(nome_intervistato)}</h2>{deck_html}</div>"
-    )
+    testo_html = f"<h2>{html.escape(nome_intervistato)}</h2>{deck_html}"
+    if foto_uri:
+        corpo = (
+            '<div class="intervista-intro-row">'
+            f'<img class="intervista-foto" src="{foto_uri}" alt="">'
+            f"<div>{testo_html}</div></div>"
+        )
+    else:
+        corpo = testo_html
+    return f'<div class="lead"><div class="kicker">Intervista della settimana</div>{corpo}</div>'
 
 
 def _domanda_html(numero: int, domanda: str, risposta: str, nome_intervistato: str) -> str:
     return (
         '<div class="article"><div class="article-head">'
         f'<span class="topic-tag">DOMANDA {numero}</span></div>'
-        f"<h3>{html.escape(domanda)}</h3>"
-        f'<div class="virgolettato"><p>«{html.escape(risposta)}»</p>'
+        f'<p class="intervista-domanda">{html.escape(domanda)}</p>'
+        f'<div class="intervista-risposta"><p>«{html.escape(risposta)}»</p>'
         f'<span class="chi">{html.escape(nome_intervistato)}</span></div></div>'
     )
 
@@ -79,14 +126,16 @@ def build_intervista_pages_html(
     *,
     logo_path: str | Path | None = None,
     firma_path: str | Path | None = None,
+    foto_path: str | Path | None = None,
     deck: str = "",
 ) -> list[str]:
-    """Le pagine dell'inserto: intro (occhiello, nome, sommario) seguita
-    dalla sequenza di domande e risposte, impaginate come i pezzi del
-    gazzettino (stesso `.article`/`.virgolettato`). Ritorna una pagina HTML
-    completa per ogni pagina, pronta per render_html_to_png."""
+    """Le pagine dell'inserto: intro (occhiello, foto se disponibile, nome,
+    sommario) seguita dalla sequenza di domande e risposte, impaginate
+    nello stile del gazzettino. Ritorna una pagina HTML completa per ogni
+    pagina, pronta per render_html_to_png."""
     logo_uri = data_uri(logo_path) if logo_path and Path(logo_path).exists() else None
     firma_uri = data_uri(firma_path) if firma_path and Path(firma_path).exists() else None
+    foto_uri = data_uri(foto_path) if foto_path and Path(foto_path).exists() else None
 
     blocchi = [
         (_stima_domanda(domanda, risposta), _domanda_html(i, domanda, risposta, nome_intervistato))
@@ -94,7 +143,7 @@ def build_intervista_pages_html(
     ]
 
     pagine_blocchi: list[list[str]] = [[]]
-    altezza_corrente = _H_CHROME_PRIMA + _stima_intro(deck) + _H_FOOTER
+    altezza_corrente = _H_CHROME_PRIMA + _stima_intro(deck, bool(foto_uri)) + _H_FOOTER
     for altezza, blocco_html in blocchi:
         supera_tetto = altezza_corrente + altezza > MAX_PAGE_HEIGHT
         if pagine_blocchi[-1] and supera_tetto:
@@ -109,11 +158,15 @@ def build_intervista_pages_html(
         corpo = f'<div class="articles">{"".join(blocchi_pagina)}</div>'
         dateline = _dateline_html(day, EDIZIONE_LABEL, numero, totale)
         if numero == 1:
-            interno = _masthead(logo_uri, newspaper_name) + dateline + _intro_html(
-                nome_intervistato, deck
-            ) + corpo
+            interno = (
+                _STYLE_EXTRA
+                + _masthead(logo_uri, newspaper_name)
+                + dateline
+                + _intro_html(nome_intervistato, deck, foto_uri)
+                + corpo
+            )
         else:
-            interno = dateline + corpo
+            interno = _STYLE_EXTRA + dateline + corpo
         interno += _footer_html(numero, totale, firma_uri)
         pagine_html.append(_wrap_page(interno))
     return pagine_html
