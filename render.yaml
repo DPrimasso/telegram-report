@@ -19,7 +19,7 @@ services:
     name: telegram-report-bot
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
     startCommand: python -m bot.app
     envVars:
       - key: TELEGRAM_BOT_TOKEN
