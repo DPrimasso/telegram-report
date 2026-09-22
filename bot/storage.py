@@ -43,6 +43,13 @@ CREATE TABLE IF NOT EXISTS risposte (
     risposta TEXT NOT NULL,
     creato_il TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS domande (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    intervista_id INTEGER NOT NULL REFERENCES interviste(id),
+    indice INTEGER NOT NULL,
+    testo TEXT NOT NULL
+);
 """
 
 
@@ -138,3 +145,18 @@ class Storage:
                 """,
                 (intervista_id, indice_domanda, domanda, risposta, _now()),
             )
+
+    def salva_domande(self, intervista_id: int, domande: list[str]) -> None:
+        with self._connect() as conn:
+            conn.executemany(
+                "INSERT INTO domande (intervista_id, indice, testo) VALUES (?, ?, ?)",
+                [(intervista_id, indice, testo) for indice, testo in enumerate(domande)],
+            )
+
+    def carica_domande(self, intervista_id: int) -> list[str]:
+        with self._connect() as conn:
+            righe = conn.execute(
+                "SELECT testo FROM domande WHERE intervista_id = ? ORDER BY indice",
+                (intervista_id,),
+            ).fetchall()
+        return [riga[0] for riga in righe]

@@ -194,10 +194,12 @@ Nessuna modifica al codice è necessaria.
 
 Oltre al gazzettino (batch, Telethon a sessione utente), il repo contiene un
 **bot separato** in `bot/`, basato sulla Bot API (`python-telegram-bot`), che
-resta in ascolto e risponde a comandi in chat. Non legge la cronologia del
-gruppo — per quello serve la sessione utente sopra — ma può scegliere una
-persona a settimana, contattarla per prima e raccogliere le sue risposte in
-un'intervista guidata, da usare poi in un inserto settimanale.
+resta in ascolto e risponde a comandi in chat. Per i comandi normali non
+legge la cronologia del gruppo — per quello serve la sessione utente sopra —
+ma per l'intervista settimanale sceglie una persona, la contatta per prima e
+le fa un mix di domande generiche e specifiche, queste ultime basate su cosa
+ha scritto davvero nel gruppo quella settimana (per questo riusa la stessa
+sessione Telethon e OpenAI del gazzettino, solo in quel punto).
 
 - Comandi attuali: `/start`, `/ping` (prova di funzionamento), `/iscriviti`
   (per essere candidabile all'intervista), `/intervista` (per rispondere,
@@ -206,6 +208,15 @@ un'intervista guidata, da usare poi in un inserto settimanale.
   separato da `TELEGRAM_SESSION`. Vedi `.env.example` per tutte le variabili
   (`TELEGRAM_BOT_WEBHOOK_URL`, `TELEGRAM_BOT_WEBHOOK_SECRET`,
   `TELEGRAM_BOT_TRIGGER_SECRET`, `BOT_DB_PATH`).
+- **Domande dell'intervista** (`bot/domande.py`): al momento dell'estrazione
+  settimanale, il bot pesca fino a 2 domande da un elenco fisso (`DOMANDE_GENERICHE`,
+  a rotazione casuale) e fino a 3 domande specifiche generate da OpenAI a
+  partire sui messaggi che la persona scelta ha scritto nel gruppo negli
+  ultimi 7 giorni (letti con lo stesso client Telethon del gazzettino). Se
+  quella persona non ha scritto nulla, o mancano le variabili
+  `TELEGRAM_API_ID`/`TELEGRAM_API_HASH`/`TELEGRAM_SESSION`/`TELEGRAM_GROUP_ID`/`OPENAI_API_KEY`
+  sull'ambiente del bot, l'intervista parte comunque con le sole domande
+  generiche.
 - In locale: con `TELEGRAM_BOT_WEBHOOK_URL` vuoto, `python -m bot.app` parte
   in polling.
 - In produzione: deploy su [Render](https://render.com) (piano free, vedi

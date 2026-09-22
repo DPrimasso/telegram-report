@@ -144,6 +144,52 @@ async def _resolve_group(client: TelegramClient, group_id: int):
         )
 
 
+async def _resolve_member(client: TelegramClient, group, user_id: int):
+    # Stesso problema di _resolve_group: una StringSession fresca non ha in
+    # cache l'entita' di un utente mai visto in questa connessione, e
+    # from_user in iter_messages ne ha bisogno per risolvere l'ID. Si cerca
+    # tra i partecipanti del gruppo, che lo attraversano comunque una volta.
+    try:
+        return await client.get_entity(user_id)
+    except ValueError:
+        async for user in client.iter_participants(group):
+            if user.id == user_id:
+                return user
+        raise ValueError(
+            f"Impossibile trovare l'utente con ID {user_id} tra i membri del gruppo."
+        )
+
+
+async def fetch_user_messages(
+    client: TelegramClient,
+    group_id: int,
+    user_id: int,
+    since: datetime,
+    until: datetime,
+) -> list[SimpleMessage]:
+    """Messaggi scritti da un utente specifico nel gruppo, tra `since` e
+    `until` (entrambi consapevoli del fuso). Usata per le domande
+    specifiche dell'intervista settimanale: qui non servono i topic, solo
+    quello che quella persona ha scritto davvero."""
+    group = await _resolve_group(client, group_id)
+    member = await _resolve_member(client, group, user_id)
+
+    messaggi: list[SimpleMessage] = []
+    sender_cache: dict[int, str] = {}
+    async for message in client.iter_messages(group, from_user=member, offset_date=until):
+        if message.date < since:
+            break
+        text = _message_text(message)
+        if text is None:
+            continue
+        author = await _author_of(message, sender_cache)
+        messaggi.append(
+            SimpleMessage(author=author, timestamp=_local(message.date, since.tzinfo), text=text)
+        )
+    messaggi.sort(key=lambda m: m.timestamp)
+    return messaggi
+
+
 async def get_group_title(client: TelegramClient, group_id: int) -> str:
     group = await _resolve_group(client, group_id)
     return getattr(group, "title", None) or "Gazzettino"

@@ -2,7 +2,9 @@
 proattivo (chiamati dall'endpoint /trigger/intervista), e il flusso guidato
 delle domande una volta che la persona scelta scrive /intervista.
 
-Le domande sono un placeholder: quello vero si decide in seguito. Le
+Le domande sono un mix di generiche e specifiche (queste ultime ricavate dai
+messaggi della settimana della persona scelta, vedi bot/domande.py) e
+vengono generate e salvate una volta sola al momento dell'estrazione. Le
 risposte restano solo salvate (tabella `risposte`), pronte per essere lette
 da chi comporra' l'inserto settimanale.
 """
@@ -20,15 +22,11 @@ from telegram.ext import (
     filters,
 )
 
+from bot.domande import genera_domande
 from bot.registry import command
 from bot.storage import Storage
 
 logger = logging.getLogger(__name__)
-
-DOMANDE = [
-    "Domanda 1 (placeholder): raccontaci qualcosa di te.",
-    "Domanda 2 (placeholder): qual e' il tuo momento preferito del gruppo, ultimamente?",
-]
 
 IN_DOMANDA = 1
 
@@ -59,27 +57,38 @@ async def avvia_intervista(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return ConversationHandler.END
 
     intervista_id, _stato = aperta
+    domande_lista = storage.carica_domande(intervista_id)
+    if not domande_lista:
+        # Non dovrebbe succedere (scegli_e_invita le salva sempre almeno
+        # generiche), ma senza domande non c'e' nulla da chiedere.
+        await update.message.reply_text(
+            "Non ho domande pronte per te: avvisa chi gestisce il bot."
+        )
+        return ConversationHandler.END
+
     context.user_data["intervista_id"] = intervista_id
+    context.user_data["domande"] = domande_lista
     context.user_data["indice_domanda"] = 0
     storage.aggiorna_stato_intervista(intervista_id, "in corso")
-    await update.message.reply_text(DOMANDE[0])
+    await update.message.reply_text(domande_lista[0])
     return IN_DOMANDA
 
 
 async def ricevi_risposta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     storage: Storage = context.bot_data["storage"]
     intervista_id = context.user_data["intervista_id"]
+    domande_lista = context.user_data["domande"]
     indice = context.user_data["indice_domanda"]
-    storage.salva_risposta(intervista_id, indice, DOMANDE[indice], update.message.text)
+    storage.salva_risposta(intervista_id, indice, domande_lista[indice], update.message.text)
 
     indice += 1
-    if indice >= len(DOMANDE):
+    if indice >= len(domande_lista):
         storage.aggiorna_stato_intervista(intervista_id, "completata")
         await update.message.reply_text("Grazie, intervista completata!")
         return ConversationHandler.END
 
     context.user_data["indice_domanda"] = indice
-    await update.message.reply_text(DOMANDE[indice])
+    await update.message.reply_text(domande_lista[indice])
     return IN_DOMANDA
 
 
@@ -106,7 +115,17 @@ async def scegli_e_invita(bot: Bot, storage: Storage) -> int:
 
     utente_id, chat_id, username = random.choice(disponibili)
     storage.registra_estrazione(settimana, utente_id)
-    storage.apri_intervista(utente_id, settimana)
+    intervista_id = storage.apri_intervista(utente_id, settimana)
+
+    nome = username or f"utente {utente_id}"
+    try:
+        chat = await bot.get_chat(chat_id)
+        nome = chat.first_name or nome
+    except Exception:
+        pass
+
+    domande_lista = await genera_domande(nome, utente_id)
+    storage.salva_domande(intervista_id, domande_lista)
 
     await bot.send_message(
         chat_id=chat_id,

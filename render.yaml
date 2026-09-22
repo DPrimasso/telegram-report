@@ -6,6 +6,12 @@
 # il primo deploy puo' quindi partire senza, e va ri-deployato una volta
 # nota l'URL per attivare la modalita' webhook (altrimenti il bot resta in
 # polling, che su un web service free si ferma appena il servizio dorme).
+#
+# Le variabili TELEGRAM_API_ID/HASH/SESSION/GROUP_ID e OPENAI_API_KEY sono
+# le stesse gia' usate dal gazzettino (stessi valori dei secrets GitHub):
+# servono solo alle domande specifiche dell'intervista settimanale, che
+# rileggono i messaggi della persona scelta con lo stesso client Telethon.
+# Se mancano, il bot non si rompe: quelle domande restano solo generiche.
 services:
   - type: web
     name: telegram-report-bot
@@ -21,4 +27,16 @@ services:
       - key: TELEGRAM_BOT_WEBHOOK_SECRET
         sync: false
       - key: TELEGRAM_BOT_TRIGGER_SECRET
+        sync: false
+      - key: TELEGRAM_API_ID
+        sync: false
+      - key: TELEGRAM_API_HASH
+        sync: false
+      - key: TELEGRAM_SESSION
+        sync: false
+      - key: TELEGRAM_GROUP_ID
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
         sync: false
