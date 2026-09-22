@@ -91,8 +91,17 @@ jobs:
           # %u: 1 = lunedi, ... 7 = domenica. L'inserto esce lo stesso giro
           # notturno del gazzettino, dopo di lui: stessa edizione, due pezzi.
           if [ "$(date -u +%u)" = "7" ]; then
+            # Il piano free di Render addormenta il servizio se inattivo:
+            # lo si sveglia con una chiamata leggera (con retry, e' innocua
+            # da ripetere) prima di quella vera, invece di far scontare il
+            # risveglio alla generazione dell'inserto (Playwright + OpenAI +
+            # Telethon). /trigger/inserto e' idempotente (pubblica solo se
+            # c'e' qualcosa di non ancora pubblicato), quindi qui un retry
+            # e' sicuro.
+            curl -sS --retry 6 --retry-delay 5 --retry-all-errors \
+              "$TELEGRAM_BOT_WEBHOOK_URL/" > /dev/null
             curl -sS -X POST \
-              --fail \
+              --fail --max-time 120 --retry 2 --retry-delay 5 --retry-all-errors \
               -H "X-Trigger-Secret: $TELEGRAM_BOT_TRIGGER_SECRET" \
               "$TELEGRAM_BOT_WEBHOOK_URL/trigger/inserto"
           else

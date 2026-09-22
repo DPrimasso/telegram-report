@@ -13,9 +13,18 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
+      - name: Sveglia il servizio (piano free, si addormenta se inattivo)
+        run: |
+          curl -sS --retry 6 --retry-delay 5 --retry-all-errors \
+            "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/" > /dev/null
+
       - name: Chiama l'endpoint del bot per i promemoria e le chiusure
         run: |
+          # Niente retry qui: una chiusura scaduta estrae subito un
+          # sostituto (non idempotente), un retry dopo una chiamata
+          # riuscita ma con risposta persa rischierebbe una doppia
+          # estrazione. Il ping sopra ha gia' svegliato il servizio.
           curl -sS -X POST \
-            --fail \
+            --fail --max-time 60 \
             -H "X-Trigger-Secret: ${{ secrets.TELEGRAM_BOT_TRIGGER_SECRET }}" \
             "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/trigger/promemoria"

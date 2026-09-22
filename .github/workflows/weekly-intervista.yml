@@ -12,9 +12,18 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     steps:
+      - name: Sveglia il servizio (piano free, si addormenta se inattivo)
+        run: |
+          curl -sS --retry 6 --retry-delay 5 --retry-all-errors \
+            "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/" > /dev/null
+
       - name: Chiama l'endpoint del bot per scegliere e invitare
         run: |
+          # Niente retry qui: scegli_e_invita non e' idempotente (estrae
+          # sempre qualcuno di nuovo), un retry dopo una chiamata riuscita
+          # ma con risposta persa causerebbe una doppia estrazione nella
+          # stessa settimana. Il ping sopra ha gia' svegliato il servizio.
           curl -sS -X POST \
-            --fail \
+            --fail --max-time 60 \
             -H "X-Trigger-Secret: ${{ secrets.TELEGRAM_BOT_TRIGGER_SECRET }}" \
             "${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}/trigger/intervista"
