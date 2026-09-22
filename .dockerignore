@@ -1,0 +1,9 @@
+.git
+__pycache__
+*.pyc
+.env
+*.session
+*.session-journal
+bot/data
+preview_out/
+prova_vignette/

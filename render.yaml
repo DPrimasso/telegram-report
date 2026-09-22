@@ -17,10 +17,9 @@
 services:
   - type: web
     name: telegram-report-bot
-    env: python
+    env: docker
+    dockerfilePath: ./Dockerfile
     plan: free
-    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
-    startCommand: python -m bot.app
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
