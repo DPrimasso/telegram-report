@@ -19,6 +19,11 @@ grande e leggibile; la domanda e' solo il rilancio che introduce chi
 parla, quindi resta leggera (corsivo, come un occhiello). Le classi
 `.intervista-domanda`/`.intervista-risposta` in _CSS_EXTRA sono
 apposta per questo, e vengono iniettate pagina per pagina.
+
+L'accento cromatico e' un rosso terracotta invece dell'azzurro del
+gazzettino quotidiano: stessa carta, stesso navy, stessa impaginazione —
+resta la stessa testata — ma un colpo d'occhio basta per capire che
+questa pagina e' l'inserto e non l'edizione del giorno.
 """
 
 import html
@@ -26,8 +31,6 @@ from datetime import date
 from pathlib import Path
 
 from report.newspaper import (
-    AZZURRO,
-    AZZURRO_DEEP,
     MAX_PAGE_HEIGHT,
     NAVY,
     INK_SOFT,
@@ -38,6 +41,13 @@ from report.newspaper import (
     _wrap_page,
     data_uri,
 )
+
+# Il rosso dell'inserto: stesso ruolo dell'azzurro nel gazzettino
+# quotidiano (accento, bordo della citazione, etichette), ma un colore
+# diverso perche' la pagina si distingua a colpo d'occhio pur restando
+# evidentemente la stessa pubblicazione (carta, navy e testata uguali).
+_ROSSO = "#9c3b2e"
+_ROSSO_DEEP = "#7a2e23"
 
 # Stime in px CSS, sullo stesso principio di report/newspaper.py: per
 # eccesso, perche' un'ultima pagina che sfonda il tetto e' peggio di una
@@ -53,12 +63,18 @@ _H_RISPOSTA_BASE = 60  # bordo, "chi", margini del blocco risposta
 EDIZIONE_LABEL = "Inserto settimanale"
 
 _CSS_EXTRA = f"""
+/* Gli stessi ruoli del gazzettino (bordo testata, folio, occhiello), ma
+   in rosso: e' quello che rende l'inserto riconoscibile a colpo d'occhio. */
+.rule-accent {{ background: {_ROSSO}; }}
+.dateline .folio {{ color: {_ROSSO}; }}
+.kicker {{ background: {_ROSSO}; }}
+
 .intervista-domanda {{
   font-size: 26px; line-height: 1.3; font-weight: 500; font-style: italic;
   color: {INK_SOFT}; margin-bottom: 12px;
 }}
 .intervista-risposta {{
-  border-left: 5px solid {AZZURRO}; padding: 3px 0 3px 16px; margin: 4px 0 0 0;
+  border-left: 5px solid {_ROSSO}; padding: 3px 0 3px 16px; margin: 4px 0 0 0;
 }}
 .intervista-risposta p {{
   font-size: 27px; line-height: 1.3; font-weight: 700; color: {NAVY};
@@ -66,7 +82,7 @@ _CSS_EXTRA = f"""
 }}
 .intervista-risposta .chi {{
   display: block; font-size: 14px; font-weight: 800; letter-spacing: 0.1em;
-  text-transform: uppercase; color: {AZZURRO_DEEP};
+  text-transform: uppercase; color: {_ROSSO_DEEP};
 }}
 .intervista-intro-row {{ display: flex; align-items: flex-start; gap: 24px; }}
 .intervista-foto {{
