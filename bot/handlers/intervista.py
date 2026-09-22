@@ -54,7 +54,8 @@ async def iscriviti(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "tra chi si è iscritto (evitando chi è già stato scelto di recente): "
         "se tocca a te, te lo scrivo qui e potrai rispondere quando vuoi con "
         "/intervista. Le interviste completate escono nell'inserto del "
-        "gazzettino la domenica sera."
+        "gazzettino la notte tra sabato e domenica, insieme all'edizione di "
+        "tutti i giorni."
     )
 
 
@@ -155,8 +156,9 @@ async def scegli_e_invita(bot: Bot, storage: Storage) -> int:
         text=(
             "Questa settimana tocca a te! Quando vuoi, scrivi /intervista per "
             "rispondere a qualche domanda sulla tua settimana nel gruppo. Se "
-            "rispondi entro domenica sera la tua intervista esce nell'inserto "
-            "di questa settimana, altrimenti in quello della settimana dopo — "
+            "rispondi entro sabato la tua intervista esce nell'inserto di "
+            "questa settimana (esce di notte, insieme al gazzettino, tra "
+            "sabato e domenica), altrimenti in quello della settimana dopo — "
             "nessuna fretta."
         ),
     )

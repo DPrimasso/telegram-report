@@ -232,11 +232,12 @@ sessione Telethon e OpenAI del gazzettino, solo in quel punto).
   `.github/workflows/weekly-intervista.yml` (cron, di lunedì), che chiama
   l'endpoint protetto `/trigger/intervista` del servizio Render per
   svegliarlo e fargli scegliere e contattare la persona di turno.
-- **Inserto settimanale** (`report/inserto.py` + `bot/inserto.py`): una volta
-  che l'intervista è completata, `.github/workflows/weekly-inserto.yml`
-  (cron, di domenica sera — dà tempo a chi risponde durante la settimana)
-  chiama l'endpoint protetto `/trigger/inserto`, che impagina la più vecchia
-  intervista completata e non ancora pubblicata nello stesso stile grafico
+- **Inserto settimanale** (`report/inserto.py` + `bot/inserto.py`): pubblicato
+  dallo stesso workflow del gazzettino giornaliero (`daily-report.yml`), come
+  step in più eseguito solo la domenica (controllo `date -u +%u`), subito dopo
+  aver inviato il gazzettino — stesso giro notturno, prima il gazzettino, poi
+  l'inserto. Chiama l'endpoint protetto `/trigger/inserto`, che impagina la
+  più vecchia intervista completata e non ancora pubblicata nello stesso stile grafico
   del gazzettino (stessa testata, stessi colori/font, riquadri "domanda" +
   citazione per ogni risposta) e la invia con la stessa pipeline Telethon del
   report giornaliero (`report/send.py::send_photo_report`), nella

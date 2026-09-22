@@ -81,3 +81,20 @@ jobs:
           else
             python main.py --format "$FORMAT"
           fi
+
+      - name: Pubblica l'inserto settimanale (solo di domenica, dopo il gazzettino)
+        if: github.event.inputs.list_topics != 'true'
+        env:
+          TELEGRAM_BOT_WEBHOOK_URL: ${{ secrets.TELEGRAM_BOT_WEBHOOK_URL }}
+          TELEGRAM_BOT_TRIGGER_SECRET: ${{ secrets.TELEGRAM_BOT_TRIGGER_SECRET }}
+        run: |
+          # %u: 1 = lunedi, ... 7 = domenica. L'inserto esce lo stesso giro
+          # notturno del gazzettino, dopo di lui: stessa edizione, due pezzi.
+          if [ "$(date -u +%u)" = "7" ]; then
+            curl -sS -X POST \
+              --fail \
+              -H "X-Trigger-Secret: $TELEGRAM_BOT_TRIGGER_SECRET" \
+              "$TELEGRAM_BOT_WEBHOOK_URL/trigger/inserto"
+          else
+            echo "Non e' domenica: nessun inserto da pubblicare oggi."
+          fi

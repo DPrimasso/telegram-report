@@ -1,12 +1,10 @@
-name: Inserto settimanale Telegram
+name: Inserto settimanale Telegram (manuale)
 
+# Il trigger automatico è nel workflow del gazzettino (daily-report.yml):
+# la domenica notte, subito dopo aver inviato il gazzettino, chiama lo
+# stesso endpoint da qui sotto. Questo workflow resta solo per lanciarlo
+# a mano quando serve provarlo o forzarlo fuori dal solito giro.
 on:
-  schedule:
-    # Domenica alle 18:00 UTC (19:00/20:00 ora italiana a seconda del
-    # cambio d'ora): da' tempo alla persona scelta di rispondere durante
-    # la settimana prima che l'inserto esca. Cambia l'orario qui se serve
-    # un giorno diverso.
-    - cron: "0 18 * * 0"
   workflow_dispatch: {}
 
 jobs:
