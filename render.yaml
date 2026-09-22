@@ -9,9 +9,11 @@
 #
 # Le variabili TELEGRAM_API_ID/HASH/SESSION/GROUP_ID e OPENAI_API_KEY sono
 # le stesse gia' usate dal gazzettino (stessi valori dei secrets GitHub):
-# servono solo alle domande specifiche dell'intervista settimanale, che
-# rileggono i messaggi della persona scelta con lo stesso client Telethon.
-# Se mancano, il bot non si rompe: quelle domande restano solo generiche.
+# servono sia alle domande specifiche dell'intervista (rilette dal gruppo
+# con lo stesso client Telethon) sia a impaginare e inviare l'inserto
+# settimanale (report/inserto.py + bot/inserto.py), che riusa la stessa
+# pipeline Telethon/Playwright del gazzettino. Se mancano, l'intervista
+# parte comunque con domande generiche, ma l'inserto non puo' uscire.
 services:
   - type: web
     name: telegram-report-bot
