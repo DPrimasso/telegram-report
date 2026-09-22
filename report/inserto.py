@@ -31,9 +31,9 @@ from datetime import date
 from pathlib import Path
 
 from report.newspaper import (
+    INK,
     MAX_PAGE_HEIGHT,
     NAVY,
-    INK_SOFT,
     _dateline_html,
     _footer_html,
     _masthead,
@@ -71,7 +71,7 @@ _CSS_EXTRA = f"""
 
 .intervista-domanda {{
   font-size: 26px; line-height: 1.3; font-weight: 500; font-style: italic;
-  color: {INK_SOFT}; margin-bottom: 12px;
+  color: {INK}; margin-bottom: 12px;
 }}
 .intervista-risposta {{
   border-left: 5px solid {_ROSSO}; padding: 3px 0 3px 16px; margin: 4px 0 0 0;
