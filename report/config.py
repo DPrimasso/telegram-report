@@ -62,6 +62,10 @@ class Config:
     report_topic_id: int | None
     timezone: str
     newspaper_name: str | None
+    # Il tema del gruppo (es. "tifosi del Napoli"), da tenere come ancora
+    # tematica nell'intervista settimanale del bot: si può parlare d'altro,
+    # ma il focus torna li'. None = nessun'ancora, va bene qualunque argomento.
+    tema_gruppo: str | None
     youtube_channel_id: str
     logo_path: str
     # Il marchio di chi fa il giornale, nella gerenza in fondo
@@ -124,6 +128,7 @@ def load_config() -> Config:
         report_topic_id=int(topic_id) if topic_id else None,
         timezone=os.environ.get("REPORT_TIMEZONE") or "Europe/Rome",
         newspaper_name=os.environ.get("NEWSPAPER_NAME") or None,
+        tema_gruppo=os.environ.get("TEMA_GRUPPO") or None,
         youtube_channel_id=os.environ.get("YOUTUBE_CHANNEL_ID") or "UCrXpaY2E4glX7Syy9xQiDIg",
         logo_path=os.environ.get("LOGO_PATH") or "assets/logo-carta.png",
         firma_path=os.environ.get("FIRMA_PATH") or "assets/logo-dprimo17-gerenza.png",

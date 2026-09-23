@@ -18,7 +18,7 @@ parte, e serve solo qui, non per rispondere ai comandi normali.
 import logging
 import random
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from openai import OpenAI
@@ -58,13 +58,17 @@ MAX_TOPIC = 3
 MAX_TRASCRITTO_CHARS = 12_000
 
 
-def _prompt_intervista(nome: str, trascritto: str) -> str:
+def _prompt_intervista(
+    nome: str, trascritto: str, oggi: date, tema_gruppo: str | None
+) -> str:
     if trascritto:
         contesto = (
             f"Sotto trovi le conversazioni dei topic del gruppo a cui {nome} "
             "ha partecipato negli ultimi 7 giorni, con TUTTI i messaggi (non "
-            f"solo i suoi): usali per capire il contesto — di cosa si "
-            f"parlava, a chi o cosa si riferiva {nome}.\n\n"
+            f"solo i suoi) e la data di ciascuno: usali per capire il "
+            f"contesto — di cosa si parlava, a chi o cosa si riferiva {nome}, "
+            "e se un fatto o un evento citato e' concluso o ancora da "
+            "venire rispetto a oggi.\n\n"
             f"Conversazioni:\n{trascritto}"
         )
     else:
@@ -73,12 +77,19 @@ def _prompt_intervista(nome: str, trascritto: str) -> str:
             "fai comunque un'intervista credibile, con domande piu' generali "
             "sul gruppo e su come vive la settimana, nello stesso tono."
         )
+    focus_tematico = (
+        f"\nQuesto e' un gruppo di {tema_gruppo}: anche se nelle conversazioni "
+        "si parla d'altro, tieni le domande centrate li' quando è pertinente, "
+        "invece di seguire argomenti secondari.\n"
+        if tema_gruppo
+        else ""
+    )
     return (
         f"Sei un giornalista che sta intervistando {nome} per il gazzettino "
         "di un gruppo Telegram, protagonista della settimana: scrivi come "
         "se stessi davvero intervistando un personaggio pubblico, non come "
-        f"un questionario. Prepara {NUM_DOMANDE} domande, in un arco "
-        "naturale da vera intervista:\n"
+        f"un questionario. Oggi è {oggi.strftime('%d/%m/%Y')}. Prepara "
+        f"{NUM_DOMANDE} domande, in un arco naturale da vera intervista:\n"
         "- la prima è una domanda di apertura, che mette a suo agio;\n"
         "- quelle centrali entrano nel merito di episodi concreti della "
         "settimana, formulate come farebbe un giornalista che gia' conosce "
@@ -89,8 +100,13 @@ def _prompt_intervista(nome: str, trascritto: str) -> str:
         "Regole:\n"
         "- Basati ESCLUSIVAMENTE su quello che e' scritto qui sotto: non "
         "inventare fatti, nomi o dettagli che non ci siano.\n"
+        "- Attenzione al tempo: se un evento di cui si parla (una partita, "
+        "un appuntamento) risulta già accaduto rispetto a oggi, fai la "
+        "domanda guardando indietro (com'è andata, cosa ne pensi ora), MAI "
+        "come se dovesse ancora succedere.\n"
         f"- Rivolgiti a {nome} in seconda persona, con un tono professionale "
         "ma cordiale, come si farebbe con un ospite d'onore.\n"
+        f"{focus_tematico}"
         "- Una domanda per riga, senza numerazione ne' altro testo.\n\n"
         f"{contesto}"
     )
@@ -121,7 +137,9 @@ def _prompt_reazione(nome: str, domanda: str, risposta: str, ultima: bool) -> st
     )
 
 
-async def _contesto_settimana(config: Config, user_id: int) -> tuple[str, list[TopicMessages]]:
+async def _contesto_settimana(
+    config: Config, user_id: int
+) -> tuple[str, list[TopicMessages], date]:
     tz = ZoneInfo(config.timezone)
     ora = datetime.now(tz)
     since = ora - timedelta(days=7)
@@ -130,14 +148,16 @@ async def _contesto_settimana(config: Config, user_id: int) -> tuple[str, list[T
     async with client:
         nome_autore = await resolve_member_name(client, config.group_id, user_id)
         topics = await fetch_messages_between(client, config.group_id, since, ora)
-    return nome_autore, topics
+    return nome_autore, topics, ora.date()
 
 
 def _trascritto_con_contesto(nome_autore: str, topics: list[TopicMessages]) -> str:
     """Un topic per blocco, con la conversazione intera (non solo le righe
     di `nome_autore`): e' il contesto che serve al modello per capire di
     cosa si parlava. Solo i topic a cui ha partecipato, i piu' attivi per
-    lui prima, entro un tetto di lunghezza."""
+    lui prima, entro un tetto di lunghezza. Ogni riga porta la sua data:
+    senza, il modello non ha modo di sapere se un evento citato (una
+    partita, un appuntamento) e' gia' successo rispetto a oggi."""
     partecipati = [
         topic for topic in topics if any(m.author == nome_autore for m in topic.messages)
     ]
@@ -147,18 +167,22 @@ def _trascritto_con_contesto(nome_autore: str, topics: list[TopicMessages]) -> s
 
     blocchi = []
     for topic in partecipati[:MAX_TOPIC]:
-        righe = "\n".join(f"{m.author}: {m.text}" for m in topic.messages)
+        righe = "\n".join(
+            f"[{m.timestamp.strftime('%d/%m')}] {m.author}: {m.text}" for m in topic.messages
+        )
         blocchi.append(f"### {topic.title}\n{righe}")
 
     return "\n\n".join(blocchi)[:MAX_TRASCRITTO_CHARS]
 
 
-def _genera_intervista_llm(config: Config, nome: str, trascritto: str) -> list[str]:
+def _genera_intervista_llm(
+    config: Config, nome: str, trascritto: str, oggi: date
+) -> list[str]:
     openai_client = OpenAI(api_key=config.openai_api_key)
     risposta = llm.complete(
         openai_client,
         config.openai_model,
-        _prompt_intervista(nome, trascritto),
+        _prompt_intervista(nome, trascritto, oggi, config.tema_gruppo),
         temperature=0.8,
     )
     righe = [_MARCATORE_ELENCO.sub("", riga).strip() for riga in risposta.splitlines()]
@@ -173,9 +197,9 @@ async def genera_domande(nome: str, user_id: int) -> list[str]:
     OpenAI), ripiega sul pool fisso: l'intervista parte comunque."""
     try:
         config = load_config()
-        nome_autore, topics = await _contesto_settimana(config, user_id)
+        nome_autore, topics, oggi = await _contesto_settimana(config, user_id)
         trascritto = _trascritto_con_contesto(nome_autore, topics)
-        domande = _genera_intervista_llm(config, nome, trascritto)
+        domande = _genera_intervista_llm(config, nome, trascritto, oggi)
         if domande:
             return domande
     except Exception as errore:
