@@ -37,6 +37,7 @@ TRIGGER_INTERVISTA_PATH = "/trigger/intervista"
 TRIGGER_INSERTO_PATH = "/trigger/inserto"
 TRIGGER_RESET_ESTRAZIONI_PATH = "/trigger/reset-estrazioni"
 TRIGGER_PROMEMORIA_PATH = "/trigger/promemoria"
+DEBUG_STATO_PATH = "/debug/stato"
 
 
 def build_application(config: BotConfig, storage: Storage) -> Application:
@@ -100,6 +101,34 @@ def create_starlette_app(
         promemoria, chiuse = await intervista.sollecita_e_chiudi_scadute(application.bot, storage)
         return PlainTextResponse(f"promemoria: {promemoria}, chiuse: {chiuse}")
 
+    async def debug_stato(request: Request) -> Response:
+        if not config.trigger_secret:
+            return Response(status_code=404)
+        if not _secret_valido(request):
+            return Response(status_code=401)
+
+        righe = ["Candidati:"]
+        for user_id, chat_id, username, registrato_il in storage.elenco_candidati():
+            righe.append(
+                f"  user_id={user_id} chat_id={chat_id} username={username!r} "
+                f"iscritto il {registrato_il}"
+            )
+        if len(righe) == 1:
+            righe.append("  (nessuno)")
+
+        aperte = storage.interviste_aperte()
+        righe.append(f"\nInterviste aperte ({len(aperte)}):")
+        for intervista_id, user_id, chat_id, nome, settimana, invitato_il in aperte:
+            righe.append(
+                f"  id={intervista_id} user_id={user_id} nome={nome!r} "
+                f"settimana={settimana} invitato il {invitato_il}"
+            )
+
+        prossima = storage.prossima_intervista_da_pubblicare()
+        righe.append(f"\nProssima da pubblicare: {prossima}")
+
+        return PlainTextResponse("\n".join(righe))
+
     async def health(request: Request) -> Response:
         return PlainTextResponse("ok")
 
@@ -110,6 +139,7 @@ def create_starlette_app(
             Route(TRIGGER_INSERTO_PATH, trigger_inserto, methods=["POST"]),
             Route(TRIGGER_RESET_ESTRAZIONI_PATH, trigger_reset_estrazioni, methods=["POST"]),
             Route(TRIGGER_PROMEMORIA_PATH, trigger_promemoria, methods=["POST"]),
+            Route(DEBUG_STATO_PATH, debug_stato, methods=["GET"]),
             Route("/", health, methods=["GET"]),
         ]
     )

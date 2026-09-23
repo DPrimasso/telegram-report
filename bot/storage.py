@@ -102,6 +102,17 @@ class Storage:
                 (user_id, chat_id, username, _now()),
             )
 
+    def elenco_candidati(self) -> list[tuple[int, int, str | None, str]]:
+        """(user_id, chat_id, username, registrato_il) di tutti gli iscritti,
+        i piu' vecchi prima. Usata solo dall'endpoint di debug: non c'e'
+        accesso diretto al file SQLite quando gira su Render."""
+        with self._connect() as conn:
+            righe = conn.execute(
+                "SELECT user_id, chat_id, username, registrato_il FROM candidati "
+                "ORDER BY registrato_il"
+            ).fetchall()
+        return [tuple(riga) for riga in righe]
+
     def candidati_disponibili(self, esclusi: set[int]) -> list[tuple[int, int, str | None]]:
         with self._connect() as conn:
             righe = conn.execute(
